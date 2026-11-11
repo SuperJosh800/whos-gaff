@@ -10,7 +10,9 @@
 	const base = $derived(`/events/${event.id}`);
 	const tabs = $derived([
 		{ href: base, label: 'Overview' },
-		{ href: `${base}/gaff`, label: 'Gaff' }
+		{ href: `${base}/gaff`, label: 'Gaff' },
+		{ href: `${base}/night`, label: 'Night' },
+		{ href: `${base}/money`, label: 'Money' }
 	]);
 
 	async function openChat() {

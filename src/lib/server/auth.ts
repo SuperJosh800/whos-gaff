@@ -46,6 +46,26 @@ export function logIn(email: string, password: string): User | null {
 	return { id: row.id, email: row.email, name: row.name };
 }
 
+export type Profile = User & { payment_link: string; payday: number | null };
+
+export function getProfile(userId: number) {
+	return db.prepare('SELECT id, email, name, payment_link, payday FROM users WHERE id = ?').get(userId) as Profile;
+}
+
+/** Returns an error message, or null when saved. */
+export function updateProfile(userId: number, input: { name: string; paymentLink: string; payday: string }) {
+	const name = input.name.trim();
+	const paymentLink = input.paymentLink.trim();
+	const payday = input.payday ? Number(input.payday) : null;
+	if (!name) return 'Enter your name.';
+	if (paymentLink && !/^https:\/\/\S+$/.test(paymentLink)) return 'Payment links must start with https://';
+	if (payday !== null && !(Number.isInteger(payday) && payday >= 1 && payday <= 31)) {
+		return 'Payday must be a day of the month (1 to 31).';
+	}
+	db.prepare('UPDATE users SET name = ?, payment_link = ?, payday = ? WHERE id = ?').run(name, paymentLink, payday, userId);
+	return null;
+}
+
 export function createSession(userId: number) {
 	const token = randomBytes(32).toString('base64url');
 	const expires = Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000;

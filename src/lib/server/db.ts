@@ -112,6 +112,65 @@ const migrations: string[] = [
 		what TEXT NOT NULL,
 		created_at TEXT NOT NULL DEFAULT (datetime('now'))
 	);
+	`,
+	`
+	CREATE TABLE timeline_stages (
+		id INTEGER PRIMARY KEY,
+		event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+		name TEXT NOT NULL,
+		starts_at TEXT NOT NULL,
+		place TEXT NOT NULL DEFAULT ''
+	);
+	CREATE TABLE moves (
+		id INTEGER PRIMARY KEY,
+		event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+		user_id INTEGER NOT NULL REFERENCES users(id),
+		place TEXT NOT NULL,
+		created_at TEXT NOT NULL DEFAULT (datetime('now'))
+	);
+	CREATE TABLE home_plans (
+		event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+		user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		kind TEXT NOT NULL,
+		details TEXT NOT NULL DEFAULT '',
+		PRIMARY KEY (event_id, user_id)
+	);
+	CREATE TABLE home_safe (
+		event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+		user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		at TEXT NOT NULL,
+		PRIMARY KEY (event_id, user_id)
+	);
+	CREATE TABLE rounds (
+		id INTEGER PRIMARY KEY,
+		event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+		user_id INTEGER NOT NULL REFERENCES users(id),
+		skipped INTEGER NOT NULL DEFAULT 0,
+		created_at TEXT NOT NULL DEFAULT (datetime('now'))
+	);
+	CREATE TABLE expenses (
+		id INTEGER PRIMARY KEY,
+		event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+		paid_by INTEGER NOT NULL REFERENCES users(id),
+		description TEXT NOT NULL,
+		amount_pence INTEGER NOT NULL CHECK (amount_pence > 0),
+		created_at TEXT NOT NULL DEFAULT (datetime('now'))
+	);
+	CREATE TABLE expense_shares (
+		expense_id INTEGER NOT NULL REFERENCES expenses(id) ON DELETE CASCADE,
+		user_id INTEGER NOT NULL REFERENCES users(id),
+		PRIMARY KEY (expense_id, user_id)
+	);
+	CREATE TABLE settlements (
+		id INTEGER PRIMARY KEY,
+		event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+		from_user INTEGER NOT NULL REFERENCES users(id),
+		to_user INTEGER NOT NULL REFERENCES users(id),
+		amount_pence INTEGER NOT NULL CHECK (amount_pence > 0),
+		created_at TEXT NOT NULL DEFAULT (datetime('now'))
+	);
+	ALTER TABLE users ADD COLUMN payment_link TEXT NOT NULL DEFAULT '';
+	ALTER TABLE users ADD COLUMN payday INTEGER CHECK (payday BETWEEN 1 AND 31);
 	`
 ];
 

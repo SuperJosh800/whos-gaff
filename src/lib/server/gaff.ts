@@ -1,6 +1,6 @@
 import { db } from './db.ts';
 import { publish } from './realtime.ts';
-import { EventError, getEvent, isMember, type Event } from './events.ts';
+import { EventError, requireHost, requireMember, type Event } from './events.ts';
 
 // ---- Gaff profiles (WG-24) ----
 
@@ -59,8 +59,7 @@ export function deleteGaff(ownerId: number, id: number) {
 
 /** The host attaches one of their saved gaff profiles to an event, or detaches it with null. */
 export function attachGaff(eventId: number, hostId: number, gaffId: number | null) {
-	const event = getEvent(eventId);
-	if (!event || event.host_id !== hostId) throw new EventError('Only the host can do that.');
+	requireHost(eventId, hostId);
 	if (gaffId !== null) ownGaff(gaffId, hostId);
 	db.prepare('UPDATE events SET gaff_id = ? WHERE id = ?').run(gaffId, eventId);
 	publish(eventId);
@@ -88,12 +87,6 @@ export function listBringItems(eventId: number) {
 			 LEFT JOIN users u ON u.id = b.claimed_by WHERE b.event_id = ? ORDER BY b.id`
 		)
 		.all(eventId) as BringItem[];
-}
-
-function requireMember(eventId: number, userId: number) {
-	const event = getEvent(eventId);
-	if (!event || !isMember(eventId, userId)) throw new EventError('You are not invited to this event.');
-	return event;
 }
 
 function requireItem(eventId: number, itemId: number) {

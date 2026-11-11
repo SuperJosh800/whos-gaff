@@ -77,13 +77,13 @@ function requireEvent(eventId: number) {
 	return event;
 }
 
-function requireMember(eventId: number, userId: number) {
+export function requireMember(eventId: number, userId: number) {
 	const event = requireEvent(eventId);
 	if (!isMember(eventId, userId)) throw new EventError('You are not invited to this event.');
 	return event;
 }
 
-function requireHost(eventId: number, userId: number) {
+export function requireHost(eventId: number, userId: number) {
 	const event = requireEvent(eventId);
 	if (event.host_id !== userId) throw new EventError('Only the host can do that.');
 	return event;

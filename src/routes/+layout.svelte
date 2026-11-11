@@ -19,7 +19,7 @@
 				<div class="flex items-center gap-3 text-sm">
 					<a href="/gaffs" class="hidden text-zinc-600 hover:text-zinc-900 sm:inline">My gaffs</a>
 					<a href="/events/new" class="btn btn-small">New event</a>
-					<span class="hidden text-zinc-600 sm:inline">{data.user.name}</span>
+					<a href="/profile" class="hidden text-zinc-600 hover:text-zinc-900 sm:inline">{data.user.name}</a>
 					<form method="POST" action="/logout">
 						<button class="text-zinc-600 hover:text-zinc-900">Log out</button>
 					</form>
