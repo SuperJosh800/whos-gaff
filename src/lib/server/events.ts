@@ -108,6 +108,8 @@ export type NewEvent = {
 	voteDeadline?: string;
 	/** A saved gaff profile of the host's (WG-24). */
 	gaffId?: number | null;
+	/** A group of the host's; all its members are invited. */
+	groupId?: number | null;
 };
 
 export function createEvent(hostId: number, input: NewEvent) {
@@ -139,12 +141,16 @@ export function createEvent(hostId: number, input: NewEvent) {
 	if (gaffId && !db.prepare('SELECT 1 FROM gaffs WHERE id = ? AND owner_id = ?').get(gaffId, hostId)) {
 		throw new EventError('Gaff profile not found.');
 	}
+	const groupId = input.groupId || null;
+	if (groupId && !db.prepare('SELECT 1 FROM group_members WHERE group_id = ? AND user_id = ?').get(groupId, hostId)) {
+		throw new EventError('You’re not in that group.');
+	}
 
-	return tx(() => {
+	const eventId = tx(() => {
 		const { lastInsertRowid } = db
 			.prepare(
-				`INSERT INTO events (host_id, title, details, location, mode, starts_at, vote_deadline, invite_token, gaff_id)
-				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+				`INSERT INTO events (host_id, title, details, location, mode, starts_at, vote_deadline, invite_token, gaff_id, group_id)
+				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 			)
 			.run(
 				hostId,
@@ -155,7 +161,8 @@ export function createEvent(hostId: number, input: NewEvent) {
 				startsAt,
 				deadline,
 				randomBytes(12).toString('base64url'),
-				gaffId
+				gaffId,
+				groupId
 			);
 		const eventId = Number(lastInsertRowid);
 		db.prepare('INSERT INTO event_members (event_id, user_id) VALUES (?, ?)').run(eventId, hostId);
@@ -163,8 +170,21 @@ export function createEvent(hostId: number, input: NewEvent) {
 			'INSERT INTO date_options (event_id, starts_at, suggested_by) VALUES (?, ?, ?)'
 		);
 		for (const o of options) insertOption.run(eventId, o, hostId);
+		if (groupId) {
+			db.prepare(
+				`INSERT OR IGNORE INTO event_members (event_id, user_id) SELECT ?, user_id FROM group_members WHERE group_id = ?`
+			).run(eventId, groupId);
+		}
 		return eventId;
 	});
+	if (groupId) {
+		const host = db.prepare('SELECT name FROM users WHERE id = ?').get(hostId) as { name: string };
+		const guests = db
+			.prepare('SELECT user_id FROM event_members WHERE event_id = ? AND user_id != ?')
+			.all(eventId, hostId) as { user_id: number }[];
+		for (const g of guests) notify(g.user_id, eventId, `${host.name} invited you to ${title}.`);
+	}
+	return eventId;
 }
 
 // ---- Date options and votes ----

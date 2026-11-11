@@ -5,7 +5,9 @@
 	let { data, form }: PageProps = $props();
 
 	// svelte-ignore state_referenced_locally
-	const initial = form?.values;
+	const initial = form?.values ?? { title: data.prefill.title, startsAt: data.prefill.date, mode: undefined, details: '', location: '', options: [], voteDeadline: '', gaffId: null, groupId: Number(data.prefill.group) || null };
+	// svelte-ignore state_referenced_locally
+	const ping = data.prefill.ping;
 	let mode = $state<'fixed' | 'poll'>(initial?.mode ?? 'fixed');
 	let options = $state<string[]>(initial?.options?.length ? initial.options : ['', '']);
 	let hasDeadline = $state(!!initial?.voteDeadline);
@@ -28,6 +30,17 @@
 		<label class="label" for="location">Where <span class="font-normal text-zinc-500">(optional)</span></label>
 		<input class="input" id="location" name="location" placeholder="12 Byres Road" value={initial?.location ?? ''} />
 	</div>
+
+	{#if data.groups.length}
+		<div>
+			<label class="label" for="group">Invite a group <span class="font-normal text-zinc-500">(optional)</span></label>
+			<select class="input" id="group" name="group" value={initial?.groupId ?? ''}>
+				<option value="">No group</option>
+				{#each data.groups as g (g.id)}<option value={g.id}>{g.name} ({g.members})</option>{/each}
+			</select>
+			{#if ping}<input type="hidden" name="ping" value={ping} />{/if}
+		</div>
+	{/if}
 
 	{#if data.gaffs.length}
 		<div>

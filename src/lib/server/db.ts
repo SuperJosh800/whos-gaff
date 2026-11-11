@@ -171,6 +171,44 @@ const migrations: string[] = [
 	);
 	ALTER TABLE users ADD COLUMN payment_link TEXT NOT NULL DEFAULT '';
 	ALTER TABLE users ADD COLUMN payday INTEGER CHECK (payday BETWEEN 1 AND 31);
+	`,
+	`
+	CREATE TABLE friend_groups (
+		id INTEGER PRIMARY KEY,
+		name TEXT NOT NULL,
+		invite_token TEXT NOT NULL UNIQUE,
+		created_by INTEGER NOT NULL REFERENCES users(id),
+		created_at TEXT NOT NULL DEFAULT (datetime('now'))
+	);
+	CREATE TABLE group_members (
+		group_id INTEGER NOT NULL REFERENCES friend_groups(id) ON DELETE CASCADE,
+		user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		joined_at TEXT NOT NULL DEFAULT (datetime('now')),
+		PRIMARY KEY (group_id, user_id)
+	);
+	ALTER TABLE events ADD COLUMN group_id INTEGER REFERENCES friend_groups(id) ON DELETE SET NULL;
+	CREATE TABLE free_gaffs (
+		id INTEGER PRIMARY KEY,
+		group_id INTEGER NOT NULL REFERENCES friend_groups(id) ON DELETE CASCADE,
+		user_id INTEGER NOT NULL REFERENCES users(id),
+		place TEXT NOT NULL,
+		from_date TEXT NOT NULL,
+		to_date TEXT NOT NULL,
+		created_at TEXT NOT NULL DEFAULT (datetime('now'))
+	);
+	CREATE TABLE pings (
+		id INTEGER PRIMARY KEY,
+		group_id INTEGER NOT NULL REFERENCES friend_groups(id) ON DELETE CASCADE,
+		user_id INTEGER NOT NULL REFERENCES users(id),
+		event_id INTEGER REFERENCES events(id) ON DELETE SET NULL,
+		created_at TEXT NOT NULL DEFAULT (datetime('now'))
+	);
+	CREATE TABLE ping_answers (
+		ping_id INTEGER NOT NULL REFERENCES pings(id) ON DELETE CASCADE,
+		user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		answer TEXT NOT NULL CHECK (answer IN ('yes', 'no')),
+		PRIMARY KEY (ping_id, user_id)
+	);
 	`
 ];
 

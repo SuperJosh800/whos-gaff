@@ -17,6 +17,7 @@
 			<a href="/" class="text-lg font-extrabold tracking-tight text-brand-700">Who's Gaff</a>
 			{#if data.user}
 				<div class="flex items-center gap-3 text-sm">
+					<a href="/groups" class="text-zinc-600 hover:text-zinc-900">Groups</a>
 					<a href="/gaffs" class="hidden text-zinc-600 hover:text-zinc-900 sm:inline">My gaffs</a>
 					<a href="/events/new" class="btn btn-small">New event</a>
 					<a href="/profile" class="hidden text-zinc-600 hover:text-zinc-900 sm:inline">{data.user.name}</a>
