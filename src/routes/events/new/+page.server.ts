@@ -1,11 +1,12 @@
 import { fail, redirect } from '@sveltejs/kit';
 import { createEvent, EventError } from '#lib/server/events.ts';
 import { listGaffs } from '#lib/server/gaff.ts';
+import { getProfile } from '#lib/server/auth.ts';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = ({ locals, url }) => {
 	if (!locals.user) redirect(303, `/login?next=${encodeURIComponent(url.pathname)}`);
-	return { gaffs: listGaffs(locals.user.id) };
+	return { gaffs: listGaffs(locals.user.id), payday: getProfile(locals.user.id).payday };
 };
 
 export const actions: Actions = {

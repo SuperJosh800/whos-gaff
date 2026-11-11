@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { formatWhen } from '#lib/time.ts';
+	import { formatWhen, isJustAfterPayday } from '#lib/time.ts';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -48,7 +48,12 @@
 								<button type="button" class="btn-secondary btn-small" onclick={() => (editing = null)}>Cancel</button>
 							</form>
 						{:else}
-							<p class="font-semibold">{formatWhen(option.starts_at)}</p>
+							<p class="font-semibold">
+								{formatWhen(option.starts_at)}
+								{#if data.payday && isJustAfterPayday(option.starts_at, data.payday)}
+									<span class="badge ml-1 bg-lime-100 text-lime-800" title="Within a week of your payday">💷 Just after payday</span>
+								{/if}
+							</p>
 						{/if}
 						<p class="text-sm text-zinc-600" data-testid="count">
 							<span class="font-semibold text-emerald-700">{option.can} can</span>,

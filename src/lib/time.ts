@@ -50,6 +50,23 @@ export function formatTime(local: string) {
 	return m === 0 ? `${h12}${suffix}` : `${h12}:${String(m).padStart(2, '0')}${suffix}`;
 }
 
+/**
+ * True when the date falls within `days` days after payday (payday itself included).
+ * A payday past the end of a short month (e.g. the 31st in November) falls on its last day.
+ */
+export function isJustAfterPayday(local: string, payday: number, days = 7) {
+	const date = asUtc(local.slice(0, 10) + 'T00:00');
+	for (const monthOffset of [0, -1]) {
+		const year = date.getUTCFullYear();
+		const month = date.getUTCMonth() + monthOffset;
+		const lastDay = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+		const paid = Date.UTC(year, month, Math.min(payday, lastDay));
+		const diff = (date.getTime() - paid) / 86_400_000;
+		if (diff >= 0 && diff < days) return true;
+	}
+	return false;
+}
+
 /** "Sat 15th" */
 export function formatShortDay(local: string) {
 	const d = asUtc(local);

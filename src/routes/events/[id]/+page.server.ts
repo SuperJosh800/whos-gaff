@@ -19,6 +19,7 @@ import {
 } from '#lib/server/events.ts';
 import { attachGaff, listGaffs } from '#lib/server/gaff.ts';
 import { eventInput } from '#lib/server/form.ts';
+import { getProfile } from '#lib/server/auth.ts';
 import type { Actions, PageServerLoad } from './$types';
 
 // The layout load has already checked that the user is logged in and invited.
@@ -33,7 +34,8 @@ export const load: PageServerLoad = async ({ params, locals, url, parent }) => {
 		pendingInvites: isHost ? listPendingInvites(event.id) : [],
 		messages: listMessages(event.id),
 		inviteLink: isHost ? `${url.origin}/invite/${event.invite_token}` : null,
-		myGaffs: isHost ? listGaffs(userId) : []
+		myGaffs: isHost ? listGaffs(userId) : [],
+		payday: getProfile(userId).payday
 	};
 };
 
