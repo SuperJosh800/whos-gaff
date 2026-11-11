@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import HallOfFame from '../people/[id]/HallOfFame.svelte';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -28,4 +29,5 @@
 			{#if form && 'saved' in form}<span class="text-sm text-emerald-700">Saved.</span>{/if}
 		</div>
 	</form>
+	<HallOfFame entries={data.hallOfFame} />
 </div>

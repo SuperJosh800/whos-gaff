@@ -12,7 +12,8 @@
 		{ href: base, label: 'Overview' },
 		{ href: `${base}/gaff`, label: 'Gaff' },
 		{ href: `${base}/night`, label: 'Night' },
-		{ href: `${base}/money`, label: 'Money' }
+		{ href: `${base}/money`, label: 'Money' },
+		{ href: `${base}/after`, label: 'After' }
 	]);
 
 	async function openChat() {

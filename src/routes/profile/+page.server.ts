@@ -1,10 +1,11 @@
 import { fail, redirect } from '@sveltejs/kit';
 import { getProfile, updateProfile } from '#lib/server/auth.ts';
+import { hallOfFame } from '#lib/server/after.ts';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = ({ locals, url }) => {
 	if (!locals.user) redirect(303, `/login?next=${encodeURIComponent(url.pathname)}`);
-	return { profile: getProfile(locals.user.id) };
+	return { profile: getProfile(locals.user.id), hallOfFame: hallOfFame(locals.user.id) };
 };
 
 export const actions: Actions = {

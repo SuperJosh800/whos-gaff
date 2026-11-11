@@ -34,7 +34,7 @@
 			<div>
 				<p class="text-sm font-semibold {g.tone}">{g.label} · {g.people.length}</p>
 				<ul class="mt-1 space-y-0.5 text-sm text-zinc-700">
-					{#each g.people as p (p.id)}<li>{p.name}{p.is_host ? ' (host)' : ''}</li>{/each}
+					{#each g.people as p (p.id)}<li><a class="hover:underline" href="/people/{p.id}">{p.name}</a>{p.is_host ? ' (host)' : ''}</li>{/each}
 				</ul>
 			</div>
 		{/each}

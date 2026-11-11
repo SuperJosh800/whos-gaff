@@ -19,6 +19,6 @@ export default defineConfig({
 	test: {
 		include: ['src/**/*.test.ts'],
 		environment: 'node',
-		env: { DATABASE_PATH: ':memory:' }
+		env: { DATABASE_PATH: ':memory:', UPLOADS_PATH: '/tmp/whos-gaff-test-uploads' }
 	}
 });

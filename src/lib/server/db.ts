@@ -209,6 +209,23 @@ const migrations: string[] = [
 		answer TEXT NOT NULL CHECK (answer IN ('yes', 'no')),
 		PRIMARY KEY (ping_id, user_id)
 	);
+	`,
+	`
+	CREATE TABLE award_votes (
+		event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+		award TEXT NOT NULL,
+		voter_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		nominee_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		PRIMARY KEY (event_id, award, voter_id)
+	);
+	CREATE TABLE event_photos (
+		id INTEGER PRIMARY KEY,
+		event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+		user_id INTEGER NOT NULL REFERENCES users(id),
+		filename TEXT NOT NULL,
+		mime TEXT NOT NULL,
+		created_at TEXT NOT NULL DEFAULT (datetime('now'))
+	);
 	`
 ];
 
