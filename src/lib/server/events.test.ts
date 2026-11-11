@@ -49,6 +49,10 @@ describe('date polls', () => {
 		expect(byDate['2099-03-15T20:00']).toMatchObject({ can: 1, cant: 2, mine: 1, can_names: 'A' });
 		expect(byDate['2099-03-14T20:00']).toMatchObject({ can: 0, cant: 1, mine: 0 });
 		expect(byDate['2099-03-21T20:00']).toMatchObject({ can: 0, cant: 0, mine: null });
+
+		setVote(id, a.id, sat.id, null); // A clears their answer
+		const after = listOptions(id, a.id).find((o) => o.id === sat.id);
+		expect(after).toMatchObject({ can: 0, cant: 2, mine: null });
 	});
 
 	it('only lets invited people vote', () => {

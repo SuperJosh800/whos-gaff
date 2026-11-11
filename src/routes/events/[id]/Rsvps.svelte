@@ -12,9 +12,9 @@
 		{ label: 'No reply yet', key: null, tone: 'text-zinc-500' }
 	].map((g) => ({ ...g, people: data.attendees.filter((a) => a.response === g.key) })));
 	const choices = [
-		{ value: 'yes', label: "I'm going", on: 'bg-emerald-600 text-white border-emerald-600' },
-		{ value: 'maybe', label: 'Maybe', on: 'bg-amber-500 text-white border-amber-500' },
-		{ value: 'no', label: "Can't go", on: 'bg-red-600 text-white border-red-600' }
+		{ value: 'yes', label: "I'm going", on: 'bg-lime text-ink border-lime' },
+		{ value: 'maybe', label: 'Maybe', on: 'bg-amber-500 text-ink border-amber-500' },
+		{ value: 'no', label: "Can't go", on: 'bg-hot text-ink border-hot' }
 	];
 </script>
 
@@ -23,7 +23,7 @@
 	<form method="POST" action="?/rsvp" use:enhance class="flex flex-wrap gap-2">
 		{#each choices as c (c.value)}
 			<button name="response" value={c.value} aria-pressed={me?.response === c.value}
-				class="rounded-xl border px-4 py-2 text-sm font-semibold transition {me?.response === c.value ? c.on : 'border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50'}">
+				class="border px-4 py-2 text-sm font-extrabold uppercase tracking-wider transition {me?.response === c.value ? c.on : 'border-zinc-300 bg-transparent text-zinc-800 hover:bg-zinc-50'}">
 				{c.label}
 			</button>
 		{/each}

@@ -51,13 +51,13 @@
 <div class="space-y-5">
 	<section>
 		<div class="flex flex-wrap items-center gap-2">
-			<h1 class="text-3xl font-extrabold tracking-tight">{event.title}</h1>
+			<h1 class="text-4xl sm:text-5xl">{event.title}</h1>
 			{#if event.starts_at}
-				<span class="badge bg-emerald-100 text-emerald-800">Date locked</span>
+				<span class="badge text-lime">Date locked</span>
 			{:else if data.votingOpen}
-				<span class="badge bg-amber-100 text-amber-800">Voting open</span>
+				<span class="badge text-hot">Voting open</span>
 			{:else}
-				<span class="badge bg-zinc-200 text-zinc-700">Voting closed</span>
+				<span class="badge text-zinc-500">Voting closed</span>
 			{/if}
 			<button type="button" class="btn-secondary btn-small ml-auto" onclick={openChat}>💬 Message</button>
 		</div>
@@ -73,7 +73,7 @@
 		{#if event.details}<p class="mt-3 whitespace-pre-line">{event.details}</p>{/if}
 		{#if event.playlist_url}
 			<a href={event.playlist_url} target="_blank" rel="noopener noreferrer"
-				class="mt-3 inline-flex items-center gap-2 rounded-full bg-[#1DB954] px-3 py-1 text-sm font-semibold text-white hover:brightness-95">
+				class="mt-3 inline-flex items-center gap-2 border border-[#1DB954] px-3 py-1 text-xs font-extrabold uppercase tracking-wider text-[#1DB954] hover:brightness-95">
 				🎵 Open the playlist on Spotify
 			</a>
 		{/if}

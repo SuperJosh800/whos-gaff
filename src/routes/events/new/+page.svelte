@@ -80,7 +80,7 @@
 					<div class="flex gap-2">
 						<input class="input" name="option" type="datetime-local" required bind:value={options[i]} aria-label="Date option {i + 1}" />
 						{#if data.payday && isLocalDateTime(options[i]) && isJustAfterPayday(options[i], data.payday)}
-							<span class="badge shrink-0 self-center bg-lime-100 text-lime-800" title="Within a week of your payday">💷 Payday</span>
+							<span class="badge shrink-0 self-center text-lime-800" title="Within a week of your payday">💷 Payday</span>
 						{/if}
 						<button type="button" class="btn-secondary btn-small" disabled={options.length <= 2} onclick={() => options.splice(i, 1)} aria-label="Remove option {i + 1}">Remove</button>
 					</div>

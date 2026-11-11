@@ -94,7 +94,7 @@
 			<fieldset class="flex flex-wrap gap-2">
 				<legend class="mb-1 text-sm text-zinc-600">Split between</legend>
 				{#each data.kitty.people as p (p.id)}
-					<label class="flex items-center gap-1.5 rounded-full border border-zinc-300 px-3 py-1 text-sm has-[:checked]:border-brand-500 has-[:checked]:bg-brand-50">
+					<label class="flex items-center gap-1.5 border border-zinc-300 px-3 py-1 text-sm has-[:checked]:border-brand-500 has-[:checked]:bg-brand-50">
 						<input type="checkbox" name="share" value={p.id} checked={data.kitty.defaultShares.includes(p.id)} />
 						{p.name}
 					</label>

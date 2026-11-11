@@ -1,38 +1,127 @@
 @import 'tailwindcss';
 
+/*
+ * Neon × Grid theme: dark, lime for "yes / can / going", hot pink for actions and "no".
+ * The stock palettes are remapped so existing utilities (text-zinc-500, bg-emerald-50,
+ * text-red-700…) read correctly on the dark background: zinc runs dark → light,
+ * emerald is lime, red is pink and brand is pink.
+ */
 @theme {
-	--font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+	--font-sans: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
 		'DejaVu Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji';
-	--color-brand-50: #f5f3ff;
-	--color-brand-100: #ede9fe;
-	--color-brand-500: #8b5cf6;
-	--color-brand-600: #7c3aed;
-	--color-brand-700: #6d28d9;
+
+	--color-ink: #0b0b10;
+	--color-surface: #15151d;
+	--color-lime: #c6ff3d;
+	--color-hot: #ff2e88;
+
+	--color-zinc-50: #0b0b10;
+	--color-zinc-100: #1f1f2a;
+	--color-zinc-200: #262632;
+	--color-zinc-300: #383845;
+	--color-zinc-400: #5c5c69;
+	--color-zinc-500: #8b8b98;
+	--color-zinc-600: #a3a3ad;
+	--color-zinc-700: #d0d0d7;
+	--color-zinc-800: #e4e4e7;
+	--color-zinc-900: #f4f4f5;
+
+	--color-emerald-50: #141c08;
+	--color-emerald-100: #1e2a0c;
+	--color-emerald-300: #4a6b12;
+	--color-emerald-500: #c6ff3d;
+	--color-emerald-600: #c6ff3d;
+	--color-emerald-700: #c6ff3d;
+	--color-emerald-800: #d6ff70;
+
+	--color-lime-100: #10242a;
+	--color-lime-800: #5ce1ff;
+
+	--color-red-50: #220c18;
+	--color-red-100: #33112a;
+	--color-red-600: #ff2e88;
+	--color-red-700: #ff4f9b;
+	--color-red-800: #ff70ad;
+	--color-red-900: #ff8fbf;
+
+	--color-amber-50: #221a06;
+	--color-amber-100: #2e230a;
+	--color-amber-200: #3d2f0e;
+	--color-amber-500: #ffb020;
+	--color-amber-700: #ffc24d;
+	--color-amber-800: #ffcf70;
+	--color-amber-900: #ffd98a;
+
+	--color-brand-50: #1d1024;
+	--color-brand-100: #3a1530;
+	--color-brand-500: #ff2e88;
+	--color-brand-600: #ff2e88;
+	--color-brand-700: #ff5ca3;
+
+	/* Sharp corners everywhere: no rounded bubbles. */
+	--radius-xs: 0;
+	--radius-sm: 0;
+	--radius-md: 0;
+	--radius-lg: 0;
+	--radius-xl: 0;
+	--radius-2xl: 0;
+	--radius-3xl: 0;
+}
+
+@layer base {
+	html {
+		color-scheme: dark;
+		accent-color: var(--color-hot);
+	}
+	body {
+		background: var(--color-ink);
+	}
+	h1 {
+		text-transform: uppercase;
+		font-weight: 900;
+		letter-spacing: -0.02em;
+		line-height: 1;
+	}
+	h2 {
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+	}
+	::selection {
+		background: var(--color-lime);
+		color: var(--color-ink);
+	}
 }
 
 @layer components {
 	.card {
-		@apply rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm;
+		@apply border border-zinc-200 bg-surface p-5;
 	}
 	.btn {
-		@apply inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50;
+		@apply inline-flex cursor-pointer items-center justify-center gap-2 border border-hot bg-hot px-4 py-2 text-sm font-extrabold tracking-wider text-ink uppercase transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50;
 	}
 	.btn-secondary {
-		@apply inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-800 transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50;
+		@apply inline-flex cursor-pointer items-center justify-center gap-2 border border-zinc-300 bg-transparent px-4 py-2 text-sm font-extrabold tracking-wider text-zinc-800 uppercase transition hover:border-zinc-600 hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50;
 	}
 	.btn-small {
 		@apply px-3 py-1 text-xs;
 	}
 	.input {
-		@apply w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100;
+		@apply w-full min-w-0 border border-zinc-300 bg-zinc-50 px-3 py-2 text-sm text-zinc-900 outline-none placeholder:text-zinc-500 focus:border-lime;
 	}
 	.label {
-		@apply mb-1 block text-sm font-medium text-zinc-700;
+		@apply mb-1 block text-xs font-bold tracking-widest text-zinc-500 uppercase;
 	}
 	.error {
-		@apply rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700;
+		@apply border border-hot bg-red-50 px-3 py-2 text-sm text-red-800;
 	}
 	.badge {
-		@apply inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold;
+		@apply inline-flex items-center border border-current px-2 py-0.5 text-[11px] font-extrabold tracking-widest uppercase;
+	}
+	/* Big number over a small uppercase label, Neon's stats footer. */
+	.stat b {
+		@apply block text-2xl leading-none font-black text-zinc-900 tabular-nums;
+	}
+	.stat span {
+		@apply mt-1 block text-xs tracking-widest text-zinc-500 uppercase;
 	}
 }

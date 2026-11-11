@@ -40,10 +40,10 @@
 	<p class="card text-zinc-600">Awards and the night recap open once the night starts.</p>
 {:else}
 	<div class="space-y-5">
-		<section class="overflow-hidden rounded-3xl bg-gradient-to-br from-brand-700 via-brand-600 to-fuchsia-500 p-6 text-white shadow-lg" aria-label="Night recap card">
-			<p class="text-sm font-semibold tracking-wide text-brand-100 uppercase">Night recap</p>
-			<h2 class="text-3xl font-extrabold">{data.event.title}</h2>
-			{#if data.event.starts_at}<p class="text-brand-100">{formatWhen(data.event.starts_at)}</p>{/if}
+		<section class="overflow-hidden border-2 border-hot bg-surface p-6 text-zinc-900 shadow-[6px_6px_0_var(--color-lime)]" aria-label="Night recap card">
+			<p class="text-sm font-semibold tracking-wide text-hot uppercase">Night recap</p>
+			<h2 class="text-4xl font-black">{data.event.title}</h2>
+			{#if data.event.starts_at}<p class="text-hot">{formatWhen(data.event.starts_at)}</p>{/if}
 
 			{#if data.photos.length}
 				<div class="mt-4 grid grid-cols-3 gap-2">
@@ -55,24 +55,24 @@
 
 			<div class="mt-4 grid gap-4 sm:grid-cols-3">
 				<div>
-					<p class="text-xs font-bold text-brand-100 uppercase">Who came</p>
+					<p class="text-xs font-bold text-hot uppercase">Who came</p>
 					<p>{going.map((p) => p.name).join(', ')}</p>
 				</div>
 				<div>
-					<p class="text-xs font-bold text-brand-100 uppercase">Awards</p>
+					<p class="text-xs font-bold text-hot uppercase">Awards</p>
 					{#each data.awards as a (a.key)}
 						<p>{a.label}: <strong>{a.winners.length ? a.winners.map((w) => w.name).join(' & ') : '–'}</strong></p>
 					{/each}
 				</div>
 				{#if data.stages.length}
 					<div>
-						<p class="text-xs font-bold text-brand-100 uppercase">The night</p>
+						<p class="text-xs font-bold text-hot uppercase">The night</p>
 						{#each data.stages as s (s.id)}<p>{formatTime(s.starts_at)} · {s.name}</p>{/each}
 					</div>
 				{/if}
 			</div>
 			<div class="mt-5 flex flex-wrap items-center gap-3">
-				<button type="button" class="rounded-xl bg-white px-4 py-2 text-sm font-bold text-brand-700 hover:bg-brand-50" onclick={share}>Share to the group chat</button>
+				<button type="button" class="btn" onclick={share}>Share to the group chat</button>
 				{#if shared}<span class="text-sm">{shared}</span>{/if}
 			</div>
 		</section>

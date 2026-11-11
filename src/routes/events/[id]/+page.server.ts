@@ -6,6 +6,7 @@ import {
 	inviteByEmail,
 	listMessages,
 	listOptions,
+	listVotes,
 	listPendingInvites,
 	pickWinner,
 	postMessage,
@@ -31,6 +32,7 @@ export const load: PageServerLoad = async ({ params, locals, url, parent }) => {
 	const isHost = event.host_id === userId;
 	return {
 		options: event.mode === 'poll' ? listOptions(event.id, userId) : [],
+		votes: event.mode === 'poll' && !event.starts_at ? listVotes(event.id) : [],
 		pendingInvites: isHost ? listPendingInvites(event.id) : [],
 		messages: listMessages(event.id),
 		inviteLink: isHost ? `${url.origin}/invite/${event.invite_token}` : null,
@@ -42,7 +44,7 @@ export const load: PageServerLoad = async ({ params, locals, url, parent }) => {
 export const actions: Actions = {
 	vote: async (e) => {
 		const { userId, eventId, get } = await eventInput(e);
-		return asAction(() => setVote(eventId, userId, Number(get('option')), get('available') === '1'));
+		return asAction(() => setVote(eventId, userId, Number(get('option')), get('available') === '' ? null : get('available') === '1'));
 	},
 	suggest: async (e) => {
 		const { userId, eventId, get } = await eventInput(e);

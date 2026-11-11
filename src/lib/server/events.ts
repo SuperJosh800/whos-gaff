@@ -207,6 +207,16 @@ export function listOptions(eventId: number, userId: number) {
 		.all(userId, eventId) as DateOption[];
 }
 
+/** Every vote on the event's options, for the person × date grid. */
+export function listVotes(eventId: number) {
+	return db
+		.prepare(
+			`SELECT v.option_id, v.user_id, v.available FROM votes v
+			 JOIN date_options o ON o.id = v.option_id WHERE o.event_id = ?`
+		)
+		.all(eventId) as { option_id: number; user_id: number; available: 0 | 1 }[];
+}
+
 function requireOption(eventId: number, optionId: number) {
 	const option = db
 		.prepare('SELECT id, starts_at FROM date_options WHERE id = ? AND event_id = ?')
@@ -269,9 +279,15 @@ export function removeOption(eventId: number, hostId: number, optionId: number) 
 	publish(eventId);
 }
 
-export function setVote(eventId: number, userId: number, optionId: number, available: boolean) {
+/** Sets the user's vote on an option; null clears it back to no answer. */
+export function setVote(eventId: number, userId: number, optionId: number, available: boolean | null) {
 	requireVotingOpen(requireMember(eventId, userId));
 	requireOption(eventId, optionId);
+	if (available === null) {
+		db.prepare('DELETE FROM votes WHERE option_id = ? AND user_id = ?').run(optionId, userId);
+		publish(eventId);
+		return;
+	}
 	db.prepare(
 		`INSERT INTO votes (option_id, user_id, available) VALUES (?, ?, ?)
 		 ON CONFLICT (option_id, user_id) DO UPDATE SET available = excluded.available`

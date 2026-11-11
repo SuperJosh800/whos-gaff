@@ -22,10 +22,10 @@
 	<section class="card space-y-4">
 		<h2 class="text-lg font-bold">The night</h2>
 		{#if data.stages.length}
-			<ol class="relative space-y-4 border-l-2 border-brand-100 pl-5">
+			<ol class="relative space-y-4 border-l-2 border-zinc-300 pl-5">
 				{#each data.stages as s (s.id)}
 					<li class="relative">
-						<span class="absolute top-1.5 -left-[27px] h-3 w-3 rounded-full bg-brand-600"></span>
+						<span class="absolute top-1.5 -left-[27px] h-3 w-3 bg-lime"></span>
 						<p class="font-semibold">{formatTime(s.starts_at)} · {s.name}</p>
 						{#if s.place}<p class="text-sm text-zinc-600">{s.place}</p>{/if}
 						{#if data.isHost}

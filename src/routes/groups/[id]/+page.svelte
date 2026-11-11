@@ -40,8 +40,8 @@
 				<div class="mt-2 flex flex-wrap gap-2">
 					<form method="POST" action="?/answer" use:enhance class="flex gap-2">
 						<input type="hidden" name="ping" value={p.id} />
-						<button name="answer" value="yes" class="btn-small rounded-xl border px-3 py-1 font-semibold {mine === 'yes' ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-zinc-300'}">I’m out</button>
-						<button name="answer" value="no" class="btn-small rounded-xl border px-3 py-1 font-semibold {mine === 'no' ? 'border-zinc-700 bg-zinc-700 text-white' : 'border-zinc-300'}">Not this time</button>
+						<button name="answer" value="yes" class="btn-small border text-xs font-extrabold uppercase tracking-wider px-3 py-1 font-semibold {mine === 'yes' ? 'border-lime bg-lime text-ink' : 'border-zinc-300'}">I’m out</button>
+						<button name="answer" value="no" class="btn-small border text-xs font-extrabold uppercase tracking-wider px-3 py-1 font-semibold {mine === 'no' ? 'border-hot bg-hot text-ink' : 'border-zinc-300'}">Not this time</button>
 					</form>
 					{#if p.event_id}
 						<a class="btn-secondary btn-small ml-auto" href="/events/{p.event_id}">See the event →</a>
@@ -81,18 +81,18 @@
 				<li class="flex items-center gap-3">
 					<span class="w-6 text-right font-bold text-zinc-400">{i + 1}</span>
 					<span class="w-28 truncate font-semibold">{r.name}</span>
-					<div class="h-3 flex-1 overflow-hidden rounded-full bg-zinc-100">
-						<div class="h-full rounded-full bg-brand-500" style="width: {(r.hosted / maxHosted) * 100}%"></div>
+					<div class="h-3 flex-1 overflow-hidden bg-zinc-100">
+						<div class="h-full bg-brand-500" style="width: {(r.hosted / maxHosted) * 100}%"></div>
 					</div>
 					<span class="w-16 text-sm text-zinc-600">{r.hosted} hosted</span>
 					<span class="flex w-44 justify-end">
 					{#if r.hosted === 0}
 						{#if r.id === me}
-							<span class="badge bg-amber-100 text-amber-800">You owe us a gaff</span>
+							<span class="badge text-amber-800">You owe us a gaff</span>
 						{:else}
 							<form method="POST" action="?/nudge" use:enhance>
 								<input type="hidden" name="user" value={r.id} />
-								<button class="badge cursor-pointer bg-amber-100 text-amber-800 hover:bg-amber-200">
+								<button class="badge cursor-pointer text-amber-800 hover:bg-amber-100">
 									{form && 'nudged' in form && form.nudged === r.id ? 'Nudged ✓' : 'Owes us a gaff → nudge'}
 								</button>
 							</form>

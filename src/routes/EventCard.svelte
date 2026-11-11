@@ -5,19 +5,19 @@
 	let { event }: { event: DashboardEvent } = $props();
 
 	const badges = {
-		voting: ['Voting open', 'bg-amber-100 text-amber-800'],
-		'voting-closed': ['Voting closed', 'bg-zinc-200 text-zinc-700'],
-		locked: ['Date locked', 'bg-emerald-100 text-emerald-800'],
-		past: ['Done', 'bg-zinc-100 text-zinc-500']
+		voting: ['Voting open', 'text-hot'],
+		'voting-closed': ['Voting closed', 'text-zinc-500'],
+		locked: ['Date locked', 'text-lime'],
+		past: ['Done', 'text-zinc-500']
 	} as const;
 	const todos = { vote: 'Vote on dates', rsvp: 'RSVP', pick: 'Pick a date' } as const;
 	const noReply = $derived(event.invited - event.going - event.maybe - event.not_going);
 </script>
 
-<a href="/events/{event.id}" class="card block transition hover:border-brand-500 hover:shadow-md">
+<a href="/events/{event.id}" class="card block transition hover:border-hot">
 	<div class="flex items-start justify-between gap-3">
 		<div class="min-w-0">
-			<h3 class="truncate text-lg font-bold">{event.title}</h3>
+			<h3 class="truncate text-lg font-black uppercase">{event.title}</h3>
 			<p class="text-sm text-zinc-600">
 				{event.is_host ? 'You’re hosting' : `Hosted by ${event.host_name}`}
 				· {event.starts_at ? formatWhen(event.starts_at) : 'Date TBC'}
@@ -39,7 +39,7 @@
 			{/if}
 		{/if}
 		{#if event.todo}
-			<span class="badge ml-auto bg-brand-600 text-white">{todos[event.todo]}</span>
+			<span class="badge ml-auto bg-hot text-ink">{todos[event.todo]}</span>
 		{/if}
 	</div>
 </a>

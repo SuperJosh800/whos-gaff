@@ -11,23 +11,14 @@
 {#if data.user && dash}
 	<div class="space-y-6">
 		<div class="flex flex-wrap items-end justify-between gap-3">
-			<h1 class="text-2xl font-bold">Hi {data.user.name} 👋</h1>
+			<h1 class="text-4xl sm:text-5xl">Hi {data.user.name}</h1>
 			<a href="/events/new" class="btn">Plan something</a>
 		</div>
 
 		<div class="grid grid-cols-3 gap-3">
-			<div class="card text-center">
-				<p class="text-3xl font-extrabold">{dash.upcoming.length}</p>
-				<p class="text-sm text-zinc-600">Upcoming</p>
-			</div>
-			<div class="card text-center">
-				<p class="text-3xl font-extrabold">{hosting}</p>
-				<p class="text-sm text-zinc-600">You’re hosting</p>
-			</div>
-			<div class="card text-center">
-				<p class="text-3xl font-extrabold {todoCount ? 'text-brand-700' : ''}">{todoCount}</p>
-				<p class="text-sm text-zinc-600">Waiting on you</p>
-			</div>
+			<div class="stat border-l-2 border-zinc-300 pl-3"><b class="!text-4xl">{dash.upcoming.length}</b><span>Upcoming</span></div>
+			<div class="stat border-l-2 border-zinc-300 pl-3"><b class="!text-4xl">{hosting}</b><span>You’re hosting</span></div>
+			<div class="stat border-l-2 pl-3 {todoCount ? 'border-hot' : 'border-zinc-300'}"><b class="!text-4xl {todoCount ? '!text-hot' : ''}">{todoCount}</b><span>Waiting on you</span></div>
 		</div>
 
 		{#if dash.notifications.length}
@@ -36,7 +27,7 @@
 				<ul class="card divide-y divide-zinc-100 p-0">
 					{#each dash.notifications as n (n.id)}
 						<li class="flex items-center gap-2 px-5 py-3 text-sm">
-							{#if !n.read}<span class="h-2 w-2 shrink-0 rounded-full bg-brand-600" aria-label="New"></span>{/if}
+							{#if !n.read}<span class="h-2 w-2 shrink-0 bg-brand-600" aria-label="New"></span>{/if}
 							{#if n.event_id}
 								<a href="/events/{n.event_id}" class="hover:underline">{n.message}</a>
 							{:else}
@@ -72,7 +63,7 @@
 	</div>
 {:else}
 	<section class="py-16 text-center">
-		<h1 class="text-4xl font-extrabold tracking-tight sm:text-5xl">Who's coming to the gaff?</h1>
+		<h1 class="text-5xl sm:text-7xl">Who's coming to the gaff?</h1>
 		<p class="mx-auto mt-4 max-w-xl text-lg text-zinc-600">
 			Pick a date everyone can do, get RSVPs, and see who's actually turning up, without scrolling
 			back through the group chat.

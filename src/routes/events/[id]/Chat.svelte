@@ -26,10 +26,10 @@
 			{#each data.messages as m (m.id)}
 				{@const mine = m.user_id === page.data.user?.id}
 				<li class="flex {mine ? 'justify-end' : ''}">
-					<div class="max-w-[80%] rounded-2xl px-3 py-2 text-sm {mine ? 'bg-brand-600 text-white' : 'bg-zinc-100'}">
+					<div class="max-w-[80%] rounded-2xl px-3 py-2 text-sm {mine ? 'bg-lime text-ink' : 'bg-zinc-100'}">
 						{#if !mine}<p class="text-xs font-semibold text-zinc-600">{m.name}</p>{/if}
 						<p class="whitespace-pre-line break-words">{m.body}</p>
-						<p class="mt-0.5 text-[10px] {mine ? 'text-brand-100' : 'text-zinc-500'}">{time(m.created_at)}</p>
+						<p class="mt-0.5 text-[10px] {mine ? 'text-ink/60' : 'text-zinc-500'}">{time(m.created_at)}</p>
 					</div>
 				</li>
 			{/each}
