@@ -18,6 +18,7 @@ export default defineConfig({
 	server: { allowedHosts: ['.onamp.dev'] },
 	test: {
 		include: ['src/**/*.test.ts'],
-		environment: 'node'
+		environment: 'node',
+		env: { DATABASE_PATH: ':memory:' }
 	}
 });
