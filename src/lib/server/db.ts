@@ -82,6 +82,36 @@ const migrations: string[] = [
 		body TEXT NOT NULL,
 		created_at TEXT NOT NULL DEFAULT (datetime('now'))
 	);
+	`,
+	`
+	CREATE TABLE gaffs (
+		id INTEGER PRIMARY KEY,
+		owner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		name TEXT NOT NULL,
+		address TEXT NOT NULL DEFAULT '',
+		house_rules TEXT NOT NULL DEFAULT '',
+		wifi TEXT NOT NULL DEFAULT '',
+		coats TEXT NOT NULL DEFAULT '',
+		parking TEXT NOT NULL DEFAULT '',
+		notes TEXT NOT NULL DEFAULT ''
+	);
+	ALTER TABLE events ADD COLUMN gaff_id INTEGER REFERENCES gaffs(id) ON DELETE SET NULL;
+	ALTER TABLE events ADD COLUMN playlist_url TEXT NOT NULL DEFAULT '';
+	CREATE TABLE bring_items (
+		id INTEGER PRIMARY KEY,
+		event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+		name TEXT NOT NULL,
+		added_by INTEGER NOT NULL REFERENCES users(id),
+		claimed_by INTEGER REFERENCES users(id)
+	);
+	CREATE TABLE damage_log (
+		id INTEGER PRIMARY KEY,
+		event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+		reported_by INTEGER NOT NULL REFERENCES users(id),
+		culprit TEXT NOT NULL,
+		what TEXT NOT NULL,
+		created_at TEXT NOT NULL DEFAULT (datetime('now'))
+	);
 	`
 ];
 

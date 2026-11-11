@@ -1,9 +1,11 @@
 import { fail, redirect } from '@sveltejs/kit';
 import { createEvent, EventError } from '#lib/server/events.ts';
+import { listGaffs } from '#lib/server/gaff.ts';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = ({ locals, url }) => {
 	if (!locals.user) redirect(303, `/login?next=${encodeURIComponent(url.pathname)}`);
+	return { gaffs: listGaffs(locals.user.id) };
 };
 
 export const actions: Actions = {
@@ -17,7 +19,8 @@ export const actions: Actions = {
 			mode: String(form.get('mode') ?? 'fixed') as 'fixed' | 'poll',
 			startsAt: String(form.get('starts_at') ?? ''),
 			options: form.getAll('option').map(String),
-			voteDeadline: String(form.get('vote_deadline') ?? '')
+			voteDeadline: String(form.get('vote_deadline') ?? ''),
+			gaffId: Number(form.get('gaff')) || null
 		};
 		let eventId: number;
 		try {

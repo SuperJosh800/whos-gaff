@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { PageProps } from './$types';
 
-	let { form }: PageProps = $props();
+	let { data, form }: PageProps = $props();
 
 	// svelte-ignore state_referenced_locally
 	const initial = form?.values;
@@ -27,6 +27,16 @@
 		<label class="label" for="location">Where <span class="font-normal text-zinc-500">(optional)</span></label>
 		<input class="input" id="location" name="location" placeholder="12 Byres Road" value={initial?.location ?? ''} />
 	</div>
+
+	{#if data.gaffs.length}
+		<div>
+			<label class="label" for="gaff">Hosting at a saved gaff? <span class="font-normal text-zinc-500">(optional)</span></label>
+			<select class="input" id="gaff" name="gaff" value={initial?.gaffId ?? ''}>
+				<option value="">No</option>
+				{#each data.gaffs as g (g.id)}<option value={g.id}>{g.name}</option>{/each}
+			</select>
+		</div>
+	{/if}
 
 	<fieldset>
 		<legend class="label">When</legend>

@@ -18,6 +18,8 @@ export type Event = {
 	vote_deadline: string | null;
 	invite_token: string;
 	created_at: string;
+	gaff_id: number | null;
+	playlist_url: string;
 };
 
 export type DateOption = {
@@ -104,6 +106,8 @@ export type NewEvent = {
 	startsAt?: string;
 	options?: string[];
 	voteDeadline?: string;
+	/** A saved gaff profile of the host's (WG-24). */
+	gaffId?: number | null;
 };
 
 export function createEvent(hostId: number, input: NewEvent) {
@@ -131,12 +135,16 @@ export function createEvent(hostId: number, input: NewEvent) {
 	} else {
 		throw new EventError('Choose a fixed date or a date poll.');
 	}
+	const gaffId = input.gaffId || null;
+	if (gaffId && !db.prepare('SELECT 1 FROM gaffs WHERE id = ? AND owner_id = ?').get(gaffId, hostId)) {
+		throw new EventError('Gaff profile not found.');
+	}
 
 	return tx(() => {
 		const { lastInsertRowid } = db
 			.prepare(
-				`INSERT INTO events (host_id, title, details, location, mode, starts_at, vote_deadline, invite_token)
-				 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+				`INSERT INTO events (host_id, title, details, location, mode, starts_at, vote_deadline, invite_token, gaff_id)
+				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
 			)
 			.run(
 				hostId,
@@ -146,7 +154,8 @@ export function createEvent(hostId: number, input: NewEvent) {
 				input.mode,
 				startsAt,
 				deadline,
-				randomBytes(12).toString('base64url')
+				randomBytes(12).toString('base64url'),
+				gaffId
 			);
 		const eventId = Number(lastInsertRowid);
 		db.prepare('INSERT INTO event_members (event_id, user_id) VALUES (?, ?)').run(eventId, hostId);
@@ -314,6 +323,18 @@ export function listPendingInvites(eventId: number) {
 			)
 			.all(eventId) as { email: string }[]
 	).map((r) => r.email);
+}
+
+// ---- Playlist (WG-34) ----
+
+export function setPlaylist(eventId: number, hostId: number, url: string) {
+	requireHost(eventId, hostId);
+	url = url.trim();
+	if (url && !/^https:\/\/(open\.spotify\.com|spotify\.link)\//.test(url)) {
+		throw new EventError('Paste a Spotify playlist link (https://open.spotify.com/…).');
+	}
+	db.prepare('UPDATE events SET playlist_url = ? WHERE id = ?').run(url, eventId);
+	publish(eventId);
 }
 
 // ---- Messages ----

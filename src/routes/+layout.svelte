@@ -17,6 +17,7 @@
 			<a href="/" class="text-lg font-extrabold tracking-tight text-brand-700">Who's Gaff</a>
 			{#if data.user}
 				<div class="flex items-center gap-3 text-sm">
+					<a href="/gaffs" class="hidden text-zinc-600 hover:text-zinc-900 sm:inline">My gaffs</a>
 					<a href="/events/new" class="btn btn-small">New event</a>
 					<span class="hidden text-zinc-600 sm:inline">{data.user.name}</span>
 					<form method="POST" action="/logout">

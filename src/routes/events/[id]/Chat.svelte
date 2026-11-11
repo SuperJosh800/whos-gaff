@@ -3,7 +3,7 @@
 	import { page } from '$app/state';
 	import type { PageData } from './$types';
 
-	let { data, textarea = $bindable() }: { data: PageData; textarea?: HTMLTextAreaElement } = $props();
+	let { data }: { data: PageData } = $props();
 	let list: HTMLUListElement | undefined = $state();
 
 	// Keep the newest message in view.
@@ -38,7 +38,7 @@
 		<p class="text-sm text-zinc-500">No messages yet. Say hi to everyone who's invited.</p>
 	{/if}
 	<form method="POST" action="?/message" use:enhance class="flex gap-2">
-		<textarea bind:this={textarea} name="body" rows="1" maxlength="1000" required class="input resize-none"
+		<textarea name="body" rows="1" maxlength="1000" required class="input resize-none"
 			placeholder="Message everyone invited" aria-label="Message"
 			onkeydown={(e) => {
 				if (e.key === 'Enter' && !e.shiftKey) {
