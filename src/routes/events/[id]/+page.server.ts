@@ -7,8 +7,10 @@ import {
 	isMember,
 	listAttendees,
 	listOptions,
+	listMessages,
 	listPendingInvites,
 	pickWinner,
+	postMessage,
 	removeOption,
 	setRsvp,
 	setVote,
@@ -36,6 +38,7 @@ export const load: PageServerLoad = ({ params, locals, url, depends }) => {
 		options: event.mode === 'poll' ? listOptions(eventId, locals.user.id) : [],
 		attendees: listAttendees(eventId),
 		pendingInvites: isHost ? listPendingInvites(eventId) : [],
+		messages: listMessages(eventId),
 		inviteLink: isHost ? `${url.origin}/invite/${event.invite_token}` : null
 	};
 };
@@ -76,6 +79,10 @@ export const actions: Actions = {
 	rsvp: async (e) => {
 		const { userId, eventId, get } = await input(e);
 		return asAction(() => setRsvp(eventId, userId, get('response') as Rsvp));
+	},
+	message: async (e) => {
+		const { userId, eventId, get } = await input(e);
+		return asAction(() => postMessage(eventId, userId, get('body')));
 	},
 	invite: async (e) => {
 		const { userId, eventId, get } = await input(e);

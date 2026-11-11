@@ -4,11 +4,18 @@
 	import Poll from './Poll.svelte';
 	import Rsvps from './Rsvps.svelte';
 	import Invite from './Invite.svelte';
+	import Chat from './Chat.svelte';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
 	const event = $derived(data.event);
 	const host = $derived(data.attendees.find((a) => a.is_host));
+	let chatInput: HTMLTextAreaElement | undefined = $state();
+
+	function openChat() {
+		chatInput?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+		chatInput?.focus({ preventScroll: true });
+	}
 
 	// Reload this page's data whenever someone else changes the event. An update that arrives
 	// while a reload is in flight triggers one more reload, since the in-flight one may predate it.
@@ -46,6 +53,9 @@
 			{:else}
 				<span class="badge bg-zinc-200 text-zinc-700">Voting closed</span>
 			{/if}
+			<button type="button" class="btn-secondary btn-small ml-auto" onclick={openChat}>
+				💬 Message{data.messages.length ? ` (${data.messages.length})` : ''}
+			</button>
 		</div>
 		<p class="mt-1 text-zinc-600">
 			Hosted by {host?.name}
@@ -62,6 +72,8 @@
 	{:else}
 		<Poll {data} />
 	{/if}
+
+	<Chat {data} bind:textarea={chatInput} />
 
 	{#if data.isHost}
 		<Invite {data} invited={form && 'invited' in form ? form.invited : undefined} />

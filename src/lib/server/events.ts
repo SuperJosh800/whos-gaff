@@ -316,6 +316,31 @@ export function listPendingInvites(eventId: number) {
 	).map((r) => r.email);
 }
 
+// ---- Messages ----
+
+export type Message = { id: number; user_id: number; name: string; body: string; created_at: string };
+
+/** The event's group chat, visible to everyone invited. */
+export function listMessages(eventId: number, limit = 200) {
+	return (
+		db
+			.prepare(
+				`SELECT m.id, m.user_id, u.name, m.body, m.created_at FROM messages m
+				 JOIN users u ON u.id = m.user_id WHERE m.event_id = ? ORDER BY m.id DESC LIMIT ?`
+			)
+			.all(eventId, limit) as Message[]
+	).reverse();
+}
+
+export function postMessage(eventId: number, userId: number, body: string) {
+	requireMember(eventId, userId);
+	body = body.trim();
+	if (!body) throw new EventError('Write a message first.');
+	if (body.length > 1000) throw new EventError('Keep messages under 1000 characters.');
+	db.prepare('INSERT INTO messages (event_id, user_id, body) VALUES (?, ?, ?)').run(eventId, userId, body);
+	publish(eventId);
+}
+
 // ---- Invites ----
 
 /** What someone who isn't logged in sees when they open an invite link. */
