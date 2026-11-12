@@ -18,6 +18,7 @@
 		d.setUTCDate(d.getUTCDate() + ((6 - d.getUTCDay() + 7) % 7));
 		return d.toISOString().slice(0, 10);
 	});
+	const myAsk = $derived(data.pings.some((p) => p.user_id === me));
 	const maxHosted = $derived(Math.max(1, ...data.leaderboard.map((r) => r.hosted)));
 </script>
 
@@ -35,19 +36,23 @@
 
 	<section class="card space-y-3">
 		<h2 class="text-lg font-bold">Who’s out? 🍻</h2>
-		<form method="POST" action="?/ping" use:enhance={() => ({ update }) => update({ reset: false })} class="space-y-2">
-			<div class="flex flex-wrap gap-2" role="radiogroup" aria-label="What kind of night">
-				{#each plans as [key, plan] (key)}
-					<label class="cursor-pointer border border-zinc-300 px-3 py-1.5 text-xs font-extrabold tracking-wider uppercase has-checked:border-lime has-checked:bg-lime has-checked:text-ink has-focus-visible:outline-2 has-focus-visible:outline-hot">
-						<input class="sr-only" type="radio" name="plan" value={key} checked={key === 'pub'} />{plan.emoji} {plan.label}
-					</label>
-				{/each}
-			</div>
-			<div class="flex flex-wrap gap-2">
-				<input class="input w-auto" type="date" name="date" required min={data.today} value={saturday} aria-label="Date" />
-				<button class="btn">Ask the group</button>
-			</div>
-		</form>
+		{#if myAsk}
+			<p class="text-sm text-zinc-500">You’ve got an ask out. Delete it to ask about a different night.</p>
+		{:else}
+			<form method="POST" action="?/ping" use:enhance={() => ({ update }) => update({ reset: false })} class="space-y-2">
+				<div class="flex flex-wrap gap-2" role="radiogroup" aria-label="What kind of night">
+					{#each plans as [key, plan] (key)}
+						<label class="cursor-pointer border border-zinc-300 px-3 py-1.5 text-xs font-extrabold tracking-wider uppercase has-checked:border-lime has-checked:bg-lime has-checked:text-ink has-focus-visible:outline-2 has-focus-visible:outline-hot">
+							<input class="sr-only" type="radio" name="plan" value={key} checked={key === 'pub'} />{plan.emoji} {plan.label}
+						</label>
+					{/each}
+				</div>
+				<div class="flex flex-wrap gap-2">
+					<input class="input w-auto" type="date" name="date" required min={data.today} value={saturday} aria-label="Date" />
+					<button class="btn">Ask the group</button>
+				</div>
+			</form>
+		{/if}
 		{#each data.pings as p (p.id)}
 			{@const mine = p.yes.some((a) => a.user_id === me) ? 'yes' : p.no.some((a) => a.user_id === me) ? 'no' : null}
 			{@const plan = PLANS[p.plan]}
@@ -70,6 +75,13 @@
 						<button name="answer" value="yes" class="btn-small border text-xs font-extrabold uppercase tracking-wider px-3 py-1 font-semibold {mine === 'yes' ? 'border-lime bg-lime text-ink' : 'border-zinc-300'}">I’m out</button>
 						<button name="answer" value="no" class="btn-small border text-xs font-extrabold uppercase tracking-wider px-3 py-1 font-semibold {mine === 'no' ? 'border-hot bg-hot text-ink' : 'border-zinc-300'}">Not this time</button>
 					</form>
+					{#if p.user_id === me || data.group.created_by === me}
+						<form method="POST" action="?/deletePing" use:enhance>
+							<input type="hidden" name="ping" value={p.id} />
+							<button class="px-1 py-1 text-xs font-bold tracking-wider text-red-700 uppercase underline"
+								onclick={(e) => { if (!confirm('Delete this ask for everyone?')) e.preventDefault(); }}>Delete</button>
+						</form>
+					{/if}
 					{#if p.event_id}
 						<a class="btn-secondary btn-small ml-auto" href="/events/{p.event_id}">See the event →</a>
 					{:else if p.yes.length >= 2}

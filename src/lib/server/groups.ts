@@ -101,11 +101,19 @@ export function listFreeGaffs(groupId: number) {
 
 // ---- "Who's out?" (WG-30) ----
 
+/** A ping is open until its date passes; old undated pings stay open for a week. Takes today's date. */
+const OPEN_PING = `(p.on_date >= ? OR (p.on_date IS NULL AND p.created_at >= datetime('now', '-7 days')))`;
+
 export function sendPing(groupId: number, userId: number, plan: Plan, date: string) {
 	const group = requireGroupMember(groupId, userId);
 	if (!Object.hasOwn(PLANS, plan)) throw new EventError('Pick what kind of night it is.');
 	if (!DATE.test(date)) throw new EventError('Pick a date.');
-	if (date < nowLocal().slice(0, 10)) throw new EventError('That date has already passed.');
+	const today = nowLocal().slice(0, 10);
+	if (date < today) throw new EventError('That date has already passed.');
+	// One open ask per person per group, so nobody can spam everyone's notifications.
+	if (db.prepare(`SELECT 1 FROM pings p WHERE p.group_id = ? AND p.user_id = ? AND ${OPEN_PING}`).get(groupId, userId, today)) {
+		throw new EventError('You already have an ask out. Delete it first to ask about another night.');
+	}
 	const { lastInsertRowid } = db
 		.prepare('INSERT INTO pings (group_id, user_id, plan, on_date) VALUES (?, ?, ?, ?)')
 		.run(groupId, userId, plan, date);
@@ -117,11 +125,21 @@ export function sendPing(groupId: number, userId: number, plan: Plan, date: stri
 }
 
 function requirePing(groupId: number, pingId: number) {
-	const ping = db.prepare('SELECT id, event_id FROM pings WHERE id = ? AND group_id = ?').get(pingId, groupId) as
-		| { id: number; event_id: number | null }
+	const ping = db.prepare('SELECT id, user_id, event_id FROM pings WHERE id = ? AND group_id = ?').get(pingId, groupId) as
+		| { id: number; user_id: number; event_id: number | null }
 		| undefined;
 	if (!ping) throw new EventError('That ping no longer exists.');
 	return ping;
+}
+
+/** The person who asked, or whoever created the group, can delete an ask. Any event made from it stays. */
+export function deletePing(groupId: number, userId: number, pingId: number) {
+	const group = requireGroupMember(groupId, userId);
+	const ping = requirePing(groupId, pingId);
+	if (ping.user_id !== userId && group.created_by !== userId) {
+		throw new EventError('Only the person who asked can delete this.');
+	}
+	db.prepare('DELETE FROM pings WHERE id = ?').run(pingId);
 }
 
 export function answerPing(groupId: number, userId: number, pingId: number, answer: 'yes' | 'no') {
@@ -139,7 +157,7 @@ export function listPings(groupId: number) {
 	const pings = db
 		.prepare(
 			`SELECT p.id, p.user_id, u.name, p.event_id, p.plan, p.on_date, p.created_at FROM pings p JOIN users u ON u.id = p.user_id
-			 WHERE p.group_id = ? AND (p.on_date >= ? OR (p.on_date IS NULL AND p.created_at >= datetime('now', '-7 days')))
+			 WHERE p.group_id = ? AND ${OPEN_PING}
 			 ORDER BY COALESCE(p.on_date, date(p.created_at)), p.id DESC`
 		)
 		.all(groupId, nowLocal().slice(0, 10)) as {
@@ -162,8 +180,8 @@ export function listPings(groupId: number) {
 
 /** Called when an event is created from a ping, so the ping links to it. */
 export function linkPingToEvent(groupId: number, pingId: number, eventId: number) {
-	requirePing(groupId, pingId);
-	db.prepare('UPDATE pings SET event_id = ? WHERE id = ?').run(eventId, pingId);
+	// The ask may have been deleted while the event was being made; the event still stands.
+	db.prepare('UPDATE pings SET event_id = ? WHERE id = ? AND group_id = ?').run(eventId, pingId, groupId);
 }
 
 // ---- Hosting leaderboard (WG-35) ----

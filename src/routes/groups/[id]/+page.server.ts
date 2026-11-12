@@ -2,6 +2,7 @@ import { error, redirect } from '@sveltejs/kit';
 import { asAction } from '#lib/server/events.ts';
 import {
 	answerPing,
+	deletePing,
 	hostingLeaderboard,
 	isGroupMember,
 	listFreeGaffs,
@@ -23,7 +24,7 @@ export const load: PageServerLoad = ({ params, locals, url }) => {
 	if (!isGroupMember(groupId, locals.user.id)) error(404, 'Group not found');
 	const group = requireGroupMember(groupId, locals.user.id);
 	return {
-		group: { id: group.id, name: group.name },
+		group: { id: group.id, name: group.name, created_by: group.created_by },
 		inviteLink: `${url.origin}/groups/join/${group.invite_token}`,
 		members: listGroupMembers(groupId),
 		freeGaffs: listFreeGaffs(groupId),
@@ -50,6 +51,10 @@ export const actions: Actions = {
 		return asAction(() => {
 			sendPing(groupId, userId, get('plan') as Plan, get('date'));
 		});
+	},
+	deletePing: async (e) => {
+		const { userId, groupId, get } = await input(e);
+		return asAction(() => deletePing(groupId, userId, Number(get('ping'))));
 	},
 	answer: async (e) => {
 		const { userId, groupId, get } = await input(e);

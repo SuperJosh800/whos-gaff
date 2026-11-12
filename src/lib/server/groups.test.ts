@@ -5,6 +5,7 @@ import { createEvent, listAttendees } from './events.ts';
 import {
 	answerPing,
 	createGroup,
+	deletePing,
 	hostingLeaderboard,
 	joinGroupByToken,
 	listPings,
@@ -56,14 +57,30 @@ describe('groups', () => {
 	});
 
 	it('lists pings for today onwards, soonest night first, and rejects past dates and unknown plans', () => {
-		const { id, a } = crew();
+		const { id, a, b } = crew();
 		const later = sendPing(id, a.id, 'pub', '2099-03-21');
-		const sooner = sendPing(id, a.id, 'anything', '2099-03-14');
+		const sooner = sendPing(id, b.id, 'anything', '2099-03-14');
 		// Sent today but for a night that has passed: hidden even though it is recent.
 		db.prepare("INSERT INTO pings (group_id, user_id, plan, on_date) VALUES (?, ?, 'pub', '2020-01-01')").run(id, a.id);
 		expect(listPings(id).map((p) => p.id)).toEqual([sooner, later]);
 		expect(() => sendPing(id, a.id, 'pub', '2020-01-01')).toThrow('already passed');
 		expect(() => sendPing(id, a.id, 'toString' as 'pub', '2099-03-14')).toThrow('what kind of night');
+	});
+
+	it('allows one open ask each; the asker or the group creator can delete it', () => {
+		const { id, a, b, c } = crew(); // A created the group
+		const bAsk = sendPing(id, b.id, 'pub', '2099-03-14');
+		expect(() => sendPing(id, b.id, 'club', '2099-03-21')).toThrow('already have an ask out');
+		// An ask whose night has passed no longer counts.
+		db.prepare("UPDATE pings SET on_date = '2020-01-01' WHERE id = ?").run(bAsk);
+		const bNext = sendPing(id, b.id, 'club', '2099-03-21');
+
+		expect(() => deletePing(id, c.id, bNext)).toThrow('Only the person who asked');
+		deletePing(id, b.id, bNext);
+		const cAsk = sendPing(id, c.id, 'food', '2099-03-21');
+		deletePing(id, a.id, cAsk);
+		expect(listPings(id)).toEqual([]);
+		sendPing(id, b.id, 'home', '2099-03-28'); // B can ask again once theirs is gone
 	});
 
 	it('ranks hosts by dated group events and only nudges people who have never hosted', () => {
