@@ -57,7 +57,7 @@ function userName(userId: number) {
 }
 
 function notifyGroup(groupId: number, exceptUserId: number, message: string) {
-	for (const m of listGroupMembers(groupId)) if (m.id !== exceptUserId) notify(m.id, null, message);
+	for (const m of listGroupMembers(groupId)) if (m.id !== exceptUserId) notify(m.id, null, message, `/groups/${groupId}`);
 }
 
 // ---- Free gaff alerts (WG-23) ----
@@ -208,5 +208,5 @@ export function nudgeToHost(groupId: number, userId: number, targetId: number) {
 	if (!isGroupMember(groupId, targetId) || targetId === userId) throw new EventError('Pick someone else in the group.');
 	const hosted = hostingLeaderboard(groupId).find((r) => r.id === targetId)!.hosted;
 	if (hosted > 0) throw new EventError('They’ve already hosted. Fair’s fair.');
-	notify(targetId, null, `${userName(userId)} says you owe ${group.name} a gaff!`);
+	notify(targetId, null, `${userName(userId)} says you owe ${group.name} a gaff!`, `/groups/${groupId}`);
 }

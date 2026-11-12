@@ -79,7 +79,7 @@ export function deleteAccount(userId: number) {
 		photos.push(...(db.prepare('SELECT filename FROM event_photos WHERE user_id = ?').all(userId) as { filename: string }[]).map((p) => p.filename));
 
 		for (const table of [
-			'sessions', 'password_resets', 'event_members', 'rsvps', 'votes', 'messages', 'notifications',
+			'sessions', 'password_resets', 'push_subscriptions', 'event_members', 'rsvps', 'votes', 'messages', 'notifications',
 			'moves', 'home_plans', 'home_safe', 'group_members', 'free_gaffs', 'pings', 'ping_answers',
 			'event_photos', 'challenge_results', 'game_players', 'round_group_members',
 			'missions'

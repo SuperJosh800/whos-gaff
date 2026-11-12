@@ -101,7 +101,7 @@ export async function completeMission(eventId: number, userId: number, photo: Fi
 	}
 	const name = (db.prepare('SELECT name FROM users WHERE id = ?').get(userId) as { name: string }).name;
 	for (const p of goingPeople(eventId)) {
-		if (p.id !== userId) notify(p.id, eventId, `${name} pulled off a secret mission: “${live.text}”`);
+		if (p.id !== userId) notify(p.id, eventId, `${name} pulled off a secret mission: “${live.text}”`, '/night#missions');
 	}
 	publish(eventId);
 }
@@ -143,9 +143,9 @@ export function callOut(eventId: number, userId: number, suspectId: number) {
 	});
 	if (caught) {
 		const [me, them] = [userId, suspectId].map((id) => (db.prepare('SELECT name FROM users WHERE id = ?').get(id) as { name: string }).name);
-		notify(suspectId, eventId, `${me} caught you on your secret mission. Take a new one on the Night tab.`);
+		notify(suspectId, eventId, `${me} caught you on your secret mission. Take a new one on the Night tab.`, '/night#missions');
 		for (const p of goingPeople(eventId)) {
-			if (p.id !== suspectId && p.id !== userId) notify(p.id, eventId, `${me} caught ${them} on a secret mission: “${caught.text}”`);
+			if (p.id !== suspectId && p.id !== userId) notify(p.id, eventId, `${me} caught ${them} on a secret mission: “${caught.text}”`, '/night#missions');
 		}
 	}
 	publish(eventId);

@@ -338,6 +338,19 @@ const migrations: string[] = [
 		correct INTEGER NOT NULL CHECK (correct IN (0, 1)),
 		created_at TEXT NOT NULL DEFAULT (datetime('now'))
 	);
+	`,
+	`
+	-- Phones and browsers that want push notifications. endpoint is the push service URL for that device.
+	CREATE TABLE push_subscriptions (
+		endpoint TEXT PRIMARY KEY,
+		user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		p256dh TEXT NOT NULL,
+		auth TEXT NOT NULL,
+		created_at TEXT NOT NULL DEFAULT (datetime('now'))
+	);
+	CREATE INDEX push_subscriptions_user ON push_subscriptions(user_id);
+	-- Values the server makes for itself once, such as the push signing keys.
+	CREATE TABLE app_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 	`
 ];
 

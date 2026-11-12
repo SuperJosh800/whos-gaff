@@ -1,12 +1,13 @@
 import { fail, redirect } from '@sveltejs/kit';
 import { changePassword, deleteOtherSessions, getProfile, SESSION_COOKIE, updateProfile } from '#lib/server/auth.ts';
 import { hallOfFame } from '#lib/server/after.ts';
+import { pushPublicKey } from '#lib/server/push.ts';
 import { attemptAll, MINUTE } from '#lib/server/ratelimit.ts';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = ({ locals, url }) => {
 	if (!locals.user) redirect(303, `/login?next=${encodeURIComponent(url.pathname)}`);
-	return { profile: getProfile(locals.user.id), hallOfFame: hallOfFame(locals.user.id) };
+	return { profile: getProfile(locals.user.id), hallOfFame: hallOfFame(locals.user.id), pushKey: pushPublicKey() };
 };
 
 export const actions: Actions = {
