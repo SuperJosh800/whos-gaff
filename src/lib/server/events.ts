@@ -4,7 +4,7 @@ import { db, tx } from './db.ts';
 import { publish } from './realtime.ts';
 import { sendMail } from './mail.ts';
 import { notify } from './notifications.ts';
-import { formatWhen, isLocalDateTime, nowLocal } from '../time.ts';
+import { formatWhen, isLocalDateTime, nowLocal, shiftLocal } from '../time.ts';
 
 export type Event = {
 	id: number;
@@ -301,6 +301,19 @@ export async function pickWinner(eventId: number, hostId: number, optionId: numb
 	if (event.mode !== 'poll' || event.starts_at) throw new EventError('The date is already set.');
 	const option = requireOption(eventId, optionId);
 	db.prepare('UPDATE events SET starts_at = ? WHERE id = ?').run(option.starts_at, eventId);
+	// Stages planned before the vote ended move to the winning day, keeping their times (WG-38).
+	const first = db.prepare('SELECT MIN(starts_at) AS at FROM timeline_stages WHERE event_id = ?').get(eventId) as {
+		at: string | null;
+	};
+	if (first.at) {
+		const days = (Date.parse(option.starts_at.slice(0, 10)) - Date.parse(first.at.slice(0, 10))) / 86_400_000;
+		const stages = db.prepare('SELECT id, starts_at FROM timeline_stages WHERE event_id = ?').all(eventId) as {
+			id: number;
+			starts_at: string;
+		}[];
+		const move = db.prepare('UPDATE timeline_stages SET starts_at = ? WHERE id = ?');
+		for (const s of stages) move.run(shiftLocal(s.starts_at, days * 24 * 60), s.id);
+	}
 
 	const message = `${event.title} is on ${formatWhen(option.starts_at)}. RSVPs are open!`;
 	const guests = db

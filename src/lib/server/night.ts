@@ -2,7 +2,7 @@ import { db } from './db.ts';
 import { publish } from './realtime.ts';
 import { notify } from './notifications.ts';
 import { EventError, requireHost, requireMember } from './events.ts';
-import { isLocalDateTime, nowLocal } from '../time.ts';
+import { isLocalDateTime, nowLocal, shiftLocal } from '../time.ts';
 
 // ---- Pres → pub → club timeline (WG-19) ----
 
@@ -13,6 +13,26 @@ export function listStages(eventId: number) {
 	return db
 		.prepare('SELECT id, name, starts_at, place FROM timeline_stages WHERE event_id = ? ORDER BY starts_at, id')
 		.all(eventId) as Stage[];
+}
+
+/**
+ * Where the "add a stage" time starts (WG-38): two hours after the last stage, otherwise the
+ * event's date, or while the poll is open the leading option (most "can" votes, earliest on a tie).
+ */
+export function nextStageTime(eventId: number) {
+	const last = db
+		.prepare('SELECT MAX(starts_at) AS at FROM timeline_stages WHERE event_id = ?')
+		.get(eventId) as { at: string | null };
+	if (last.at) return shiftLocal(last.at, 120);
+	const event = db.prepare('SELECT starts_at FROM events WHERE id = ?').get(eventId) as { starts_at: string | null };
+	if (event.starts_at) return event.starts_at;
+	const leading = db
+		.prepare(
+			`SELECT o.starts_at FROM date_options o LEFT JOIN votes v ON v.option_id = o.id
+			 WHERE o.event_id = ? GROUP BY o.id ORDER BY COALESCE(SUM(v.available = 1), 0) DESC, o.starts_at LIMIT 1`
+		)
+		.get(eventId) as { starts_at: string } | undefined;
+	return leading?.starts_at ?? '';
 }
 
 export function addStage(eventId: number, hostId: number, name: string, startsAt: string, place: string) {

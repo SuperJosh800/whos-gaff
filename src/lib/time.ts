@@ -28,6 +28,11 @@ export function isLocalDateTime(value: string) {
 // Parse as UTC and format as UTC so the wall-clock time is shown unchanged.
 const asUtc = (local: string) => new Date(local + ':00Z');
 
+/** Moves a wall-clock time by whole minutes, across midnight and month ends. */
+export function shiftLocal(local: string, minutes: number) {
+	return new Date(asUtc(local).getTime() + minutes * 60_000).toISOString().slice(0, 16);
+}
+
 /** "Sat 15 Nov, 8pm" */
 export function formatWhen(local: string) {
 	const d = asUtc(local);

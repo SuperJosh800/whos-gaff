@@ -8,6 +8,7 @@ import {
 	listHomePlans,
 	listMoves,
 	listStages,
+	nextStageTime,
 	nudgeNoPlan,
 	postMove,
 	removeStage,
@@ -22,6 +23,7 @@ export const load: PageServerLoad = async ({ params, parent }) => {
 	const event = getEvent(Number(params.id))!;
 	return {
 		stages: listStages(event.id),
+		nextStageAt: nextStageTime(event.id),
 		moves: listMoves(event.id),
 		homePlans: listHomePlans(event.id),
 		homeKinds: HOME_KINDS,

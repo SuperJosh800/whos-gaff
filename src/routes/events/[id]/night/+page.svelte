@@ -41,12 +41,15 @@
 			<p class="text-sm text-zinc-500">{data.isHost ? 'Add the stages of the night so nobody gets left behind.' : 'The host hasn’t planned the stages yet.'}</p>
 		{/if}
 		{#if data.isHost}
-			<form method="POST" action="?/addStage" use:enhance class="grid gap-2 border-t border-zinc-100 pt-4 sm:grid-cols-[1fr_1fr_2fr_auto]">
+			<form method="POST" action="?/addStage" use:enhance class="grid gap-2 border-t border-zinc-100 pt-4 sm:grid-cols-[1fr_15rem_2fr_auto]">
 				<input class="input" name="name" placeholder="Pres / Pub / Club" required aria-label="Stage" />
-				<input class="input" name="starts_at" type="datetime-local" required aria-label="Time" value={data.event.starts_at ?? ''} />
+				<input class="input" name="starts_at" type="datetime-local" required aria-label="Time" value={data.nextStageAt} />
 				<input class="input" name="place" placeholder="Where" aria-label="Where" />
 				<button class="btn-secondary">Add stage</button>
 			</form>
+			{#if !data.event.starts_at && data.nextStageAt}
+				<p class="text-xs text-zinc-500">The date isn’t set yet, so this uses the poll’s leading date. When you lock a date, every stage moves to it and keeps its time.</p>
+			{/if}
 		{/if}
 
 		<div class="border-t border-zinc-100 pt-4">

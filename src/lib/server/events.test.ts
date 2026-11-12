@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { db } from './db.ts';
 import { signUp, type User } from './auth.ts';
+import { addStage, listStages, nextStageTime } from './night.ts';
 import {
 	claimEmailInvites,
 	createEvent,
@@ -85,6 +86,24 @@ describe('date polls', () => {
 
 		const notes = db.prepare('SELECT user_id, message FROM notifications WHERE event_id = ?').all(id);
 		expect(notes).toEqual([{ user_id: guest.id, message: 'Pres is on Sun 15 Mar, 8pm. RSVPs are open!' }]);
+	});
+
+	it('plans the night on the leading date, then moves the stages to the date the host locks', async () => {
+		const host = user('Host');
+		const guest = user('Guest');
+		const { id } = poll(host); // Sat 14, Sun 15 and Sat 21 Mar
+		join(id, guest);
+		const [, sun, sat21] = listOptions(id, host.id);
+		setVote(id, guest.id, sun.id, true);
+		expect(nextStageTime(id)).toBe('2099-03-15T20:00');
+
+		addStage(id, host.id, 'Pres', '2099-03-15T20:00', '');
+		expect(nextStageTime(id)).toBe('2099-03-15T22:00');
+		addStage(id, host.id, 'Club', '2099-03-15T23:30', '');
+		expect(nextStageTime(id)).toBe('2099-03-16T01:30');
+
+		await pickWinner(id, host.id, sat21.id, 'http://x');
+		expect(listStages(id).map((s) => s.starts_at)).toEqual(['2099-03-21T20:00', '2099-03-21T23:30']);
 	});
 
 	it('closes voting once the deadline passes, but the host can still pick a date', async () => {
