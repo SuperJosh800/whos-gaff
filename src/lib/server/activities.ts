@@ -1,6 +1,8 @@
 // The game at an event (Games tab). Someone picks a game and it opens in a lobby; everyone going is told
 // and can join. Once someone starts it, players see the same card live on their own phones, except secret
 // cards: only the person they name sees the real text. Cards only name people who joined.
+// Turn-based games like Ring of fire go round the players in the order they joined: only whoever's turn it
+// is draws, and drawing passes the turn on. Other games move on when half the players vote for the next card.
 import { randomInt } from 'node:crypto';
 import { db, tx } from './db.ts';
 import { publish } from './realtime.ts';
@@ -10,7 +12,7 @@ import { DEFAULT_COVER, fillNames, GAMES, namesNeeded, SOFT_NOTE, type Card } fr
 import { customGameForEvent } from './customGames.ts';
 
 /** What a running game needs, copied when it starts so later edits to a custom game can't break it. */
-type Meta = { name: string; emoji: string; rules: string; softRules: string; scored: boolean; custom: boolean };
+type Meta = { name: string; emoji: string; rules: string; softRules: string; scored: boolean; custom: boolean; turns?: boolean };
 type Row = {
 	game: string;
 	meta: string;
@@ -21,6 +23,7 @@ type Row = {
 	reveal: string | null;
 	soft: number;
 	started: number;
+	next_votes: string;
 };
 type Reveal = { name: string; mission: string; outcome: 'done' | 'bailed' | 'caught' };
 type Person = { id: number; name: string };
@@ -70,8 +73,44 @@ function pickPeople(eventId: number, card: Card, previousFirst: number | null, s
 
 function loadRow(eventId: number) {
 	return db
-		.prepare('SELECT game, meta, cards, deck, position, picks, reveal, soft, started FROM event_activity WHERE event_id = ?')
+		.prepare('SELECT game, meta, cards, deck, position, picks, reveal, soft, started, next_votes FROM event_activity WHERE event_id = ?')
 		.get(eventId) as Row | undefined;
+}
+
+/**
+ * Draws the next card in a turn-based game. Only whoever's turn it is can draw; `seen` stops a double
+ * tap drawing twice. After the last card the deck is reshuffled for another go round.
+ */
+export function drawCard(eventId: number, userId: number, seen: number) {
+	requireMember(eventId, userId);
+	const changed = tx(() => {
+		const row = requirePlaying(eventId, userId);
+		const meta = JSON.parse(row.meta) as Meta;
+		if (!meta.turns) throw new EventError('This game doesn’t take turns.');
+		if (row.position !== seen) return false;
+		const players = gamePlayers(eventId);
+		const order = players.length ? players : goingPeople(eventId);
+		if (order[row.position % order.length]?.id !== userId) throw new EventError('It’s not your turn.');
+		return drawNext(eventId, row);
+	});
+	if (changed) publish(eventId);
+}
+
+/** Puts the next card on the table and passes the turn on. */
+function drawNext(eventId: number, row: Row) {
+	const deck = JSON.parse(row.deck) as number[];
+	// Reshuffle once the last card of a deck has been on the table for a turn.
+	const newDeck = row.position > 0 && row.position % deck.length === 0 ? shuffle(deck.length) : deck;
+	db.prepare(
+		`UPDATE event_activity SET position = position + 1, deck = ?, next_votes = '[]', updated_at = datetime('now') WHERE event_id = ?`
+	).run(JSON.stringify(newDeck), eventId);
+	return true;
+}
+
+/** Votes needed to move to the next card: half the players, rounded up. */
+function votesNeeded(eventId: number) {
+	const joined = gamePlayers(eventId).length;
+	return Math.max(1, Math.ceil((joined || goingPeople(eventId).length) / 2));
 }
 
 /** Who has joined the game, in the order they joined. */
@@ -103,6 +142,8 @@ export function getActivity(eventId: number, viewerId: number) {
 	const mine = !!player && player.id === viewerId;
 	const text = secret && !mine ? (card.cover ?? DEFAULT_COVER) : card.text;
 	const joined = gamePlayers(eventId);
+	const votes = JSON.parse(row.next_votes) as number[];
+	const turn = meta.turns ? turnState(eventId, row, cards, deck, joined, viewerId) : null;
 	return {
 		game: row.game,
 		/** False while the game is in its lobby, waiting for people to join. */
@@ -125,12 +166,38 @@ export function getActivity(eventId: number, viewerId: number) {
 		number: (row.position % deck.length) + 1,
 		total: deck.length,
 		player,
+		/** Turn-based games: whose turn it is, the card they drew, and the deck on the table. */
+		turn,
+		/** "Next card" needs half the players: how many have tapped it, how many it needs, and whether you have. */
+		votes: { count: votes.length, needed: votesNeeded(eventId), mine: votes.includes(viewerId) },
 		soft: !!row.soft,
 		reveal: row.reveal ? (JSON.parse(row.reveal) as Reveal) : null
 	};
 }
 
 export type Activity = NonNullable<ReturnType<typeof getActivity>>;
+
+/**
+ * In a turn-based game, position counts cards drawn: card `position - 1` is the one on the table, and
+ * it's the turn of player `position` (mod players). Before the first draw nothing is on the table.
+ */
+function turnState(eventId: number, row: Row, cards: Card[], deck: number[], joined: Person[], viewerId: number) {
+	const order = joined.length ? joined : goingPeople(eventId);
+	const up = order.length ? order[row.position % order.length] : null;
+	const drawnInDeck = row.position % deck.length;
+	const shown = row.position > 0 ? cards[deck[(row.position - 1) % deck.length]] : null;
+	const drawnThisDeck = row.position > 0 && drawnInDeck === 0 ? deck.length : drawnInDeck;
+	const kings = deck.slice(0, drawnThisDeck).filter((i) => cards[i].rank === 'K').length;
+	const drewIt = row.position > 0 && order.length ? order[(row.position - 1) % order.length] : null;
+	return {
+		up,
+		yours: !!up && up.id === viewerId,
+		card: shown ? { rank: shown.rank ?? '', suit: shown.suit ?? '', text: shown.text } : null,
+		drewIt,
+		left: deck.length - drawnThisDeck,
+		kings
+	};
+}
 
 /**
  * Picks the game. With no game on, it opens a lobby: the person who picked it joins, and everyone
@@ -149,7 +216,8 @@ export function openGame(eventId: number, userId: number, gameId: string, soft: 
 			rules: builtIn.rules,
 			softRules: builtIn.softRules ?? `${builtIn.rules} ${SOFT_NOTE}`,
 			scored: !!builtIn.scored,
-			custom: false
+			custom: false,
+			turns: !!builtIn.turns
 		};
 		cards = builtIn.cards;
 	} else {
@@ -171,7 +239,7 @@ export function openGame(eventId: number, userId: number, gameId: string, soft: 
 			 VALUES (?, ?, ?, ?, ?, 0, ?, NULL, ?, 0, datetime('now'))
 			 ON CONFLICT (event_id) DO UPDATE SET game = excluded.game, meta = excluded.meta, cards = excluded.cards,
 			 deck = excluded.deck, position = 0, picks = excluded.picks, reveal = NULL, soft = excluded.soft,
-			 updated_at = excluded.updated_at`
+			 next_votes = '[]', updated_at = excluded.updated_at`
 		).run(eventId, gameId, JSON.stringify(meta), JSON.stringify(cards), JSON.stringify(deck), JSON.stringify(picks), soft ? 1 : 0);
 		db.prepare('INSERT OR IGNORE INTO game_players (event_id, user_id) VALUES (?, ?)').run(eventId, userId);
 		return !existing;
@@ -201,12 +269,20 @@ export function joinGame(eventId: number, userId: number) {
 	publish(eventId);
 }
 
-/** Leaves the game. When the last player leaves, the game ends. */
+/**
+ * Leaves the game, taking back any vote for the next card; with fewer players, the votes already
+ * in may now be enough. When the last player leaves, the game ends.
+ */
 export function leaveGame(eventId: number, userId: number) {
 	requireMember(eventId, userId);
 	tx(() => {
 		db.prepare('DELETE FROM game_players WHERE event_id = ? AND user_id = ?').run(eventId, userId);
-		if (!gamePlayers(eventId).length) db.prepare('DELETE FROM event_activity WHERE event_id = ?').run(eventId);
+		if (!gamePlayers(eventId).length) {
+			db.prepare('DELETE FROM event_activity WHERE event_id = ?').run(eventId);
+			return;
+		}
+		const row = loadRow(eventId);
+		if (row?.started) countVotes(eventId, row, (JSON.parse(row.next_votes) as number[]).filter((id) => id !== userId));
 	});
 	publish(eventId);
 }
@@ -246,8 +322,21 @@ function advance(eventId: number, row: Row, seen: number, reveal: Reveal | null)
 	const previousFirst = (JSON.parse(row.picks) as number[])[0] ?? null;
 	const picks = pickPeople(eventId, cards[newDeck[next % newDeck.length]], previousFirst, meta.scored);
 	db.prepare(
-		`UPDATE event_activity SET position = ?, deck = ?, picks = ?, reveal = ?, updated_at = datetime('now') WHERE event_id = ?`
+		`UPDATE event_activity SET position = ?, deck = ?, picks = ?, reveal = ?, next_votes = '[]', updated_at = datetime('now')
+		 WHERE event_id = ?`
 	).run(next, JSON.stringify(newDeck), JSON.stringify(picks), reveal ? JSON.stringify(reveal) : row.reveal, eventId);
+	return true;
+}
+
+/**
+ * Moves on if the votes reach half the players, otherwise saves them. In a turn-based game the vote is
+ * to skip whoever's turn it is (say they've wandered off): the card is drawn for them.
+ */
+function countVotes(eventId: number, row: Row, votes: number[]) {
+	if (votes.length >= votesNeeded(eventId)) {
+		return (JSON.parse(row.meta) as Meta).turns ? drawNext(eventId, row) : advance(eventId, row, row.position, null);
+	}
+	db.prepare('UPDATE event_activity SET next_votes = ? WHERE event_id = ?').run(JSON.stringify(votes), eventId);
 	return true;
 }
 
@@ -265,10 +354,19 @@ function requirePlaying(eventId: number, userId: number) {
 	return row;
 }
 
-/** Next card, or skip the current one (a skipped challenge scores nothing). */
+/**
+ * Votes for the next card, or to skip the current one (a skipped challenge scores nothing); tapping
+ * again takes the vote back. The card moves on once at least half the players have voted. `seen` is
+ * the card the person was looking at, so a tap on a card that has already gone is ignored.
+ */
 export function nextCard(eventId: number, userId: number, seen: number) {
 	requireMember(eventId, userId);
-	const changed = tx(() => advance(eventId, requirePlaying(eventId, userId), seen, null));
+	const changed = tx(() => {
+		const row = requirePlaying(eventId, userId);
+		if (row.position !== seen) return false;
+		const votes = JSON.parse(row.next_votes) as number[];
+		return countVotes(eventId, row, votes.includes(userId) ? votes.filter((id) => id !== userId) : [...votes, userId]);
+	});
 	if (changed) publish(eventId);
 }
 

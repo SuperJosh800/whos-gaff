@@ -109,13 +109,11 @@ export async function addPhoto(eventId: number, userId: number, file: File) {
 	mkdirSync(UPLOADS, { recursive: true });
 	const filename = `${randomUUID()}.${type.ext}`;
 	writeFileSync(join(UPLOADS, filename), bytes);
-	db.prepare('INSERT INTO event_photos (event_id, user_id, filename, mime) VALUES (?, ?, ?, ?)').run(
-		eventId,
-		userId,
-		filename,
-		type.mime
-	);
+	const { lastInsertRowid } = db
+		.prepare('INSERT INTO event_photos (event_id, user_id, filename, mime) VALUES (?, ?, ?, ?)')
+		.run(eventId, userId, filename, type.mime);
 	publish(eventId);
+	return Number(lastInsertRowid);
 }
 
 export function listPhotos(eventId: number) {

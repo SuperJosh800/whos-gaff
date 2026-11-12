@@ -22,6 +22,56 @@
 	};
 </script>
 
+{#snippet table(a: Activity, t: NonNullable<Activity['turn']>)}
+	{@const red = t.card?.suit === '♥' || t.card?.suit === '♦'}
+	<div class="space-y-4" aria-live="polite">
+		<p class="text-center text-sm font-extrabold tracking-widest uppercase {t.yours ? 'text-hot' : 'text-zinc-500'}">
+			{t.yours ? 'Your turn: tap the deck' : `${t.up?.name ?? 'Someone'}’s turn`}
+		</p>
+		<div class="grid grid-cols-2 gap-4">
+			<form method="POST" action="?/draw" use:enhance class="contents">
+				<input type="hidden" name="seen" value={a.position} />
+				<button
+					class="relative aspect-[5/7] border-2 border-lime bg-[repeating-linear-gradient(45deg,transparent_0_8px,rgb(198_255_61/0.12)_8px_16px)] text-lime shadow-[6px_6px_0_-1px_var(--color-ink),6px_6px_0_0_var(--color-lime),12px_12px_0_-1px_var(--color-ink),12px_12px_0_0_var(--color-lime)] transition enabled:hover:-translate-y-1 disabled:cursor-not-allowed disabled:opacity-50"
+					disabled={!t.yours}
+					aria-label={t.yours ? `Draw a card, ${t.left} left` : `Deck, ${t.left} left. ${t.up?.name ?? 'Someone'}’s turn`}>
+					<span class="absolute inset-x-0 top-1/2 -translate-y-1/2 text-center">
+						<span class="block text-4xl font-black tabular-nums">{t.left}</span>
+						<span class="block text-[11px] font-extrabold tracking-widest uppercase">{t.yours ? 'Tap to draw' : 'left'}</span>
+					</span>
+				</button>
+			</form>
+			<div class="relative aspect-[5/7] border-2 {t.card ? 'border-zinc-900 bg-zinc-900' : 'border-dashed border-zinc-300'}">
+				{#if t.card}
+					<span class="absolute top-2 left-3 text-left text-2xl leading-none font-black {red ? 'text-hot' : 'text-ink'}">{t.card.rank}<br />{t.card.suit}</span>
+					<span class="absolute inset-0 flex items-center justify-center text-7xl font-black {red ? 'text-hot' : 'text-ink'}">{t.card.suit}</span>
+					<span class="absolute right-3 bottom-2 rotate-180 text-left text-2xl leading-none font-black {red ? 'text-hot' : 'text-ink'}">{t.card.rank}<br />{t.card.suit}</span>
+				{:else}
+					<span class="absolute inset-0 flex items-center justify-center px-3 text-center text-xs font-extrabold tracking-widest text-zinc-500 uppercase">First card goes here</span>
+				{/if}
+			</div>
+		</div>
+		{#if t.card}
+			<p class="border border-lime p-4 text-xl leading-snug font-black sm:text-2xl">
+				<span class="block text-[11px] font-extrabold tracking-widest text-zinc-500 uppercase">{t.drewIt?.name ?? 'Someone'} drew {t.card.rank}{t.card.suit}</span>
+				{t.card.text}
+			</p>
+		{/if}
+		<div class="flex items-center justify-between text-xs font-extrabold tracking-widest uppercase">
+			<span class="text-zinc-500">Kings {t.kings}/4</span>
+			{#if !t.yours && t.up}
+				<form method="POST" action="?/next" use:enhance>
+					<input type="hidden" name="seen" value={a.position} />
+					<button class="uppercase {a.votes.mine ? 'text-lime' : 'text-zinc-500 hover:text-zinc-900'}" aria-pressed={a.votes.mine}>
+						{a.votes.mine ? 'Voted to skip' : `Skip ${t.up.name}`} {a.votes.count}/{a.votes.needed}
+					</button>
+				</form>
+			{/if}
+		</div>
+		<p class="text-sm text-zinc-600">{a.rules}</p>
+	</div>
+{/snippet}
+
 {#snippet card(a: Activity)}
 	<div class="space-y-4" aria-live="polite">
 		{#if a.secret && a.mine}
@@ -64,22 +114,31 @@
 		{:else}
 			<form method="POST" action="?/next" use:enhance>
 				<input type="hidden" name="seen" value={a.position} />
-				<button class="btn">Next card</button>
+				<button class={a.votes.mine ? 'btn-secondary !border-lime !text-lime' : 'btn'} aria-pressed={a.votes.mine}>
+					{a.votes.mine ? 'Waiting' : 'Next card'}{a.votes.needed > 1 ? ` ${a.votes.count}/${a.votes.needed}` : ''}
+				</button>
 			</form>
 		{/if}
 		{#if a.scored}
 			<form method="POST" action="?/next" use:enhance>
 				<input type="hidden" name="seen" value={a.position} />
-				<button class="btn-secondary">Skip</button>
+				<button class="btn-secondary {a.votes.mine ? '!border-lime !text-lime' : ''}" aria-pressed={a.votes.mine}>
+					{a.votes.mine ? 'Waiting' : 'Skip'}{a.votes.needed > 1 ? ` ${a.votes.count}/${a.votes.needed}` : ''}
+				</button>
 			</form>
 		{/if}
 	</div>
+	{#if a.votes.needed > 1}
+		<p class="text-xs text-zinc-500">
+			{a.votes.mine ? 'Tap again to take your vote back. ' : ''}The card moves on when half the players ({a.votes.needed} of {a.players.length}) tap {a.scored ? 'Skip' : 'Next card'}.
+		</p>
+	{/if}
 {/snippet}
 
 {#snippet roster(a: Activity)}
 	<ul class="flex flex-wrap border-t border-l border-zinc-200 text-xs font-extrabold tracking-widest uppercase [&>li]:border-r [&>li]:border-b [&>li]:border-zinc-200 [&>li]:px-3 [&>li]:py-2">
 		{#each a.players as p (p.id)}
-			<li class={a.started && a.player?.id === p.id ? 'bg-lime text-ink' : ''}>{p.name}</li>
+			<li class={a.started && (a.turn ? a.turn.up?.id === p.id : a.player?.id === p.id) ? 'bg-lime text-ink' : ''}>{p.name}</li>
 		{/each}
 	</ul>
 {/snippet}
@@ -90,15 +149,19 @@
 	<!-- Game mode: the whole screen is the game, over the app's header and tab bar. -->
 	<div class="fixed inset-0 z-40 flex h-dvh flex-col overflow-y-auto bg-ink pb-[env(safe-area-inset-bottom)]" role="dialog" aria-modal="true" aria-label="{a.name}, game mode">
 		<div class="grid grid-cols-[1fr_auto_auto] border-b border-zinc-200 text-[11px] font-extrabold tracking-widest uppercase [&_button]:uppercase">
-			<p class="min-w-0 truncate px-4 py-3 text-lime">{a.name}{a.soft ? ' · soft' : ''} <span class="text-zinc-500">· {a.number}/{a.total}</span></p>
+			<p class="min-w-0 truncate px-4 py-3 text-lime">{a.name}{a.soft ? ' · soft' : ''} {#if !a.turn}<span class="text-zinc-500">· {a.number}/{a.total}</span>{/if}</p>
 			<button type="button" class="border-l border-zinc-200 px-4 text-zinc-500 hover:text-zinc-900" onclick={() => (minimised = true)}>Minimise</button>
 			<form method="POST" action="?/leave" use:enhance class="flex border-l border-zinc-200">
 				<button class="px-4 text-zinc-500 hover:text-zinc-900">Leave</button>
 			</form>
 		</div>
 		<div class="mx-auto flex w-full max-w-2xl flex-1 flex-col justify-center gap-6 px-4 py-6">
-			{@render card(a)}
-			{@render moves(a)}
+			{#if a.turn}
+				{@render table(a, a.turn)}
+			{:else}
+				{@render card(a)}
+				{@render moves(a)}
+			{/if}
 		</div>
 		<div class="mx-auto w-full max-w-2xl space-y-3 px-4 pb-4">
 			{@render roster(a)}
@@ -148,7 +211,13 @@
 				{#if a.soft}<span class="badge text-lime">Soft mode</span>{/if}
 				<span class="ml-auto text-xs text-zinc-500">Card {a.number} of {a.total}</span>
 			</div>
-			{#if a.joined}
+			{#if a.joined && a.turn}
+				{@render table(a, a.turn)}
+				<div class="flex flex-wrap gap-5 text-[11px] font-extrabold tracking-widest text-zinc-500 uppercase [&_button]:uppercase">
+					<button type="button" class="text-lime" onclick={() => ((minimised = false), (picking = false))}>Back to game mode</button>
+					<button type="button" class="hover:text-zinc-900" onclick={() => (picking = !picking)}>{picking ? 'Keep playing' : 'Change game'}</button>
+				</div>
+			{:else if a.joined}
 				{@render card(a)}
 				{@render moves(a)}
 				<div class="flex flex-wrap gap-5 text-[11px] font-extrabold tracking-widest text-zinc-500 uppercase [&_button]:uppercase">

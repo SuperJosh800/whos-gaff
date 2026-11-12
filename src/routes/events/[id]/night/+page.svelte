@@ -12,6 +12,10 @@
 	const started = $derived(!!data.event.starts_at && data.now >= data.event.starts_at);
 	const overdue = $derived(!!data.cutoff && data.now >= data.cutoff);
 	const meCheckedIn = $derived(data.checkIns.find((c) => c.user_id === me)?.at);
+	const m = $derived(data.missions);
+	const going = $derived(data.homePlans.some((p) => p.user_id === me));
+	const suspects = $derived(data.homePlans.filter((p) => p.user_id !== me));
+	let preview = $state<string | null>(null);
 	const moveTime = (utc: string) =>
 		new Date(utc.replace(' ', 'T') + 'Z').toLocaleTimeString('en-GB', { hour: 'numeric', minute: '2-digit' });
 </script>
@@ -64,6 +68,89 @@
 				</ul>
 			{/if}
 		</div>
+	</section>
+
+	<section class="card space-y-4" id="missions">
+		<div class="flex flex-wrap items-baseline justify-between gap-2">
+			<h2>Secret missions</h2>
+			{#if m.live}<span class="text-xs text-zinc-500">{m.live} {m.live === 1 ? 'person is' : 'people are'} on a mission right now</span>{/if}
+		</div>
+		{#if !going}
+			<p class="text-sm text-zinc-500">RSVP “going” to get a mission.</p>
+		{:else if m.mine}
+			<div class="border border-hot">
+				<p class="px-3 pt-3 text-[11px] font-extrabold tracking-widest text-hot uppercase">Your mission · only you can see this · {m.mine.points} pts</p>
+				<p class="px-3 pt-1 pb-3 text-xl leading-snug font-black">{m.mine.text}</p>
+				<form method="POST" action="?/missionDone" enctype="multipart/form-data"
+					use:enhance={() => async ({ update }) => { await update(); preview = null; }}
+					class="border-t border-hot">
+					{#if m.mine.photo}
+						<label class="flex cursor-pointer items-center gap-3 border-b border-zinc-200 px-3 py-2.5 text-sm has-focus-visible:outline-2 has-focus-visible:-outline-offset-2 has-focus-visible:outline-hot">
+							<input class="sr-only" type="file" name="photo" accept="image/*" capture="environment" required
+								onchange={(e) => { const f = e.currentTarget.files?.[0]; preview = f ? URL.createObjectURL(f) : null; }} />
+							{#if preview}<img src={preview} alt="Your proof" class="h-12 w-12 object-cover" />{/if}
+							<span class="text-[11px] font-extrabold tracking-widest uppercase {preview ? 'text-lime' : 'text-zinc-700'}">{preview ? 'Photo ready · tap to change' : 'Take the proof photo'}</span>
+						</label>
+					{/if}
+					<div class="joined [&>*]:flex-1">
+						<button class="btn">Done it</button>
+						<button class="btn-secondary" formaction="?/swapMission" formnovalidate disabled={!m.swapsLeft}>Swap ({m.swapsLeft} left)</button>
+					</div>
+				</form>
+			</div>
+			<p class="text-xs text-zinc-500">Pull it off any time tonight without anyone clocking it. Act normal: everyone else might have one too.</p>
+		{:else}
+			<form method="POST" action="?/takeMission" use:enhance>
+				<button class="btn w-full">Get a secret mission</button>
+			</form>
+			<p class="text-xs text-zinc-500">One mission, just for you, to pull off any time tonight. Some need a photo as proof.</p>
+		{/if}
+
+		{#if going && suspects.length}
+			<form method="POST" action="?/callOut" use:enhance class="space-y-2 border-t border-zinc-200 pt-4">
+				<p class="label">Think someone’s on a mission?</p>
+				<div class="joined">
+					<select class="input min-w-0 flex-1" name="suspect" required aria-label="Who">
+						<option value="" disabled selected>Call someone out</option>
+						{#each suspects as p (p.user_id)}<option value={p.user_id}>{p.name}</option>{/each}
+					</select>
+					<button class="btn-secondary">Call out</button>
+				</div>
+				{#if form && 'callOut' in form && form.callOut}
+					<p class="text-sm {form.callOut.caught ? 'text-lime' : 'text-zinc-500'}" role="status">
+						{form.callOut.caught ? 'Caught them! That’s a point to you.' : 'Nope, not on a mission. Everyone can see you guessed.'}
+					</p>
+				{/if}
+				<p class="text-xs text-zinc-500">Right and their mission is caught, with a point to you. Wrong guesses show up for everyone.</p>
+			</form>
+		{/if}
+
+		{#if m.settled.length}
+			<ul class="divide-y divide-zinc-200 border border-zinc-200 text-sm">
+				{#each m.settled as s (s.id)}
+					<li class="grid grid-cols-[1fr_auto] gap-3 px-3 py-2.5">
+						<p class="min-w-0">
+							<span class="font-extrabold">{s.user_id === me ? 'You' : s.name}</span>
+							{s.status === 'done' ? `pulled it off (+${s.points})` : `got caught by ${s.caught_by ?? 'someone'}`}
+							<span class="block text-zinc-600">“{s.text}”</span>
+						</p>
+						{#if s.photo_id}
+							<a href="/events/{data.event.id}/photos/{s.photo_id}" target="_blank" rel="noopener noreferrer">
+								<img src="/events/{data.event.id}/photos/{s.photo_id}" alt="Proof for {s.name}'s mission" class="h-14 w-14 border border-zinc-200 object-cover" />
+							</a>
+						{/if}
+					</li>
+				{/each}
+			</ul>
+		{/if}
+		{#if m.misses.length}
+			<p class="text-xs text-zinc-500">Wrong calls: {m.misses.map((x) => `${x.name} on ${x.suspect}`).join(', ')}</p>
+		{/if}
+		{#if m.scores.length}
+			<ol class="flex flex-wrap border-t border-l border-zinc-200 text-xs font-extrabold tracking-widest uppercase [&>li]:border-r [&>li]:border-b [&>li]:border-zinc-200 [&>li]:px-3 [&>li]:py-2">
+				{#each m.scores as sc, i (sc.id)}<li class={i === 0 ? 'bg-lime text-ink' : ''}>{sc.name} {sc.points}</li>{/each}
+			</ol>
+		{/if}
 	</section>
 
 	<section class="card space-y-4">
