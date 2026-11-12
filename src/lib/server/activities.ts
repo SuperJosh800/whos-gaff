@@ -21,6 +21,7 @@ type Row = {
 	reveal: string | null;
 	soft: number;
 	started: number;
+	next_votes: string;
 };
 type Reveal = { name: string; mission: string; outcome: 'done' | 'bailed' | 'caught' };
 type Person = { id: number; name: string };
@@ -70,8 +71,14 @@ function pickPeople(eventId: number, card: Card, previousFirst: number | null, s
 
 function loadRow(eventId: number) {
 	return db
-		.prepare('SELECT game, meta, cards, deck, position, picks, reveal, soft, started FROM event_activity WHERE event_id = ?')
+		.prepare('SELECT game, meta, cards, deck, position, picks, reveal, soft, started, next_votes FROM event_activity WHERE event_id = ?')
 		.get(eventId) as Row | undefined;
+}
+
+/** Votes needed to move to the next card: half the players, rounded up. */
+function votesNeeded(eventId: number) {
+	const joined = gamePlayers(eventId).length;
+	return Math.max(1, Math.ceil((joined || goingPeople(eventId).length) / 2));
 }
 
 /** Who has joined the game, in the order they joined. */
@@ -103,6 +110,7 @@ export function getActivity(eventId: number, viewerId: number) {
 	const mine = !!player && player.id === viewerId;
 	const text = secret && !mine ? (card.cover ?? DEFAULT_COVER) : card.text;
 	const joined = gamePlayers(eventId);
+	const votes = JSON.parse(row.next_votes) as number[];
 	return {
 		game: row.game,
 		/** False while the game is in its lobby, waiting for people to join. */
@@ -125,6 +133,8 @@ export function getActivity(eventId: number, viewerId: number) {
 		number: (row.position % deck.length) + 1,
 		total: deck.length,
 		player,
+		/** "Next card" needs half the players: how many have tapped it, how many it needs, and whether you have. */
+		votes: { count: votes.length, needed: votesNeeded(eventId), mine: votes.includes(viewerId) },
 		soft: !!row.soft,
 		reveal: row.reveal ? (JSON.parse(row.reveal) as Reveal) : null
 	};
@@ -171,7 +181,7 @@ export function openGame(eventId: number, userId: number, gameId: string, soft: 
 			 VALUES (?, ?, ?, ?, ?, 0, ?, NULL, ?, 0, datetime('now'))
 			 ON CONFLICT (event_id) DO UPDATE SET game = excluded.game, meta = excluded.meta, cards = excluded.cards,
 			 deck = excluded.deck, position = 0, picks = excluded.picks, reveal = NULL, soft = excluded.soft,
-			 updated_at = excluded.updated_at`
+			 next_votes = '[]', updated_at = excluded.updated_at`
 		).run(eventId, gameId, JSON.stringify(meta), JSON.stringify(cards), JSON.stringify(deck), JSON.stringify(picks), soft ? 1 : 0);
 		db.prepare('INSERT OR IGNORE INTO game_players (event_id, user_id) VALUES (?, ?)').run(eventId, userId);
 		return !existing;
@@ -201,12 +211,20 @@ export function joinGame(eventId: number, userId: number) {
 	publish(eventId);
 }
 
-/** Leaves the game. When the last player leaves, the game ends. */
+/**
+ * Leaves the game, taking back any vote for the next card; with fewer players, the votes already
+ * in may now be enough. When the last player leaves, the game ends.
+ */
 export function leaveGame(eventId: number, userId: number) {
 	requireMember(eventId, userId);
 	tx(() => {
 		db.prepare('DELETE FROM game_players WHERE event_id = ? AND user_id = ?').run(eventId, userId);
-		if (!gamePlayers(eventId).length) db.prepare('DELETE FROM event_activity WHERE event_id = ?').run(eventId);
+		if (!gamePlayers(eventId).length) {
+			db.prepare('DELETE FROM event_activity WHERE event_id = ?').run(eventId);
+			return;
+		}
+		const row = loadRow(eventId);
+		if (row?.started) countVotes(eventId, row, (JSON.parse(row.next_votes) as number[]).filter((id) => id !== userId));
 	});
 	publish(eventId);
 }
@@ -246,8 +264,16 @@ function advance(eventId: number, row: Row, seen: number, reveal: Reveal | null)
 	const previousFirst = (JSON.parse(row.picks) as number[])[0] ?? null;
 	const picks = pickPeople(eventId, cards[newDeck[next % newDeck.length]], previousFirst, meta.scored);
 	db.prepare(
-		`UPDATE event_activity SET position = ?, deck = ?, picks = ?, reveal = ?, updated_at = datetime('now') WHERE event_id = ?`
+		`UPDATE event_activity SET position = ?, deck = ?, picks = ?, reveal = ?, next_votes = '[]', updated_at = datetime('now')
+		 WHERE event_id = ?`
 	).run(next, JSON.stringify(newDeck), JSON.stringify(picks), reveal ? JSON.stringify(reveal) : row.reveal, eventId);
+	return true;
+}
+
+/** Moves on if the votes reach half the players, otherwise saves them. */
+function countVotes(eventId: number, row: Row, votes: number[]) {
+	if (votes.length >= votesNeeded(eventId)) return advance(eventId, row, row.position, null);
+	db.prepare('UPDATE event_activity SET next_votes = ? WHERE event_id = ?').run(JSON.stringify(votes), eventId);
 	return true;
 }
 
@@ -265,10 +291,19 @@ function requirePlaying(eventId: number, userId: number) {
 	return row;
 }
 
-/** Next card, or skip the current one (a skipped challenge scores nothing). */
+/**
+ * Votes for the next card, or to skip the current one (a skipped challenge scores nothing); tapping
+ * again takes the vote back. The card moves on once at least half the players have voted. `seen` is
+ * the card the person was looking at, so a tap on a card that has already gone is ignored.
+ */
 export function nextCard(eventId: number, userId: number, seen: number) {
 	requireMember(eventId, userId);
-	const changed = tx(() => advance(eventId, requirePlaying(eventId, userId), seen, null));
+	const changed = tx(() => {
+		const row = requirePlaying(eventId, userId);
+		if (row.position !== seen) return false;
+		const votes = JSON.parse(row.next_votes) as number[];
+		return countVotes(eventId, row, votes.includes(userId) ? votes.filter((id) => id !== userId) : [...votes, userId]);
+	});
 	if (changed) publish(eventId);
 }
 

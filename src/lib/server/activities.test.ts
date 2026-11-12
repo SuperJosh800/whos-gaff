@@ -29,6 +29,20 @@ function startGame(eventId: number, userId: number, gameId: string, soft: boolea
 	beginGame(eventId, userId);
 }
 
+/** Moves past card `seen` by having players vote until half have. */
+function skipCard(eventId: number, seen: number) {
+	for (const p of gamePlayerIds(eventId)) {
+		if (getActivity(eventId, p)!.position !== seen) return;
+		nextCard(eventId, p, seen);
+	}
+}
+
+function gamePlayerIds(eventId: number) {
+	return (db.prepare('SELECT user_id FROM game_players WHERE event_id = ? ORDER BY rowid').all(eventId) as { user_id: number }[]).map(
+		(r) => r.user_id
+	);
+}
+
 function goingIds(eventId: number) {
 	return (
 		db
@@ -80,7 +94,7 @@ describe('names on cards', () => {
 				JSON.stringify([0, 1]),
 				id
 			);
-			nextCard(id, host.id, 0);
+			skipCard(id, 0);
 			const [a, b] = getActivity(id, host.id)!.card.split('|');
 			expect(everyone.map((p) => p.name)).toEqual(expect.arrayContaining([a, b]));
 			expect(a).not.toBe(b);
@@ -99,22 +113,46 @@ describe('games', () => {
 		expect(a.rules).toMatch(/water/);
 	});
 
-	it('moves on once when two people tap next on the same card, and reshuffles at the end', () => {
-		const { id, host, people } = party();
+	it('moves to the next card once half the players vote, and reshuffles at the end', () => {
+		const { id, host, people } = party(4); // 5 players: 3 votes needed
+		const [a, b, c, d] = people;
 		startGame(id, host.id, 'categories', false);
 		nextCard(id, host.id, 0);
-		nextCard(id, people[0].id, 0);
+		nextCard(id, a.id, 0);
+		expect(getActivity(id, b.id)).toMatchObject({ position: 0, votes: { count: 2, needed: 3, mine: false } });
+		expect(getActivity(id, a.id)!.votes.mine).toBe(true);
+		nextCard(id, a.id, 0); // tapping again takes the vote back
+		expect(getActivity(id, a.id)!.votes).toEqual({ count: 1, needed: 3, mine: false });
+		nextCard(id, b.id, 0);
+		nextCard(id, c.id, 0);
+		expect(getActivity(id, d.id)).toMatchObject({ position: 1, votes: { count: 0, needed: 3, mine: false } });
+		nextCard(id, d.id, 0); // a late tap on the card that's gone counts for nothing
+		expect(getActivity(id, d.id)).toMatchObject({ position: 1, votes: { count: 0 } });
+
+		// With 4 players, 2 votes are enough (half, rounded up).
+		leaveGame(id, d.id);
+		nextCard(id, host.id, 1);
 		expect(getActivity(id, host.id)!.position).toBe(1);
+		nextCard(id, b.id, 1);
+		expect(getActivity(id, host.id)!.position).toBe(2);
+
+		// Someone leaving can tip the vote over: 1 of 3 isn't half, 1 of 2 is.
+		leaveGame(id, c.id);
+		nextCard(id, host.id, 2);
+		expect(getActivity(id, host.id)!.position).toBe(2);
+		leaveGame(id, a.id);
+		expect(getActivity(id, host.id)!.position).toBe(3);
 
 		const total = GAMES.categories.cards.length;
 		startGame(id, host.id, 'categories', false);
+		expect(getActivity(id, host.id)!.votes.count).toBe(0);
 		const seen = new Set<string>();
 		for (let i = 0; i < total; i++) {
 			seen.add(getActivity(id, host.id)!.card);
-			if (i < total - 1) nextCard(id, host.id, i);
+			if (i < total - 1) skipCard(id, i);
 		}
 		expect(seen.size).toBe(total); // every card once before any repeats
-		nextCard(id, host.id, total - 1);
+		skipCard(id, total - 1);
 		expect(getActivity(id, host.id)!.number).toBe(1);
 	});
 
@@ -167,7 +205,7 @@ describe('game lobby', () => {
 				JSON.stringify([0, 1]),
 				id
 			);
-			nextCard(id, sam.id, 0);
+			skipCard(id, 0);
 			const named = getActivity(id, sam.id)!.card.split('|');
 			expect([sam.name, jo.name]).toEqual(expect.arrayContaining(named));
 		}
@@ -269,7 +307,7 @@ describe('custom games', () => {
 		startGame(id, host.id, `custom:${gameId}`, false);
 		expect(getActivity(id, host.id)).toMatchObject({ name: 'Our game', emoji: '🔥', scored: true, custom: true, total: 4 });
 		deleteCustomGame(people[0].id, gameId);
-		nextCard(id, host.id, 0);
+		skipCard(id, 0);
 		expect(getActivity(id, host.id)!.name).toBe('Our game');
 	});
 });

@@ -304,6 +304,11 @@ const migrations: string[] = [
 		PRIMARY KEY (group_id, user_id)
 	);
 	ALTER TABLE rounds ADD COLUMN group_id INTEGER REFERENCES round_groups(id) ON DELETE CASCADE;
+	`,
+	`
+	-- Players who have tapped "Next card" on the current card (JSON list of user ids). The card moves on
+	-- once at least half the players have, and the list empties.
+	ALTER TABLE event_activity ADD COLUMN next_votes TEXT NOT NULL DEFAULT '[]';
 	`
 ];
 

@@ -64,16 +64,25 @@
 		{:else}
 			<form method="POST" action="?/next" use:enhance>
 				<input type="hidden" name="seen" value={a.position} />
-				<button class="btn">Next card</button>
+				<button class={a.votes.mine ? 'btn-secondary !border-lime !text-lime' : 'btn'} aria-pressed={a.votes.mine}>
+					{a.votes.mine ? 'Waiting' : 'Next card'}{a.votes.needed > 1 ? ` ${a.votes.count}/${a.votes.needed}` : ''}
+				</button>
 			</form>
 		{/if}
 		{#if a.scored}
 			<form method="POST" action="?/next" use:enhance>
 				<input type="hidden" name="seen" value={a.position} />
-				<button class="btn-secondary">Skip</button>
+				<button class="btn-secondary {a.votes.mine ? '!border-lime !text-lime' : ''}" aria-pressed={a.votes.mine}>
+					{a.votes.mine ? 'Waiting' : 'Skip'}{a.votes.needed > 1 ? ` ${a.votes.count}/${a.votes.needed}` : ''}
+				</button>
 			</form>
 		{/if}
 	</div>
+	{#if a.votes.needed > 1}
+		<p class="text-xs text-zinc-500">
+			{a.votes.mine ? 'Tap again to take your vote back. ' : ''}The card moves on when half the players ({a.votes.needed} of {a.players.length}) tap {a.scored ? 'Skip' : 'Next card'}.
+		</p>
+	{/if}
 {/snippet}
 
 {#snippet roster(a: Activity)}
