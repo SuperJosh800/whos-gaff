@@ -15,6 +15,16 @@ if ! command -v docker >/dev/null; then
 	echo "==> Installing Docker"
 	curl -fsSL https://get.docker.com | sh
 fi
+if ! docker compose version >/dev/null 2>&1; then
+	# Ubuntu's docker.io package comes without Compose.
+	echo "==> Installing Docker Compose"
+	if ! apt-get install -y docker-compose-v2; then
+		mkdir -p /usr/local/lib/docker/cli-plugins
+		curl -fsSL "https://github.com/docker/compose/releases/latest/download/docker-compose-linux-$(uname -m)" \
+			-o /usr/local/lib/docker/cli-plugins/docker-compose
+		chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+	fi
+fi
 if ! command -v tailscale >/dev/null; then
 	echo "==> Installing Tailscale"
 	curl -fsSL https://tailscale.com/install.sh | sh
@@ -72,6 +82,8 @@ printf '[Login]\nHandleLidSwitch=ignore\nHandleLidSwitchExternalPower=ignore\nHa
 
 systemctl daemon-reload
 systemctl enable --now docker
+# Replace a container started by hand with `docker run --name whos-gaff`; its data volume is kept.
+docker rm -f whos-gaff >/dev/null 2>&1 || true
 systemctl start whos-gaff-update.service
 systemctl enable --now whos-gaff-update.timer
 

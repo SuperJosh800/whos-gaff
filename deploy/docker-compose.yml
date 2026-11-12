@@ -1,6 +1,7 @@
 services:
   whos-gaff:
     image: ghcr.io/superjosh800/whos-gaff:latest
+    container_name: whos-gaff
     restart: unless-stopped
     # Only reachable from this machine; Tailscale Funnel forwards the public traffic.
     ports:
@@ -11,3 +12,4 @@ services:
 
 volumes:
   data:
+    name: whos-gaff
