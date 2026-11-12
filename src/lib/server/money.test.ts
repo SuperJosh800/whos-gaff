@@ -1,7 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import { signUp, type User } from './auth.ts';
 import { createEvent, getEvent, joinByToken, setRsvp } from './events.ts';
-import { addExpense, balances, getKitty, getRounds, parsePounds, payLink, recordRound, recordSettlement, settleUp } from './money.ts';
+import {
+	addExpense,
+	balances,
+	getKitty,
+	getRounds,
+	leaveRoundGroup,
+	parsePounds,
+	payLink,
+	recordRound,
+	recordSettlement,
+	saveRoundGroup,
+	settleUp
+} from './money.ts';
 import { homeSafeCutoff } from './night.ts';
 
 let n = 0;
@@ -59,18 +71,47 @@ describe('splitting costs', () => {
 describe('rounds', () => {
 	it('goes round everyone going in turn and records skipped rounds', () => {
 		const { id, host, a, b } = night();
-		expect(getRounds(id).next?.id).toBe(host.id);
-		recordRound(id, a.id, host.id, false);
-		expect(() => recordRound(id, a.id, host.id, false)).toThrow('already updated');
-		recordRound(id, b.id, a.id, true);
-		recordRound(id, b.id, b.id, false);
-		const rounds = getRounds(id);
+		expect(getRounds(id)[0].next?.id).toBe(host.id);
+		recordRound(id, a.id, null, host.id, false);
+		expect(() => recordRound(id, a.id, null, host.id, false)).toThrow('already updated');
+		recordRound(id, b.id, null, a.id, true);
+		recordRound(id, b.id, null, b.id, false);
+		const [rounds] = getRounds(id);
 		expect(rounds.next?.id).toBe(host.id);
 		expect(rounds.tally.map((t) => [t.name, t.bought, t.skipped])).toEqual([
 			['Host', 1, 0],
 			['A', 0, 1],
 			['B', 1, 0]
 		]);
+	});
+
+	it('splits off a smaller round that keeps its own turns, leaving everyone else in the main one', () => {
+		const { id, host, a, b } = night();
+		const c = user('C');
+		joinByToken(getEvent(id)!.invite_token, c.id);
+		setRsvp(id, c.id, 'yes');
+		recordRound(id, host.id, null, host.id, false);
+
+		saveRoundGroup(id, a.id, null, [a.id, c.id]);
+		const [main, small] = getRounds(id);
+		expect(main.tally.map((t) => t.id)).toEqual([host.id, b.id]);
+		expect(main.next?.id).toBe(b.id); // the host already bought; B is next among who's left
+		expect(small.tally.map((t) => t.id)).toEqual([a.id, c.id]);
+		expect(small.next?.id).toBe(a.id);
+
+		recordRound(id, c.id, small.id, a.id, false);
+		expect(getRounds(id)[1].next?.id).toBe(c.id);
+		expect(getRounds(id)[0].next?.id).toBe(b.id); // the small round doesn't move the main one on
+		expect(() => recordRound(id, a.id, small.id, b.id, false)).toThrow('already updated');
+
+		expect(() => saveRoundGroup(id, a.id, null, [a.id])).toThrow('at least two');
+		expect(() => saveRoundGroup(id, a.id, null, [a.id, user('Stranger').id])).toThrow('on the event');
+
+		// Leaving a two-person round closes it, and both go back to the main round.
+		leaveRoundGroup(id, c.id, small.id!);
+		const after = getRounds(id);
+		expect(after).toHaveLength(1);
+		expect(after[0].tally.map((t) => t.id)).toEqual([host.id, a.id, b.id, c.id]);
 	});
 });
 

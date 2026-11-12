@@ -7,7 +7,6 @@
 	const me = $derived(page.data.user?.id);
 	const pounds = (pence: number) => `£${(pence / 100).toFixed(2)}`;
 	const names = $derived(new Map(data.kitty.people.map((p) => [p.id, p.name])));
-	const next = $derived(data.rounds.next);
 </script>
 
 {#if form?.error}<p class="error mb-5" role="alert">{form.error}</p>{/if}
@@ -15,30 +14,69 @@
 <div class="space-y-5">
 	<section class="card space-y-4">
 		<h2>Rounds</h2>
-		{#if next}
-			<div class="border border-zinc-200">
-				<p class="px-3 py-3"><span class="block text-[11px] font-extrabold tracking-widest text-zinc-500 uppercase">Next round</span>
-					<span class="text-2xl font-black uppercase {next.id === me ? 'text-hot' : 'text-lime'}">{next.id === me ? 'You' : next.name}</span></p>
-				<form method="POST" action="?/round" use:enhance class="strip border-0 border-t">
-					<button name="skipped" value="0">Got it in</button>
-					<button name="skipped" value="1">Skipped it</button>
-					<input type="hidden" name="for" value={next.id} />
-				</form>
+		{#each data.rounds as round, i (round.id ?? 'main')}
+			{@const next = round.next}
+			{@const mine = round.tally.some((t) => t.id === me)}
+			<div class="space-y-3 {i ? 'border-t border-zinc-200 pt-4' : ''}">
+				{#if data.rounds.length > 1}
+					<div class="flex items-baseline justify-between gap-3">
+						<p class="label">{round.id === null ? 'Main round' : `Round with ${round.tally.map((t) => (t.id === me ? 'you' : t.name)).join(', ')}`}</p>
+						{#if round.id !== null && mine}
+							<form method="POST" action="?/leaveRound" use:enhance>
+								<input type="hidden" name="group" value={round.id} />
+								<button class="text-[11px] font-extrabold tracking-widest text-zinc-500 uppercase hover:text-zinc-900">Leave</button>
+							</form>
+						{/if}
+					</div>
+				{/if}
+				{#if round.id === null && round.tally.length < 2 && data.rounds.length > 1}
+					<p class="text-sm text-zinc-500">Just {round.tally[0].id === me ? 'you' : round.tally[0].name} left in the main round.</p>
+				{:else if next}
+					<div class="border border-zinc-200">
+						<p class="px-3 py-3"><span class="block text-[11px] font-extrabold tracking-widest text-zinc-500 uppercase">Next round</span>
+							<span class="text-2xl font-black uppercase {next.id === me ? 'text-hot' : 'text-lime'}">{next.id === me ? 'You' : next.name}</span></p>
+						<form method="POST" action="?/round" use:enhance class="strip border-0 border-t">
+							<button name="skipped" value="0">Got it in</button>
+							<button name="skipped" value="1">Skipped it</button>
+							<input type="hidden" name="for" value={next.id} />
+							<input type="hidden" name="group" value={round.id ?? ''} />
+						</form>
+					</div>
+					<table class="w-full text-sm">
+						<thead><tr class="text-left text-[11px] tracking-widest text-zinc-500 uppercase"><th class="py-1 font-extrabold">Who</th><th class="font-extrabold">Bought</th><th class="font-extrabold">Skipped</th></tr></thead>
+						<tbody>
+							{#each round.tally as t (t.id)}
+								<tr class="border-t border-zinc-200">
+									<td class="py-1.5 {t.id === next.id ? 'font-extrabold text-lime' : ''}">{t.name}{t.id === next.id ? ' (next)' : ''}</td>
+									<td>{t.bought}</td>
+									<td class={t.skipped ? 'font-bold text-red-700' : ''}>{t.skipped}</td>
+								</tr>
+							{/each}
+						</tbody>
+					</table>
+				{/if}
 			</div>
-			<table class="w-full text-sm">
-				<thead><tr class="text-left text-[11px] tracking-widest text-zinc-500 uppercase"><th class="py-1 font-extrabold">Who</th><th class="font-extrabold">Bought</th><th class="font-extrabold">Skipped</th></tr></thead>
-				<tbody>
-					{#each data.rounds.tally as t (t.id)}
-						<tr class="border-t border-zinc-200">
-							<td class="py-1.5 {t.id === next.id ? 'font-extrabold text-lime' : ''}">{t.name}{t.id === next.id ? ' (next)' : ''}</td>
-							<td>{t.bought}</td>
-							<td class={t.skipped ? 'font-bold text-red-700' : ''}>{t.skipped}</td>
-						</tr>
-					{/each}
-				</tbody>
-			</table>
 		{:else}
 			<p class="text-sm text-zinc-500">Rounds start once people RSVP “going”.</p>
+		{/each}
+
+		{#if data.going.length > 2}
+			<details class="border-t border-zinc-200 pt-4">
+				<summary class="cursor-pointer text-[11px] font-extrabold tracking-widest text-hot uppercase">Split off a smaller round</summary>
+				<form method="POST" action="?/roundGroup" use:enhance class="mt-3 space-y-3">
+					<p class="text-sm text-zinc-600">Just buying for a few of you? Pick who’s in. Everyone else stays in the main round.</p>
+					<fieldset class="flex flex-wrap gap-2">
+						<legend class="sr-only">Who’s in this round</legend>
+						{#each data.going as p (p.id)}
+							<label class="flex cursor-pointer items-center gap-1.5 border border-zinc-300 px-3 py-1.5 text-xs font-extrabold tracking-widest uppercase has-[:checked]:border-lime has-[:checked]:bg-lime has-[:checked]:text-ink has-focus-visible:outline-2 has-focus-visible:outline-hot">
+								<input class="sr-only" type="checkbox" name="member" value={p.id} checked={p.id === me} />
+								{p.id === me ? 'You' : p.name}
+							</label>
+						{/each}
+					</fieldset>
+					<button class="btn">Start this round</button>
+				</form>
+			</details>
 		{/if}
 	</section>
 

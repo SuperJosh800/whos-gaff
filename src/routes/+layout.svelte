@@ -2,6 +2,7 @@
 	import '../app.css';
 	import favicon from '#lib/assets/favicon.svg';
 	import { page } from '$app/state';
+	import { invalidate } from '$app/navigation';
 	import type { LayoutProps } from './$types';
 
 	let { data, children }: LayoutProps = $props();
@@ -14,6 +15,17 @@
 	];
 	const path = $derived(page.url.pathname);
 	const current = (link: (typeof links)[number]) => (link.match(path) ? 'page' : undefined);
+	// Event pages show their own game bar, kept live by the event's updates.
+	const invite = $derived(data.games.find((g) => !path.startsWith(`/events/${g.event_id}`)));
+
+	// Check for games every 20 seconds while the app is open, so a new lobby shows up without a refresh.
+	$effect(() => {
+		if (!data.user) return;
+		const timer = setInterval(() => {
+			if (document.visibilityState === 'visible') invalidate('app:games');
+		}, 20_000);
+		return () => clearInterval(timer);
+	});
 </script>
 
 <svelte:head>
@@ -50,6 +62,19 @@
 			{/if}
 		</nav>
 	</header>
+	{#if invite}
+		<a href="/events/{invite.event_id}/games" class="block border-b border-lime bg-lime text-ink">
+			<span class="mx-auto flex max-w-4xl items-center gap-3 px-4 py-2.5 text-sm">
+				<span class="min-w-0 flex-1">
+					<b class="block truncate font-extrabold uppercase">{invite.name}</b>
+					<span class="block truncate text-xs">{invite.title} · {invite.count} in{invite.started ? ' · playing' : ''}</span>
+				</span>
+				<span class="shrink-0 text-[11px] font-extrabold tracking-widest uppercase underline underline-offset-4">
+					{invite.joined ? 'Back to game' : 'Join'}
+				</span>
+			</span>
+		</a>
+	{/if}
 	<main class="mx-auto max-w-4xl px-4 py-6 {data.user ? 'pb-24 sm:pb-6' : ''}">
 		{@render children()}
 		<footer class="mt-12 flex flex-wrap gap-x-5 gap-y-1 border-t border-zinc-200 pt-4 text-xs text-zinc-500">
