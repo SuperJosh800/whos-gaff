@@ -35,7 +35,7 @@ describe('groups', () => {
 	it('tells everyone else about a free gaff', () => {
 		const { id, a, b, c } = crew();
 		markFreeGaff(id, b.id, '', '2099-03-14', '2099-03-16');
-		expect(notes(a)).toEqual(['🏠 Free gaff! B’s is free 14 Mar – 16 Mar. Plan something in The lads?']);
+		expect(notes(a)).toEqual(['Free gaff! B’s is free 14 Mar – 16 Mar. Plan something in The lads?']);
 		expect(notes(c)).toHaveLength(1);
 		expect(notes(b)).toEqual([]);
 		expect(() => markFreeGaff(id, b.id, 'x', '2099-03-16', '2099-03-14')).toThrow('end date is before');
@@ -49,7 +49,9 @@ describe('groups', () => {
 		const [p] = listPings(id);
 		expect(p).toMatchObject({ plan: 'club', on_date: '2099-03-14' });
 		expect([p.yes.map((x) => x.name), p.no.map((x) => x.name)]).toEqual([['A', 'B'], ['C']]);
-		expect(notes(b)).toEqual(["🪩 A asks: who's out clubbing on Sat 14 Mar? Answer in The lads."]);
+		answerPing(id, c.id, ping, null); // C clears their answer
+		expect(listPings(id)[0].no).toEqual([]);
+		expect(notes(b)).toEqual(["A asks: who's out clubbing on Sat 14 Mar? Answer in The lads."]);
 
 		const eventId = createEvent(a.id, { title: 'Out', mode: 'fixed', startsAt: '2099-03-14T20:00', groupId: id });
 		expect(listAttendees(eventId).map((x) => x.name)).toEqual(['A', 'B', 'C']);
@@ -97,6 +99,6 @@ describe('groups', () => {
 		]);
 		expect(() => nudgeToHost(id, a.id, b.id)).toThrow('already hosted');
 		nudgeToHost(id, b.id, a.id);
-		expect(notes(a).at(-1)).toBe('🏠 B says you owe The lads a gaff!');
+		expect(notes(a).at(-1)).toBe('B says you owe The lads a gaff!');
 	});
 });

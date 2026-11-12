@@ -54,7 +54,7 @@
 	{/each}
 
 	<section class="card">
-		<h2 class="mb-3 text-lg font-bold">New gaff profile</h2>
+		<h2 class="mb-3">New gaff profile</h2>
 		{@render gaffForm()}
 	</section>
 </div>

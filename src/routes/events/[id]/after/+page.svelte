@@ -9,10 +9,10 @@
 
 	const summary = $derived(
 		[
-			`🎉 ${data.event.title}${data.event.starts_at ? ` · ${formatWhen(data.event.starts_at)}` : ''}`,
-			`👥 ${going.map((p) => p.name).join(', ')}`,
+			`${data.event.title}${data.event.starts_at ? ` · ${formatWhen(data.event.starts_at)}` : ''}`,
+			`Who came: ${going.map((p) => p.name).join(', ')}`,
 			...data.awards.filter((a) => a.winners.length).map((a) => `${a.label}: ${a.winners.map((w) => w.name).join(' & ')}`),
-			data.stages.length ? `🗺️ ${data.stages.map((s) => `${s.name} ${formatTime(s.starts_at)}`).join(' → ')}` : ''
+			data.stages.length ? `The night: ${data.stages.map((s) => `${s.name} ${formatTime(s.starts_at)}`).join(' → ')}` : ''
 		]
 			.filter(Boolean)
 			.join('\n')
@@ -40,20 +40,20 @@
 	<p class="card text-zinc-600">Awards and the night recap open once the night starts.</p>
 {:else}
 	<div class="space-y-5">
-		<section class="overflow-hidden border-2 border-hot bg-surface p-6 text-zinc-900 shadow-[6px_6px_0_var(--color-lime)]" aria-label="Night recap card">
-			<p class="text-sm font-semibold tracking-wide text-hot uppercase">Night recap</p>
-			<h2 class="text-4xl font-black">{data.event.title}</h2>
+		<section class="overflow-hidden border border-zinc-200 p-5 text-zinc-900" aria-label="Night recap card">
+			<p class="text-[11px] font-extrabold tracking-widest text-hot uppercase">Night recap</p>
+			<h2 class="!text-4xl !leading-none !tracking-tight">{data.event.title}</h2>
 			{#if data.event.starts_at}<p class="text-hot">{formatWhen(data.event.starts_at)}</p>{/if}
 
 			{#if data.photos.length}
 				<div class="mt-4 grid grid-cols-3 gap-2">
 					{#each data.photos.slice(0, 6) as p (p.id)}
-						<img src="/events/{data.event.id}/photos/{p.id}" alt="Photo from {p.name}" class="aspect-square w-full rounded-xl object-cover" />
+						<img src="/events/{data.event.id}/photos/{p.id}" alt="Photo from {p.name}" class="aspect-square w-full object-cover" />
 					{/each}
 				</div>
 			{/if}
 
-			<div class="mt-4 grid gap-4 sm:grid-cols-3">
+			<div class="mt-4 grid border border-zinc-200 sm:grid-cols-3 [&>*]:p-3 [&>*+*]:border-t [&>*+*]:border-zinc-200 sm:[&>*+*]:border-t-0 sm:[&>*+*]:border-l">
 				<div>
 					<p class="text-xs font-bold text-hot uppercase">Who came</p>
 					<p>{going.map((p) => p.name).join(', ')}</p>
@@ -78,13 +78,13 @@
 		</section>
 
 		<section class="card space-y-3">
-			<h2 class="text-lg font-bold">Vote for the awards 🏆</h2>
+			<h2>Vote for the awards</h2>
 			<div class="grid gap-3 sm:grid-cols-3">
 				{#each data.awards as a (a.key)}
-					<form method="POST" action="?/vote" use:enhance={() => async ({ update }) => update({ reset: false })} class="rounded-xl border border-zinc-200 p-3">
+					<form method="POST" action="?/vote" use:enhance={() => async ({ update }) => update({ reset: false })} class="border border-zinc-200 p-3">
 						<input type="hidden" name="award" value={a.key} />
 						<label class="label" for="award-{a.key}">{a.label}</label>
-						<div class="flex gap-2">
+						<div class="joined">
 							<select class="input" id="award-{a.key}" name="nominee" required value={a.myVote ?? ''}>
 								<option value="" disabled>Pick someone</option>
 								{#each data.people as p (p.id)}<option value={p.id}>{p.name}</option>{/each}
@@ -97,7 +97,7 @@
 		</section>
 
 		<section class="card space-y-3">
-			<h2 class="text-lg font-bold">Photos 📸</h2>
+			<h2>Photos</h2>
 			<form method="POST" action="?/photo" enctype="multipart/form-data" use:enhance class="flex flex-wrap items-center gap-2">
 				<input class="text-sm" type="file" name="photo" accept="image/jpeg,image/png,image/gif,image/webp" required aria-label="Photo" />
 				<button class="btn-secondary">Upload</button>

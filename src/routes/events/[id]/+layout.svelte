@@ -49,44 +49,39 @@
 <svelte:head><title>{event.title} · Who's Gaff</title></svelte:head>
 
 <div class="space-y-5">
-	<section>
-		<div class="flex flex-wrap items-center gap-2">
-			<h1 class="text-4xl sm:text-5xl">{event.title}</h1>
+	<section class="space-y-3">
+		<h1 class="text-4xl sm:text-5xl">{event.title}</h1>
+		<div class="grid grid-cols-[1fr_auto_auto] border border-zinc-200 text-sm">
+			<p class="min-w-0 px-3 py-2.5 text-zinc-700">
+				<span class="text-zinc-900">{host?.name}</span> hosting,
+				{event.starts_at ? formatWhen(event.starts_at) : 'date to be decided'}
+			</p>
 			{#if event.starts_at}
-				<span class="badge text-lime">Date locked</span>
+				<span class="badge border-l border-zinc-200 px-3 text-lime">Date locked</span>
 			{:else if data.votingOpen}
-				<span class="badge text-hot">Voting open</span>
+				<span class="badge border-l border-zinc-200 px-3 text-hot">Voting open</span>
 			{:else}
-				<span class="badge text-zinc-500">Voting closed</span>
+				<span class="badge border-l border-zinc-200 px-3 text-zinc-500">Voting closed</span>
 			{/if}
-			<button type="button" class="btn-secondary btn-small ml-auto" onclick={openChat}>💬 Message</button>
+			<button type="button" class="border-l border-zinc-200 px-3 text-[11px] font-extrabold tracking-widest uppercase hover:bg-zinc-100" onclick={openChat}>Message</button>
 		</div>
-		<p class="mt-1 text-zinc-600">
-			Hosted by {host?.name}
-			· {event.starts_at ? formatWhen(event.starts_at) : 'Date to be decided'}
-			{#if data.address}
-				· {data.address}
-			{:else if data.addressLocked}
-				· <span class="text-zinc-500">🔒 Address shown once you RSVP “going”</span>
-			{/if}
-		</p>
-		{#if event.details}<p class="mt-3 whitespace-pre-line">{event.details}</p>{/if}
+		{#if data.address || data.addressLocked}
+			<p class="text-sm {data.address ? 'text-zinc-700' : 'text-zinc-500'}">
+				{data.address ?? 'The address shows once you RSVP “going”.'}
+			</p>
+		{/if}
+		{#if event.details}<p class="whitespace-pre-line">{event.details}</p>{/if}
 		{#if event.playlist_url}
 			<a href={event.playlist_url} target="_blank" rel="noopener noreferrer"
-				class="mt-3 inline-flex items-center gap-2 border border-[#1DB954] px-3 py-1 text-xs font-extrabold uppercase tracking-wider text-[#1DB954] hover:brightness-95">
-				🎵 Open the playlist on Spotify
+				class="inline-block text-xs font-extrabold tracking-widest text-[#1DB954] uppercase underline underline-offset-4">
+				Playlist on Spotify
 			</a>
 		{/if}
 	</section>
 
-	<nav class="grid grid-cols-5 border border-zinc-200" aria-label="Event sections">
+	<nav class="strip" aria-label="Event sections">
 		{#each tabs as tab (tab.href)}
-			<a href={tab.href} aria-current={page.url.pathname === tab.href ? 'page' : undefined}
-				class="border-l border-zinc-200 py-2.5 text-center text-[11px] font-extrabold tracking-wide uppercase first:border-l-0 sm:text-xs sm:tracking-widest {page.url.pathname === tab.href
-					? 'bg-hot text-ink'
-					: 'text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900'}">
-				{tab.label}
-			</a>
+			<a href={tab.href} aria-current={page.url.pathname === tab.href ? 'page' : undefined}>{tab.label}</a>
 		{/each}
 	</nav>
 

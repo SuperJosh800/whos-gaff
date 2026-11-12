@@ -7,10 +7,10 @@
 	let { data, children }: LayoutProps = $props();
 
 	const links = [
-		{ href: '/', label: 'Events', icon: '🎉', match: (p: string) => p === '/' || (p.startsWith('/events/') && p !== '/events/new') },
-		{ href: '/groups', label: 'Groups', icon: '👥', match: (p: string) => p.startsWith('/groups') },
-		{ href: '/gaffs', label: 'Gaffs', icon: '🏠', match: (p: string) => p.startsWith('/gaffs') },
-		{ href: '/profile', label: 'Me', icon: '🙂', match: (p: string) => p.startsWith('/profile') }
+		{ href: '/', label: 'Events', match: (p: string) => p === '/' || (p.startsWith('/events/') && p !== '/events/new') },
+		{ href: '/groups', label: 'Groups', match: (p: string) => p.startsWith('/groups') },
+		{ href: '/gaffs', label: 'Gaffs', match: (p: string) => p.startsWith('/gaffs') },
+		{ href: '/profile', label: 'Me', match: (p: string) => p.startsWith('/profile') }
 	];
 	const path = $derived(page.url.pathname);
 	const current = (link: (typeof links)[number]) => (link.match(path) ? 'page' : undefined);
@@ -50,18 +50,18 @@
 			{/if}
 		</nav>
 	</header>
-	<main class="mx-auto max-w-4xl px-4 py-6 {data.user ? 'pb-28 sm:pb-6' : ''}">
+	<main class="mx-auto max-w-4xl px-4 py-6 {data.user ? 'pb-24 sm:pb-6' : ''}">
 		{@render children()}
 	</main>
 	{#if data.user}
 		<!-- Phones: the main sections sit in a tab bar under your thumb. -->
-		<nav class="fixed inset-x-0 bottom-0 z-20 grid grid-cols-4 border-t border-zinc-200 bg-ink/95 pb-[env(safe-area-inset-bottom)] backdrop-blur sm:hidden" aria-label="Main">
+		<nav class="fixed inset-x-0 bottom-0 z-20 grid grid-cols-4 border-t border-zinc-200 bg-ink pb-[env(safe-area-inset-bottom)] sm:hidden" aria-label="Main">
 			{#each links as link (link.href)}
 				<a href={link.href} aria-current={current(link)}
-					class="flex flex-col items-center gap-0.5 border-t-2 py-2 text-[11px] font-extrabold tracking-wider uppercase {current(link)
-						? 'border-lime text-lime'
-						: 'border-transparent text-zinc-500'}">
-					<span class="text-lg leading-none" aria-hidden="true">{link.icon}</span>{link.label}
+					class="border-l border-zinc-200 py-4 text-center text-[11px] font-extrabold tracking-widest uppercase first:border-l-0 {current(link)
+						? 'bg-lime text-ink'
+						: 'text-zinc-500'}">
+					{link.label}
 				</a>
 			{/each}
 		</nav>

@@ -19,93 +19,127 @@
 		return d.toISOString().slice(0, 10);
 	});
 	const myAsk = $derived(data.pings.some((p) => p.user_id === me));
+	const dayPart = (d: string, part: 'num' | 'mon' | 'dow') => {
+		const date = new Date(d + 'T00:00Z');
+		if (part === 'num') return date.getUTCDate();
+		return date.toLocaleDateString('en-GB', { timeZone: 'UTC', ...(part === 'mon' ? { month: 'short' } : { weekday: 'short' }) });
+	};
 	const maxHosted = $derived(Math.max(1, ...data.leaderboard.map((r) => r.hosted)));
 </script>
 
 <svelte:head><title>{data.group.name} · Who's Gaff</title></svelte:head>
 
-<div class="space-y-5">
-	<div class="flex flex-wrap items-end justify-between gap-3">
-		<div>
-			<h1 class="text-3xl font-extrabold tracking-tight">{data.group.name}</h1>
-			<p class="text-zinc-600">{data.members.map((m) => m.name).join(', ')}</p>
+<div class="space-y-6">
+	<div class="space-y-3">
+		<h1 class="text-4xl sm:text-5xl">{data.group.name}</h1>
+		<div class="grid grid-cols-[1fr_auto] border border-zinc-200 text-sm">
+			<p class="min-w-0 px-3 py-2.5 text-zinc-700">{data.members.map((m) => m.name).join(', ')}</p>
+			<a class="border-l border-zinc-200 px-3 py-2.5 text-[11px] font-extrabold tracking-widest text-hot uppercase hover:bg-zinc-100" href={newEvent({})}>Plan something</a>
 		</div>
-		<a class="btn" href={newEvent({})}>Plan something with the group</a>
 	</div>
 	{#if form?.error}<p class="error" role="alert">{form.error}</p>{/if}
 
-	<section class="card space-y-3">
-		<h2 class="text-lg font-bold">Who’s out? 🍻</h2>
+	<section class="space-y-3">
+		<h2>Who’s out</h2>
 		{#if myAsk}
 			<p class="text-sm text-zinc-500">You’ve got an ask out. Delete it to ask about a different night.</p>
 		{:else}
-			<form method="POST" action="?/ping" use:enhance={() => ({ update }) => update({ reset: false })} class="space-y-2">
-				<div class="flex flex-wrap gap-2" role="radiogroup" aria-label="What kind of night">
+			<form method="POST" action="?/ping" use:enhance={() => ({ update }) => update({ reset: false })}>
+				<div class="strip" role="radiogroup" aria-label="What kind of night">
 					{#each plans as [key, plan] (key)}
-						<label class="cursor-pointer border border-zinc-300 px-3 py-1.5 text-xs font-extrabold tracking-wider uppercase has-checked:border-lime has-checked:bg-lime has-checked:text-ink has-focus-visible:outline-2 has-focus-visible:outline-hot">
-							<input class="sr-only" type="radio" name="plan" value={key} checked={key === 'pub'} />{plan.emoji} {plan.label}
+						<label class="has-focus-visible:outline-2 has-focus-visible:outline-hot">
+							<input class="sr-only" type="radio" name="plan" value={key} checked={key === 'pub'} />{key === 'anything' ? 'Any' : plan.label}
 						</label>
 					{/each}
 				</div>
-				<div class="flex flex-wrap gap-2">
-					<input class="input w-auto" type="date" name="date" required min={data.today} value={saturday} aria-label="Date" />
-					<button class="btn">Ask the group</button>
+				<div class="joined">
+					<input class="input border-t-0" type="date" name="date" required min={data.today} value={saturday} aria-label="Date" />
+					<button class="btn shrink-0 border-t-0">Ask</button>
 				</div>
 			</form>
 		{/if}
-		{#each data.pings as p (p.id)}
-			{@const mine = p.yes.some((a) => a.user_id === me) ? 'yes' : p.no.some((a) => a.user_id === me) ? 'no' : null}
-			{@const plan = PLANS[p.plan]}
-			<div class="border border-zinc-200 p-3">
-				<div class="flex flex-wrap items-center gap-x-3 gap-y-1">
-					<span class="text-lg font-black uppercase">{p.on_date ? day(p.on_date) : 'This weekend'}</span>
-					<span class="badge text-lime">{plan.emoji} {plan.label}</span>
-					{#if p.on_date && data.payday && isJustAfterPayday(p.on_date, data.payday)}
-						<span class="badge text-lime-800" title="Within a week of your payday">💷 Payday</span>
-					{/if}
-				</div>
-				<p class="mt-1 text-sm text-zinc-600"><strong class="text-zinc-900">{p.name}</strong> asked who’s out{plan.ask}</p>
-				<p class="mt-1 text-sm">
-					<span class="font-semibold text-emerald-700">{p.yes.length} up for it</span>{#if p.yes.length}: {p.yes.map((a) => a.name).join(', ')}{/if}
-					· <span class="text-zinc-500">{p.no.length} not this time</span>
-				</p>
-				<div class="mt-2 flex flex-wrap gap-2">
-					<form method="POST" action="?/answer" use:enhance class="flex gap-2">
-						<input type="hidden" name="ping" value={p.id} />
-						<button name="answer" value="yes" class="btn-small border text-xs font-extrabold uppercase tracking-wider px-3 py-1 font-semibold {mine === 'yes' ? 'border-lime bg-lime text-ink' : 'border-zinc-300'}">I’m out</button>
-						<button name="answer" value="no" class="btn-small border text-xs font-extrabold uppercase tracking-wider px-3 py-1 font-semibold {mine === 'no' ? 'border-hot bg-hot text-ink' : 'border-zinc-300'}">Not this time</button>
-					</form>
-					{#if p.user_id === me || data.group.created_by === me}
-						<form method="POST" action="?/deletePing" use:enhance>
-							<input type="hidden" name="ping" value={p.id} />
-							<button class="px-1 py-1 text-xs font-bold tracking-wider text-red-700 uppercase underline"
-								onclick={(e) => { if (!confirm('Delete this ask for everyone?')) e.preventDefault(); }}>Delete</button>
-						</form>
-					{/if}
-					{#if p.event_id}
-						<a class="btn-secondary btn-small ml-auto" href="/events/{p.event_id}">See the event →</a>
-					{:else if p.yes.length >= 2}
-						<a class="btn btn-small ml-auto" href={newEvent({ ping: String(p.id), title: plan.title, ...(p.on_date ? { date: `${p.on_date}T20:00` } : {}) })}>Make it an event</a>
-					{/if}
-				</div>
-			</div>
+		{#if data.pings.length}
+			<table class="w-full text-sm">
+				<thead>
+					<tr class="text-left text-[11px] tracking-widest text-zinc-500 uppercase">
+						<th class="pb-1.5 font-extrabold">Night</th>
+						<th class="pb-1.5 font-extrabold">Plan</th>
+						<th class="pb-1.5 font-extrabold">In</th>
+						<th class="pb-1.5 text-center font-extrabold">You</th>
+						<th><span class="sr-only">Delete</span></th>
+					</tr>
+				</thead>
+				<tbody>
+					{#each data.pings as p (p.id)}
+						{@const mine = p.yes.some((a) => a.user_id === me) ? 'yes' : p.no.some((a) => a.user_id === me) ? 'no' : null}
+						{@const plan = PLANS[p.plan]}
+						{@const payday = !!(p.on_date && data.payday && isJustAfterPayday(p.on_date, data.payday))}
+						<tr class="border-t border-zinc-200 align-top">
+							<td class="w-20 py-3 pr-2">
+								{#if p.on_date}
+									<span class="block text-lg leading-none font-black whitespace-nowrap">{dayPart(p.on_date, 'num')} <span class="text-xs">{dayPart(p.on_date, 'mon')}</span></span>
+									<span class="text-[10px] font-extrabold tracking-widest uppercase {payday ? 'text-lime-800' : 'text-zinc-500'}">{dayPart(p.on_date, 'dow')}{payday ? ' · payday' : ''}</span>
+								{:else}
+									<span class="text-xs font-black uppercase">This<br />weekend</span>
+								{/if}
+							</td>
+							<td class="py-3 pr-2"><span class="text-[11px] font-extrabold tracking-widest uppercase">{plan.label}</span>
+								<span class="block text-xs text-zinc-500">{p.user_id === me ? 'You asked' : `${p.name} asked`}</span></td>
+							<td class="min-w-0 py-3 pr-2">
+								<b class="text-lg leading-none font-black text-lime">{p.yes.length}</b>
+								<span class="block text-xs text-zinc-500">{[p.yes.map((a) => a.name).join(', '), p.no.length ? `${p.no.length} can’t` : ''].filter(Boolean).join('; ')}</span>
+								{#if p.event_id}
+									<a class="mt-1 inline-block text-[11px] font-extrabold tracking-widest text-lime uppercase underline underline-offset-4" href="/events/{p.event_id}">See the event</a>
+								{:else if p.yes.length >= 2}
+									<a class="mt-1 inline-block text-[11px] font-extrabold tracking-widest text-hot uppercase underline underline-offset-4"
+										href={newEvent({ ping: String(p.id), title: plan.title, ...(p.on_date ? { date: `${p.on_date}T20:00` } : {}) })}>Make it an event</a>
+								{/if}
+							</td>
+							<td class="w-12 py-2 text-center">
+								<form method="POST" action="?/answer" use:enhance>
+									<input type="hidden" name="ping" value={p.id} />
+									<button name="answer" value={mine === null ? 'yes' : mine === 'yes' ? 'no' : ''}
+										aria-label="Your answer: {mine === 'yes' ? 'in' : mine === 'no' ? 'can’t' : 'no answer'}. Tap to change."
+										class="h-9 w-10 text-sm font-black {mine === 'yes' ? 'bg-lime text-ink' : mine === 'no' ? 'bg-red-50 text-hot' : 'bg-zinc-100 text-zinc-400 outline-1 -outline-offset-1 outline-lime outline-dashed'} focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-hot">
+										{mine === 'yes' ? '✓' : mine === 'no' ? '✗' : '–'}
+									</button>
+								</form>
+							</td>
+							<td class="w-8 py-2 text-right">
+								{#if p.user_id === me || data.group.created_by === me}
+									<form method="POST" action="?/deletePing" use:enhance>
+										<input type="hidden" name="ping" value={p.id} />
+										<button class="h-9 w-8 text-lg text-zinc-500 hover:text-hot" aria-label="Delete this ask"
+											onclick={(e) => { if (!confirm('Delete this ask for everyone?')) e.preventDefault(); }}>×</button>
+									</form>
+								{/if}
+							</td>
+						</tr>
+					{/each}
+				</tbody>
+			</table>
+			<p class="text-xs text-zinc-500">Tap your square: in, can’t, no answer.</p>
 		{:else}
 			<p class="text-sm text-zinc-500">Pick a night and a date, then ask the group who’s up for it.</p>
-		{/each}
+		{/if}
 	</section>
 
 	<section class="card space-y-3">
-		<h2 class="text-lg font-bold">Free gaffs 🏠</h2>
-		{#each data.freeGaffs as f (f.id)}
-			<div class="flex flex-wrap items-center gap-2 rounded-xl bg-brand-50 px-3 py-2">
-				<p><strong>{f.place}</strong> is free {f.from_date === f.to_date ? day(f.from_date) : `${day(f.from_date)} – ${day(f.to_date)}`}
-					<span class="text-sm text-zinc-500">· from {f.name}</span></p>
-				<a class="btn btn-small ml-auto" href={newEvent({ title: `Gaff at ${f.place}`, date: `${f.from_date}T20:00` })}>Start an event</a>
-			</div>
+		<h2>Free gaffs</h2>
+		{#if data.freeGaffs.length}
+			<ul class="divide-y divide-zinc-200 border border-zinc-200">
+				{#each data.freeGaffs as f (f.id)}
+					<li class="grid grid-cols-[1fr_auto] text-sm">
+						<p class="min-w-0 px-3 py-2.5"><span class="font-extrabold">{f.place}</span> is free {f.from_date === f.to_date ? day(f.from_date) : `${day(f.from_date)} – ${day(f.to_date)}`}
+							<span class="text-zinc-500">· from {f.name}</span></p>
+						<a class="flex items-center border-l border-zinc-200 px-3 text-[11px] font-extrabold tracking-widest text-hot uppercase hover:bg-zinc-100" href={newEvent({ title: `Gaff at ${f.place}`, date: `${f.from_date}T20:00` })}>Start an event</a>
+					</li>
+				{/each}
+			</ul>
 		{:else}
 			<p class="text-sm text-zinc-500">No free gaffs right now.</p>
-		{/each}
-		<form method="POST" action="?/freeGaff" use:enhance class="grid gap-2 border-t border-zinc-100 pt-3 sm:grid-cols-[2fr_1fr_1fr_auto]">
+		{/if}
+		<form method="POST" action="?/freeGaff" use:enhance class="grid border border-zinc-200 sm:grid-cols-[2fr_1fr_1fr_auto] [&>*]:border-0 [&>*+*]:border-t [&>*+*]:border-zinc-200 sm:[&>*+*]:border-t-0 sm:[&>*+*]:border-l">
 			<input class="input" name="place" placeholder="My place (parents away)" aria-label="Place" />
 			<input class="input" name="from" type="date" required aria-label="Free from" />
 			<input class="input" name="to" type="date" required aria-label="Free until" />
@@ -114,38 +148,41 @@
 	</section>
 
 	<section class="card space-y-3">
-		<h2 class="text-lg font-bold">Hosting leaderboard 🏆</h2>
-		<ol class="space-y-2">
-			{#each data.leaderboard as r, i (r.id)}
-				<li class="flex items-center gap-3">
-					<span class="w-6 text-right font-bold text-zinc-400">{i + 1}</span>
-					<span class="w-28 truncate font-semibold">{r.name}</span>
-					<div class="h-3 flex-1 overflow-hidden bg-zinc-100">
-						<div class="h-full bg-brand-500" style="width: {(r.hosted / maxHosted) * 100}%"></div>
-					</div>
-					<span class="w-16 text-sm text-zinc-600">{r.hosted} hosted</span>
-					<span class="flex w-44 justify-end">
-					{#if r.hosted === 0}
-						{#if r.id === me}
-							<span class="badge text-amber-800">You owe us a gaff</span>
-						{:else}
-							<form method="POST" action="?/nudge" use:enhance>
-								<input type="hidden" name="user" value={r.id} />
-								<button class="badge cursor-pointer text-amber-800 hover:bg-amber-100">
-									{form && 'nudged' in form && form.nudged === r.id ? 'Nudged ✓' : 'Owes us a gaff → nudge'}
-								</button>
-							</form>
-						{/if}
-					{/if}
-					</span>
-				</li>
-			{/each}
-		</ol>
+		<h2>Hosting leaderboard</h2>
+		<table class="w-full text-sm">
+			<tbody>
+				{#each data.leaderboard as r, i (r.id)}
+					<tr class="border-t border-zinc-200 first:border-t-0">
+						<td class="w-8 py-2.5 font-black text-zinc-500 tabular-nums">{i + 1}</td>
+						<td class="w-28 truncate py-2.5 pr-3 font-extrabold">{r.name}</td>
+						<td class="py-2.5">
+							<div class="h-2 bg-zinc-100"><div class="h-full bg-lime" style="width: {(r.hosted / maxHosted) * 100}%"></div></div>
+						</td>
+						<td class="w-10 py-2.5 text-right font-black tabular-nums">{r.hosted}</td>
+						<td class="w-24 py-2.5 text-right">
+							{#if r.hosted === 0}
+								{#if r.id === me}
+									<span class="badge text-amber-800">You owe one</span>
+								{:else}
+									<form method="POST" action="?/nudge" use:enhance>
+										<input type="hidden" name="user" value={r.id} />
+										<button class="badge cursor-pointer text-amber-800 underline underline-offset-4">
+											{form && 'nudged' in form && form.nudged === r.id ? 'Nudged' : 'Nudge'}
+										</button>
+									</form>
+								{/if}
+							{/if}
+						</td>
+					</tr>
+				{/each}
+			</tbody>
+		</table>
+		<p class="text-xs text-zinc-500">Dated events hosted for the group. Nudge anyone who hasn’t had everyone round yet.</p>
 	</section>
 
 	<section class="card space-y-2">
-		<h2 class="text-lg font-bold">Invite people to the group</h2>
-		<div class="flex gap-2">
+		<h2>Invite people to the group</h2>
+		<div class="joined">
 			<input class="input bg-zinc-50" readonly value={data.inviteLink} aria-label="Group invite link" />
 			<button type="button" class="btn-secondary shrink-0" onclick={async () => { await navigator.clipboard.writeText(data.inviteLink); copied = true; }}>{copied ? 'Copied!' : 'Copy link'}</button>
 		</div>

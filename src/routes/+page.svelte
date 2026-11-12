@@ -15,18 +15,18 @@
 			<a href="/events/new" class="btn">Plan something</a>
 		</div>
 
-		<div class="grid grid-cols-3 gap-3">
-			<div class="stat border-l-2 border-zinc-300 pl-3"><b class="!text-4xl">{dash.upcoming.length}</b><span>Upcoming</span></div>
-			<div class="stat border-l-2 border-zinc-300 pl-3"><b class="!text-4xl">{hosting}</b><span>You’re hosting</span></div>
-			<div class="stat border-l-2 pl-3 {todoCount ? 'border-hot' : 'border-zinc-300'}"><b class="!text-4xl {todoCount ? '!text-hot' : ''}">{todoCount}</b><span>Waiting on you</span></div>
+		<div class="stats">
+			<div class="stat"><b class="!text-3xl">{dash.upcoming.length}</b><span>Upcoming</span></div>
+			<div class="stat"><b class="!text-3xl">{hosting}</b><span>You’re hosting</span></div>
+			<div class="stat"><b class="!text-3xl {todoCount ? '!text-hot' : ''}">{todoCount}</b><span>Waiting on you</span></div>
 		</div>
 
 		{#if dash.notifications.length}
 			<section>
-				<h2 class="mb-2 text-sm font-semibold uppercase tracking-wide text-zinc-500">Updates</h2>
-				<ul class="card divide-y divide-zinc-100 p-0">
+				<h2 class="mb-2 text-zinc-500">Updates</h2>
+				<ul class="divide-y divide-zinc-200 border border-zinc-200">
 					{#each dash.notifications as n (n.id)}
-						<li class="flex items-center gap-2 px-5 py-3 text-sm">
+						<li class="flex items-center gap-2 px-4 py-3 text-sm">
 							{#if !n.read}<span class="h-2 w-2 shrink-0 bg-brand-600" aria-label="New"></span>{/if}
 							{#if n.event_id}
 								<a href="/events/{n.event_id}" class="hover:underline">{n.message}</a>
@@ -40,22 +40,22 @@
 		{/if}
 
 		<section>
-			<h2 class="mb-2 text-sm font-semibold uppercase tracking-wide text-zinc-500">Upcoming</h2>
+			<h2 class="mb-2 text-zinc-500">Upcoming</h2>
 			{#if dash.upcoming.length}
-				<div class="grid gap-3 sm:grid-cols-2">
+				<div class="divide-y divide-zinc-200 border border-zinc-200">
 					{#each dash.upcoming as event (event.id)}<EventCard {event} />{/each}
 				</div>
 			{:else}
-				<p class="card text-zinc-600">
-					Nothing planned yet. <a class="font-semibold text-brand-700" href="/events/new">Start something</a>.
+				<p class="border border-zinc-200 p-4 text-zinc-600">
+					Nothing planned yet. <a class="font-semibold text-hot underline underline-offset-4" href="/events/new">Start something</a>.
 				</p>
 			{/if}
 		</section>
 
 		{#if dash.past.length}
 			<section>
-				<h2 class="mb-2 text-sm font-semibold uppercase tracking-wide text-zinc-500">Past</h2>
-				<div class="grid gap-3 opacity-80 sm:grid-cols-2">
+				<h2 class="mb-2 text-zinc-500">Past</h2>
+				<div class="divide-y divide-zinc-200 border border-zinc-200 opacity-70">
 					{#each dash.past as event (event.id)}<EventCard {event} />{/each}
 				</div>
 			</section>

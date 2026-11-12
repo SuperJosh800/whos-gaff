@@ -54,13 +54,13 @@
 
 	<fieldset>
 		<legend class="label">When</legend>
-		<div class="grid grid-cols-2 gap-2">
-			<label class="flex cursor-pointer items-center gap-2 rounded-xl border px-3 py-2 text-sm {mode === 'fixed' ? 'border-brand-500 bg-brand-50' : 'border-zinc-300'}">
-				<input type="radio" name="mode" value="fixed" bind:group={mode} />
+		<div class="strip">
+			<label class="has-focus-visible:outline-2 has-focus-visible:outline-hot">
+				<input class="sr-only" type="radio" name="mode" value="fixed" bind:group={mode} />
 				I know the date
 			</label>
-			<label class="flex cursor-pointer items-center gap-2 rounded-xl border px-3 py-2 text-sm {mode === 'poll' ? 'border-brand-500 bg-brand-50' : 'border-zinc-300'}">
-				<input type="radio" name="mode" value="poll" bind:group={mode} />
+			<label class="has-focus-visible:outline-2 has-focus-visible:outline-hot">
+				<input class="sr-only" type="radio" name="mode" value="poll" bind:group={mode} />
 				Date poll
 			</label>
 		</div>
@@ -80,7 +80,7 @@
 					<div class="flex gap-2">
 						<input class="input" name="option" type="datetime-local" required bind:value={options[i]} aria-label="Date option {i + 1}" />
 						{#if data.payday && isLocalDateTime(options[i]) && isJustAfterPayday(options[i], data.payday)}
-							<span class="badge shrink-0 self-center text-lime-800" title="Within a week of your payday">💷 Payday</span>
+							<span class="badge shrink-0 self-center text-lime-800" title="Within a week of your payday">Payday</span>
 						{/if}
 						<button type="button" class="btn-secondary btn-small" disabled={options.length <= 2} onclick={() => options.splice(i, 1)} aria-label="Remove option {i + 1}">Remove</button>
 					</div>

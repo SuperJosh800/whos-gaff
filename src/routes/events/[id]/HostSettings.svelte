@@ -6,7 +6,7 @@
 </script>
 
 <section class="card space-y-4">
-	<h2 class="text-lg font-bold">Host settings</h2>
+	<h2>Host settings</h2>
 	<form method="POST" action="?/settings" use:enhance={() => async ({ update }) => update({ reset: false })} class="space-y-4">
 		<div>
 			<label class="label" for="gaff">Gaff profile</label>
@@ -16,7 +16,7 @@
 			</select>
 			<p class="mt-1 text-xs text-zinc-500">
 				Shares the address, house rules and Wi-Fi with people who are going.
-				<a class="font-semibold text-brand-700" href="/gaffs">Manage gaff profiles</a>
+				<a class="font-semibold text-hot underline underline-offset-4" href="/gaffs">Manage gaff profiles</a>
 			</p>
 		</div>
 		<div>

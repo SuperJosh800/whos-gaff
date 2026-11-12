@@ -14,22 +14,23 @@
 
 <div class="space-y-5">
 	<section class="card space-y-4">
-		<h2 class="text-lg font-bold">Rounds 🍻</h2>
+		<h2>Rounds</h2>
 		{#if next}
-			<div class="flex flex-wrap items-center gap-3 rounded-xl bg-brand-50 px-4 py-3">
-				<p class="text-lg">Next round: <strong>{next.id === me ? 'You!' : next.name}</strong></p>
-				<form method="POST" action="?/round" use:enhance class="ml-auto flex gap-2">
+			<div class="border border-zinc-200">
+				<p class="px-3 py-3"><span class="block text-[11px] font-extrabold tracking-widest text-zinc-500 uppercase">Next round</span>
+					<span class="text-2xl font-black uppercase {next.id === me ? 'text-hot' : 'text-lime'}">{next.id === me ? 'You' : next.name}</span></p>
+				<form method="POST" action="?/round" use:enhance class="strip border-0 border-t">
+					<button name="skipped" value="0">Got it in</button>
+					<button name="skipped" value="1">Skipped it</button>
 					<input type="hidden" name="for" value={next.id} />
-					<button class="btn btn-small" name="skipped" value="0">Got it in</button>
-					<button class="btn-secondary btn-small" name="skipped" value="1">Skipped it 👀</button>
 				</form>
 			</div>
 			<table class="w-full text-sm">
-				<thead><tr class="text-left text-zinc-500"><th class="py-1 font-semibold">Who</th><th class="font-semibold">Bought</th><th class="font-semibold">Skipped</th></tr></thead>
+				<thead><tr class="text-left text-[11px] tracking-widest text-zinc-500 uppercase"><th class="py-1 font-extrabold">Who</th><th class="font-extrabold">Bought</th><th class="font-extrabold">Skipped</th></tr></thead>
 				<tbody>
 					{#each data.rounds.tally as t (t.id)}
-						<tr class="border-t border-zinc-100">
-							<td class="py-1.5">{t.name}{t.id === next.id ? ' ⬅️' : ''}</td>
+						<tr class="border-t border-zinc-200">
+							<td class="py-1.5 {t.id === next.id ? 'font-extrabold text-lime' : ''}">{t.name}{t.id === next.id ? ' (next)' : ''}</td>
 							<td>{t.bought}</td>
 							<td class={t.skipped ? 'font-bold text-red-700' : ''}>{t.skipped}</td>
 						</tr>
@@ -43,18 +44,18 @@
 
 	<section class="card space-y-4">
 		<div class="flex items-baseline justify-between">
-			<h2 class="text-lg font-bold">Kitty</h2>
+			<h2>Kitty</h2>
 			<p class="text-sm text-zinc-600">Total {pounds(data.kitty.total)}</p>
 		</div>
 
 		{#if data.kitty.transfers.length}
-			<ul class="space-y-2">
+			<ul class="divide-y divide-zinc-200 border border-zinc-200">
 				{#each data.kitty.transfers as t (`${t.from}-${t.to}`)}
-					<li class="flex flex-wrap items-center gap-2 rounded-xl bg-zinc-50 px-3 py-2">
+					<li class="flex flex-wrap items-center gap-2 px-3 py-2.5 text-sm">
 						<span><strong>{t.from === me ? 'You' : t.fromName}</strong> owe{t.from === me ? '' : 's'} <strong>{t.to === me ? 'you' : t.toName}</strong> {pounds(t.amount)}</span>
 						<span class="ml-auto flex gap-2">
 							{#if t.from === me && t.link}
-								<a class="btn btn-small" href={t.link} target="_blank" rel="noopener noreferrer">Pay by bank ↗</a>
+								<a class="btn btn-small" href={t.link} target="_blank" rel="noopener noreferrer">Pay by bank</a>
 							{:else if t.from === me}
 								<span class="text-xs text-zinc-500">{t.toName} hasn’t added a payment link</span>
 							{/if}
@@ -70,13 +71,13 @@
 				{/each}
 			</ul>
 		{:else if data.kitty.expenses.length}
-			<p class="rounded-xl bg-emerald-50 px-3 py-2 text-sm text-emerald-800">All square ✅</p>
+			<p class="badge text-lime">All square</p>
 		{/if}
 
 		{#if data.kitty.expenses.length}
-			<ul class="divide-y divide-zinc-100 text-sm">
+			<ul class="divide-y divide-zinc-200 border border-zinc-200 text-sm">
 				{#each data.kitty.expenses as e (e.id)}
-					<li class="flex justify-between gap-3 py-2">
+					<li class="flex justify-between gap-3 px-3 py-2.5">
 						<span><strong>{e.payer}</strong> paid for {e.description}
 							<span class="block text-xs text-zinc-500">split between {e.shares.map((id) => names.get(id)).join(', ')}</span></span>
 						<span class="font-semibold">{pounds(e.amount_pence)}</span>
@@ -85,23 +86,23 @@
 			</ul>
 		{/if}
 
-		<form method="POST" action="?/expense" use:enhance class="space-y-3 border-t border-zinc-100 pt-4">
-			<p class="text-sm font-semibold text-zinc-700">I paid for…</p>
-			<div class="grid gap-2 sm:grid-cols-[2fr_1fr]">
+		<form method="POST" action="?/expense" use:enhance class="space-y-3 border-t border-zinc-200 pt-4">
+			<p class="label">I paid for</p>
+			<div class="grid grid-cols-[2fr_1fr] [&>*+*]:border-l-0">
 				<input class="input" name="description" placeholder="Taxi, drinks, pizza…" required aria-label="What for" />
 				<input class="input" name="amount" inputmode="decimal" placeholder="£0.00" required aria-label="Amount" />
 			</div>
 			<fieldset class="flex flex-wrap gap-2">
-				<legend class="mb-1 text-sm text-zinc-600">Split between</legend>
+				<legend class="label">Split between</legend>
 				{#each data.kitty.people as p (p.id)}
-					<label class="flex items-center gap-1.5 border border-zinc-300 px-3 py-1 text-sm has-[:checked]:border-brand-500 has-[:checked]:bg-brand-50">
-						<input type="checkbox" name="share" value={p.id} checked={data.kitty.defaultShares.includes(p.id)} />
+					<label class="flex cursor-pointer items-center gap-1.5 border border-zinc-300 px-3 py-1.5 text-xs font-extrabold tracking-widest uppercase has-[:checked]:border-lime has-[:checked]:bg-lime has-[:checked]:text-ink has-focus-visible:outline-2 has-focus-visible:outline-hot">
+						<input class="sr-only" type="checkbox" name="share" value={p.id} checked={data.kitty.defaultShares.includes(p.id)} />
 						{p.name}
 					</label>
 				{/each}
 			</fieldset>
 			<button class="btn">Add cost</button>
 		</form>
-		<p class="text-xs text-zinc-500">Add your Monzo.me or other payment link on <a class="font-semibold text-brand-700" href="/profile">your profile</a> so people can pay you by bank transfer.</p>
+		<p class="text-xs text-zinc-500">Add your Monzo.me or other payment link on <a class="font-semibold text-hot underline underline-offset-4" href="/profile">your profile</a> so people can pay you by bank transfer.</p>
 	</section>
 </div>

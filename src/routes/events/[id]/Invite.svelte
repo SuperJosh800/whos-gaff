@@ -13,17 +13,17 @@
 </script>
 
 <section class="card space-y-4">
-	<h2 class="text-lg font-bold">Invite people</h2>
+	<h2>Invite people</h2>
 	<div>
 		<label class="label" for="invite-link">Shareable invite link</label>
-		<div class="flex gap-2">
+		<div class="joined">
 			<input class="input bg-zinc-50" id="invite-link" readonly value={data.inviteLink} onfocus={(e) => e.currentTarget.select()} />
 			<button type="button" class="btn-secondary shrink-0" onclick={copy}>{copied ? 'Copied!' : 'Copy link'}</button>
 		</div>
 	</div>
 	<form method="POST" action="?/invite" use:enhance>
 		<label class="label" for="emails">Invite by email</label>
-		<div class="flex gap-2">
+		<div class="joined">
 			<input class="input" id="emails" name="emails" placeholder="sam@example.com, alex@example.com" required />
 			<button class="btn shrink-0">Send invites</button>
 		</div>

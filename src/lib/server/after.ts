@@ -9,9 +9,9 @@ import { nowLocal } from '../time.ts';
 // ---- Post-night awards and hall of fame (WG-32) ----
 
 export const AWARDS = {
-	mvp: '⭐ MVP',
-	'first-home': '🏃 First to go home',
-	'worst-state': '🥴 Worst state'
+	mvp: 'MVP',
+	'first-home': 'First to go home',
+	'worst-state': 'Worst state'
 } as const;
 export type Award = keyof typeof AWARDS;
 

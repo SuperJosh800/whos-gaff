@@ -26,6 +26,6 @@
 	</form>
 	<p class="mt-4 text-center text-sm text-zinc-600">
 		Already have an account?
-		<a class="font-semibold text-brand-700" href={next ? `/login?next=${encodeURIComponent(next)}` : '/login'}>Log in</a>
+		<a class="font-semibold text-hot underline underline-offset-4" href={next ? `/login?next=${encodeURIComponent(next)}` : '/login'}>Log in</a>
 	</p>
 </div>

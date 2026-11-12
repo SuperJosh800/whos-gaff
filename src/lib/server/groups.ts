@@ -80,7 +80,7 @@ export function markFreeGaff(groupId: number, userId: number, place: string, fro
 		to
 	);
 	const when = from === to ? shortDate(from) : `${shortDate(from)} – ${shortDate(to)}`;
-	notifyGroup(groupId, userId, `🏠 Free gaff! ${place} is free ${when}. Plan something in ${group.name}?`);
+	notifyGroup(groupId, userId, `Free gaff! ${place} is free ${when}. Plan something in ${group.name}?`);
 }
 
 export function listFreeGaffs(groupId: number) {
@@ -118,9 +118,9 @@ export function sendPing(groupId: number, userId: number, plan: Plan, date: stri
 		.prepare('INSERT INTO pings (group_id, user_id, plan, on_date) VALUES (?, ?, ?, ?)')
 		.run(groupId, userId, plan, date);
 	db.prepare("INSERT INTO ping_answers (ping_id, user_id, answer) VALUES (?, ?, 'yes')").run(lastInsertRowid, userId);
-	const { emoji, ask } = PLANS[plan];
+	const { ask } = PLANS[plan];
 	const day = new Date(date + 'T00:00Z').toLocaleDateString('en-GB', { timeZone: 'UTC', weekday: 'short', day: 'numeric', month: 'short' });
-	notifyGroup(groupId, userId, `${emoji} ${userName(userId)} asks: who's out${ask} on ${day}? Answer in ${group.name}.`);
+	notifyGroup(groupId, userId, `${userName(userId)} asks: who's out${ask} on ${day}? Answer in ${group.name}.`);
 	return Number(lastInsertRowid);
 }
 
@@ -142,9 +142,14 @@ export function deletePing(groupId: number, userId: number, pingId: number) {
 	db.prepare('DELETE FROM pings WHERE id = ?').run(pingId);
 }
 
-export function answerPing(groupId: number, userId: number, pingId: number, answer: 'yes' | 'no') {
+/** `null` clears the answer, so tapping your square cycles in, can't, no answer. */
+export function answerPing(groupId: number, userId: number, pingId: number, answer: 'yes' | 'no' | null) {
 	requireGroupMember(groupId, userId);
 	requirePing(groupId, pingId);
+	if (answer === null) {
+		db.prepare('DELETE FROM ping_answers WHERE ping_id = ? AND user_id = ?').run(pingId, userId);
+		return;
+	}
 	if (answer !== 'yes' && answer !== 'no') throw new EventError('Answer yes or no.');
 	db.prepare(
 		`INSERT INTO ping_answers (ping_id, user_id, answer) VALUES (?, ?, ?)
@@ -203,5 +208,5 @@ export function nudgeToHost(groupId: number, userId: number, targetId: number) {
 	if (!isGroupMember(groupId, targetId) || targetId === userId) throw new EventError('Pick someone else in the group.');
 	const hosted = hostingLeaderboard(groupId).find((r) => r.id === targetId)!.hosted;
 	if (hosted > 0) throw new EventError('They’ve already hosted. Fair’s fair.');
-	notify(targetId, null, `🏠 ${userName(userId)} says you owe ${group.name} a gaff!`);
+	notify(targetId, null, `${userName(userId)} says you owe ${group.name} a gaff!`);
 }
