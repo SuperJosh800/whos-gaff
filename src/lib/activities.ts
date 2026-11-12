@@ -20,7 +20,7 @@ export const isSetting = (value: string): value is Setting => value in SETTINGS;
  * A card. A secret card is only shown to the first person it names ({1}); everyone else sees
  * `cover`, an easy fake task they can do openly so nobody suspects the real one.
  */
-export type Card = { text: string; points?: number; secret?: boolean; cover?: string };
+export type Card = { text: string; points?: number; secret?: boolean; cover?: string; rank?: string; suit?: string };
 
 export const DEFAULT_COVER = '{1}: take a sip of your drink.';
 
@@ -36,6 +36,8 @@ export type Game = {
 	softRules?: string;
 	/** Challenges: the first person named on each card can complete it for points or bail. */
 	scored?: boolean;
+	/** Turn-based card games: players draw in turn from a deck shown on screen; only whoever's turn it is can draw. */
+	turns?: boolean;
 	cards: Card[];
 };
 
@@ -156,9 +158,7 @@ const RANKS: [string, string][] = [
 	['Q', 'Question master: anyone who answers a question you ask drinks. Lasts until the next queen.'],
 	['K', 'King’s cup: pour a splash of your drink into the cup in the middle. Whoever draws the fourth king drinks it.']
 ];
-const RING_OF_FIRE: Card[] = SUITS.flatMap((suit) =>
-	RANKS.map(([rank, rule]) => ({ text: `${rank}${suit}: ${rule}` }))
-);
+const RING_OF_FIRE: Card[] = SUITS.flatMap((suit) => RANKS.map(([rank, rule]) => ({ text: rule, rank, suit })));
 
 const TABLE_STAKES = deck([
 	'{1} has 10 seconds to name 5 cheeses. Fail, and the whole table takes a shot.',
@@ -396,8 +396,9 @@ const GAME_LIST: Game[] = [
 		name: 'Ring of fire',
 		emoji: '🔥',
 		setting: 'gaff',
-		blurb: 'The classic card game: each card has a rule, and the fourth king drinks the cup.',
-		rules: 'Take turns drawing. Do what the card says. Put a cup in the middle for the kings.',
+		blurb: 'The classic card game: take turns drawing from the deck, and the fourth king drinks the cup.',
+		rules: 'Take turns drawing from the deck. Do what the card says. Put a cup in the middle for the kings.',
+		turns: true,
 		cards: RING_OF_FIRE
 	},
 	{

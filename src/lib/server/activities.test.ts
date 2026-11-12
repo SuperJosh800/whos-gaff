@@ -5,6 +5,7 @@ import { createEvent, getEvent, joinByToken, setRsvp } from './events.ts';
 import {
 	beginGame,
 	challengeScores,
+	drawCard,
 	endGame,
 	finishChallenge,
 	gameInvites,
@@ -107,10 +108,10 @@ describe('games', () => {
 		const { id, host, outsider } = party();
 		expect(() => startGame(id, outsider.id, 'never', false)).toThrow(/not invited/);
 		expect(() => startGame(id, host.id, 'darts', false)).toThrow(/Pick a game/);
-		startGame(id, host.id, 'ring-of-fire', true);
+		startGame(id, host.id, 'rather', true);
 		const a = getActivity(id, host.id)!;
-		expect(a).toMatchObject({ game: 'ring-of-fire', name: 'Ring of fire', soft: true, position: 0, number: 1, total: 52 });
-		expect(a.rules).toMatch(/water/);
+		expect(a).toMatchObject({ game: 'rather', name: 'Would you rather', soft: true, position: 0, number: 1, turn: null });
+		expect(a.rules).toMatch(/convince/);
 	});
 
 	it('moves to the next card once half the players vote, and reshuffles at the end', () => {
@@ -176,6 +177,61 @@ describe('games', () => {
 		endGame(id, host.id);
 		expect(getActivity(id, host.id)).toBeNull();
 		expect(() => nextCard(id, host.id, 0)).toThrow(/No game/);
+	});
+});
+
+describe('ring of fire', () => {
+	it('goes round the players in the order they joined, and only whoever’s turn it is can draw', () => {
+		const { id, host, people } = party(2);
+		const [a, b] = people;
+		openGame(id, a.id, 'ring-of-fire', false);
+		joinGame(id, host.id);
+		joinGame(id, b.id);
+		beginGame(id, b.id);
+
+		const start = getActivity(id, host.id)!.turn!;
+		expect(start).toMatchObject({ up: { id: a.id }, yours: false, card: null, left: 52, kings: 0 });
+		expect(getActivity(id, a.id)!.turn!.yours).toBe(true);
+		expect(() => drawCard(id, host.id, 0)).toThrow(/not your turn/);
+
+		drawCard(id, a.id, 0);
+		drawCard(id, a.id, 0); // a double tap draws once
+		const after = getActivity(id, b.id)!.turn!;
+		expect(after).toMatchObject({ up: { id: host.id }, drewIt: { id: a.id }, left: 51 });
+		expect(after.card).toEqual({ rank: expect.stringMatching(/^(A|[2-9]|10|J|Q|K)$/), suit: expect.stringMatching(/^[♠♥♦♣]$/), text: expect.any(String) });
+		drawCard(id, host.id, 1);
+		drawCard(id, b.id, 2);
+		expect(getActivity(id, b.id)!.turn!.up!.id).toBe(a.id); // back round to the first player
+	});
+
+	it('counts the kings drawn and deals a full deck before reshuffling', () => {
+		const { id, host, people } = party(1);
+		startGame(id, host.id, 'ring-of-fire', false);
+		const order = [host.id, people[0].id];
+		const seen = new Set<string>();
+		for (let i = 0; i < 52; i++) {
+			const up = getActivity(id, host.id)!.turn!.up!.id;
+			expect(up).toBe(order[i % 2]);
+			drawCard(id, up, i);
+			const t = getActivity(id, host.id)!.turn!;
+			seen.add(`${t.card!.rank}${t.card!.suit}`);
+		}
+		const end = getActivity(id, host.id)!.turn!;
+		expect(seen.size).toBe(52);
+		expect(end).toMatchObject({ left: 0, kings: 4 });
+		drawCard(id, end.up!.id, 52);
+		expect(getActivity(id, host.id)!.turn).toMatchObject({ left: 51 });
+	});
+
+	it('lets half the players skip someone who isn’t taking their turn', () => {
+		const { id, host, people } = party(3); // 4 players: 2 votes skip
+		startGame(id, host.id, 'ring-of-fire', false);
+		const up = getActivity(id, host.id)!.turn!.up!.id;
+		const others = [host, ...people].map((p) => p.id).filter((p) => p !== up);
+		nextCard(id, others[0], 0);
+		expect(getActivity(id, host.id)!.turn!.up!.id).toBe(up);
+		nextCard(id, others[1], 0);
+		expect(getActivity(id, host.id)!.turn).toMatchObject({ drewIt: { id: up }, left: 51 });
 	});
 });
 
