@@ -13,8 +13,8 @@ import {
 } from './auth.ts';
 import { attempt, attemptAll } from './ratelimit.ts';
 import { deleteAccount, exportData } from './account.ts';
-import { createEvent, getEvent, joinByToken, postMessage } from './events.ts';
-import { addExpense } from './money.ts';
+import { createEvent, getEvent, joinByToken, listPendingInvites, postMessage } from './events.ts';
+import { addExpense, getKitty } from './money.ts';
 
 let n = 0;
 const user = (name: string) => signUp(`${name.toLowerCase()}${++n}@auth.test`, name, 'correct-horse-9') as User;
@@ -80,6 +80,14 @@ describe('rate limits', () => {
 		expect(attemptAll([{ key: 't:b', limit: 1, windowMs: 1000 }], 0)).toBeNull();
 		expect(attemptAll([{ key: 't:c', limit: 5, windowMs: 1000 }, { key: 't:b', limit: 1, windowMs: 1000 }], 1)).toMatch(/Too many/);
 	});
+
+	it('does not count a refused attempt against the other limits', () => {
+		expect(attemptAll([{ key: 't:ip', limit: 1, windowMs: 1000 }], 0)).toBeNull();
+		for (let i = 0; i < 3; i++) {
+			expect(attemptAll([{ key: 't:ip', limit: 1, windowMs: 1000 }, { key: 't:acct', limit: 1, windowMs: 1000 }], 1)).toMatch(/Too many/);
+		}
+		expect(attemptAll([{ key: 't:acct', limit: 1, windowMs: 1000 }], 2)).toBeNull();
+	});
 });
 
 describe('your data', () => {
@@ -93,6 +101,14 @@ describe('your data', () => {
 		expect(data.events_hosted).toEqual([expect.objectContaining({ title: 'Pres' })]);
 	});
 
+	it('exports votes for you without saying who cast them', () => {
+		const u = user('Nominee');
+		const voter = user('Voter');
+		const id = createEvent(u.id, { title: 'Awards', mode: 'fixed', startsAt: '2099-01-01T20:00' });
+		db.prepare('INSERT INTO award_votes (event_id, award, voter_id, nominee_id) VALUES (?, ?, ?, ?)').run(id, 'mvp', voter.id, u.id);
+		expect(exportData(u.id)['award_votes (nominee_id)']).toEqual([{ event_id: id, award: 'mvp' }]);
+	});
+
 	it('deletes an account, hands hosting on and keeps shared money records anonymous', () => {
 		const host = user('Leaver');
 		const guest = user('Stayer');
@@ -101,6 +117,7 @@ describe('your data', () => {
 		joinByToken(getEvent(id)!.invite_token, guest.id);
 		postMessage(id, host.id, 'my secret message');
 		addExpense(id, host.id, 'Crisps', '6.00', [host.id, guest.id]);
+		db.prepare('INSERT INTO email_invites (event_id, email) VALUES (?, ?)').run(id, host.email);
 		const session = createSession(host.id);
 
 		deleteAccount(host.id);
@@ -113,6 +130,8 @@ describe('your data', () => {
 		expect(row).toEqual({ name: 'Deleted user', email: `deleted-${host.id}@deleted.invalid` });
 		expect(db.prepare('SELECT COUNT(*) AS c FROM messages WHERE user_id = ?').get(host.id)).toEqual({ c: 0 });
 		expect(db.prepare('SELECT COUNT(*) AS c FROM expenses WHERE event_id = ?').get(id)).toEqual({ c: 1 });
+		expect(getKitty(id).transfers).toEqual([expect.objectContaining({ fromName: 'Stayer', toName: 'Deleted user' })]);
+		expect(listPendingInvites(id)).not.toContain(host.email);
 		// The email can be used for a new account.
 		expect('id' in signUp(host.email, 'Back again', 'correct-horse-9')).toBe(true);
 	});

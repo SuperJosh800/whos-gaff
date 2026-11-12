@@ -13,26 +13,26 @@
 	].map((g) => ({ ...g, people: data.attendees.filter((a) => a.response === g.key) })));
 	const choices = [
 		{ value: 'yes', label: "I'm going", on: 'bg-lime text-ink border-lime' },
-		{ value: 'maybe', label: 'Maybe', on: 'bg-amber-500 text-ink border-amber-500' },
-		{ value: 'no', label: "Can't go", on: 'bg-hot text-ink border-hot' }
+		{ value: 'maybe', label: 'Maybe', on: '!bg-amber-500' },
+		{ value: 'no', label: "Can't go", on: '!bg-hot' }
 	];
 </script>
 
 <section class="card space-y-4">
-	<h2 class="text-lg font-bold">Are you coming?</h2>
-	<form method="POST" action="?/rsvp" use:enhance class="flex flex-wrap gap-2">
+	<h2>Are you coming?</h2>
+	<form method="POST" action="?/rsvp" use:enhance class="strip">
 		{#each choices as c (c.value)}
-			<button name="response" value={c.value} aria-pressed={me?.response === c.value}
-				class="border px-4 py-2 text-sm font-extrabold uppercase tracking-wider transition {me?.response === c.value ? c.on : 'border-zinc-300 bg-transparent text-zinc-800 hover:bg-zinc-50'}">
+			<button name="response" value={c.value} aria-pressed={me?.response === c.value} class={me?.response === c.value ? c.on : ''}>
 				{c.label}
 			</button>
 		{/each}
 	</form>
 
-	<div class="grid gap-3 border-t border-zinc-100 pt-4 sm:grid-cols-4">
-		{#each groups as g (g.label)}
-			<div>
-				<p class="text-sm font-semibold {g.tone}">{g.label} · {g.people.length}</p>
+	<div class="grid grid-cols-2 border border-zinc-200 sm:grid-cols-4">
+		{#each groups as g, i (g.label)}
+			<div class="border-zinc-200 p-3 {i % 2 ? 'border-l' : ''} {i > 1 ? 'border-t sm:border-t-0' : ''} {i === 2 ? 'sm:border-l' : ''}">
+				<p class="text-[11px] font-extrabold tracking-widest uppercase {g.tone}">{g.label}</p>
+				<p class="text-2xl leading-none font-black">{g.people.length}</p>
 				<ul class="mt-1 space-y-0.5 text-sm text-zinc-700">
 					{#each g.people as p (p.id)}<li><a class="hover:underline" href="/people/{p.id}">{p.name}</a>{p.is_host ? ' (host)' : ''}</li>{/each}
 				</ul>

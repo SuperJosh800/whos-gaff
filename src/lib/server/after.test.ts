@@ -38,7 +38,7 @@ describe('awards', () => {
 
 		const winners = Object.fromEntries(getAwards(id, host.id).awards.map((x) => [x.key, x.winners.map((w) => w.name)]));
 		expect(winners).toEqual({ mvp: ['A'], 'worst-state': ['A', 'B'], 'first-home': ['A'] });
-		expect(hallOfFame(a.id).map((h) => h.label).sort()).toEqual(['⭐ MVP', '🏃 First to go home', '🥴 Worst state'].sort());
+		expect(hallOfFame(a.id).map((h) => h.label).sort()).toEqual(['MVP', 'First to go home', 'Worst state'].sort());
 		expect(hallOfFame(host.id)).toEqual([]);
 		expect(getAwards(id, b.id).awards.find((x) => x.key === 'first-home')?.myVote).toBe(a.id);
 	});

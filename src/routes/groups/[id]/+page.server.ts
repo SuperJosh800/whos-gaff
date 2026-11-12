@@ -58,7 +58,7 @@ export const actions: Actions = {
 	},
 	answer: async (e) => {
 		const { userId, groupId, get } = await input(e);
-		return asAction(() => answerPing(groupId, userId, Number(get('ping')), get('answer') as 'yes' | 'no'));
+		return asAction(() => answerPing(groupId, userId, Number(get('ping')), (get('answer') || null) as 'yes' | 'no' | null));
 	},
 	nudge: async (e) => {
 		const { userId, groupId, get } = await input(e);

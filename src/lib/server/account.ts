@@ -41,7 +41,9 @@ export function exportData(userId: number) {
 	const data: Record<string, unknown> = { exported_at: new Date().toISOString(), profile, events_hosted: hosted };
 	for (const [table, column] of PERSONAL) {
 		const key = column === 'user_id' || PERSONAL.filter(([t]) => t === table).length === 1 ? table : `${table} (${column})`;
-		data[key] = db.prepare(`SELECT * FROM ${table} WHERE ${column} = ?`).all(userId);
+		// Award votes for you leave out who cast them: the app itself only ever shows the counts.
+		const columns = table === 'award_votes' && column === 'nominee_id' ? 'event_id, award' : '*';
+		data[key] = db.prepare(`SELECT ${columns} FROM ${table} WHERE ${column} = ?`).all(userId);
 	}
 	return data;
 }
@@ -83,6 +85,8 @@ export function deleteAccount(userId: number) {
 		db.prepare('DELETE FROM award_votes WHERE voter_id = ? OR nominee_id = ?').run(userId, userId);
 		db.prepare('UPDATE bring_items SET claimed_by = NULL WHERE claimed_by = ?').run(userId);
 		db.prepare('DELETE FROM custom_games WHERE owner_id = ?').run(userId);
+		// Otherwise the old address would show up again as a pending email invite.
+		db.prepare('DELETE FROM email_invites WHERE email = (SELECT email FROM users WHERE id = ?)').run(userId);
 
 		// The row stays so shared money and bring-list records still add up, but nothing identifies the person.
 		db.prepare(

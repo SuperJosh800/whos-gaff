@@ -3,6 +3,13 @@
 
 type Bucket = { hits: number[] };
 const buckets = new Map<string, Bucket>();
+// Enough for any real crowd; past it the oldest buckets are dropped so memory stays bounded.
+const MAX_BUCKETS = 50_000;
+
+function remember(key: string, bucket: Bucket) {
+	if (!buckets.has(key) && buckets.size >= MAX_BUCKETS) buckets.delete(buckets.keys().next().value!);
+	buckets.set(key, bucket);
+}
 
 /**
  * Records an attempt under `key` and says whether it is allowed: at most `limit`
@@ -12,11 +19,11 @@ export function attempt(key: string, limit: number, windowMs: number, now = Date
 	const bucket = buckets.get(key) ?? { hits: [] };
 	bucket.hits = bucket.hits.filter((t) => t > now - windowMs);
 	if (bucket.hits.length >= limit) {
-		buckets.set(key, bucket);
+		remember(key, bucket);
 		return { ok: false as const, retryAfter: Math.ceil((bucket.hits[0] + windowMs - now) / 1000) };
 	}
 	bucket.hits.push(now);
-	buckets.set(key, bucket);
+	remember(key, bucket);
 	return { ok: true as const };
 }
 
@@ -31,22 +38,25 @@ export function waitMessage(seconds: number) {
 }
 
 /**
- * Checks every limit, recording an attempt against each; fails if any is used up.
+ * Fails if any limit is used up; otherwise records an attempt against each. A refused attempt
+ * isn't recorded, so a blocked visitor can't keep creating buckets with new keys.
  * A limit whose key is null (e.g. the IP address is unknown) is skipped.
  */
 export function attemptAll(limits: { key: string | null; limit: number; windowMs: number }[], now = Date.now()) {
+	const active = limits.filter((l): l is { key: string; limit: number; windowMs: number } => l.key !== null);
 	let worst = 0;
-	for (const { key, limit, windowMs } of limits) {
-		if (key === null) continue;
-		const result = attempt(key, limit, windowMs, now);
-		if (!result.ok) worst = Math.max(worst, result.retryAfter);
+	for (const { key, limit, windowMs } of active) {
+		const hits = (buckets.get(key)?.hits ?? []).filter((t) => t > now - windowMs);
+		if (hits.length >= limit) worst = Math.max(worst, Math.ceil((hits[0] + windowMs - now) / 1000));
 	}
-	return worst ? waitMessage(worst) : null;
+	if (worst) return waitMessage(worst);
+	for (const { key, limit, windowMs } of active) attempt(key, limit, windowMs, now);
+	return null;
 }
 
 // Drop empty buckets now and then so the map can't grow without limit.
 const sweep = setInterval(() => {
-	const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+	const cutoff = Date.now() - HOUR; // the longest window
 	for (const [key, bucket] of buckets) {
 		if (!bucket.hits.some((t) => t > cutoff)) buckets.delete(key);
 	}

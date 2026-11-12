@@ -13,11 +13,15 @@ export const actions: Actions = {
 		const { request, cookies, url } = event;
 		const form = await request.formData();
 		const email = String(form.get('email') ?? '').trim().toLowerCase();
-		// Slow down password guessing: per account, and per IP address across accounts.
-		const emailKey = `login:email:${email}`;
+		// Slow down password guessing. The tight limit is per account from one address, so someone
+		// else failing on purpose can't lock the owner out; the loose per-account limit caps guessing
+		// spread across many addresses, and the per-address limit caps guessing across accounts.
+		const ip = ipKey('login', event);
+		const emailKey = ip ? `${ip}:email:${email}` : `login:email:${email}`;
 		const limited = attemptAll([
 			{ key: emailKey, limit: 10, windowMs: 15 * MINUTE },
-			{ key: ipKey('login', event), limit: 50, windowMs: HOUR }
+			{ key: `login:email-any:${email}`, limit: 100, windowMs: HOUR },
+			{ key: ip, limit: 50, windowMs: HOUR }
 		]);
 		if (limited) return fail(429, { error: limited, email });
 		const user = logIn(email, String(form.get('password') ?? ''));

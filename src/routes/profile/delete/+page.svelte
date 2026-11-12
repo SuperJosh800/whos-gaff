@@ -7,7 +7,7 @@
 <svelte:head><title>Delete your account · Who's Gaff</title></svelte:head>
 
 <div class="mx-auto max-w-lg space-y-4">
-	<h1 class="text-2xl font-bold">Delete your account</h1>
+	<h1 class="text-4xl">Delete your account</h1>
 	<div class="card space-y-3 text-sm">
 		<p>This can’t be undone. When you delete your account:</p>
 		<ul class="list-disc space-y-1 pl-5">
@@ -18,7 +18,7 @@
 			{/if}
 			<li>Kitty payments, rounds and bring-list items stay so everyone else’s totals still add up, but they show as “Deleted user”.</li>
 		</ul>
-		<p>Want a copy first? <a class="font-semibold text-brand-700 underline" href="/profile/export" download>Download your data</a>.</p>
+		<p>Want a copy first? <a class="text-hot underline underline-offset-4" href="/profile/export" download>Download your data</a>.</p>
 	</div>
 	<form method="POST" class="card space-y-4">
 		{#if form?.error}<p class="error">{form.error}</p>{/if}
@@ -31,7 +31,7 @@
 			<input class="input" id="confirm" name="confirm" required autocomplete="off" pattern="DELETE" />
 		</div>
 		<div class="flex flex-wrap gap-3">
-			<button class="btn bg-red-600">Delete my account</button>
+			<button class="btn">Delete my account</button>
 			<a class="btn-secondary" href="/profile">Cancel</a>
 		</div>
 	</form>

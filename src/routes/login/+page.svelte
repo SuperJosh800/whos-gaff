@@ -17,12 +17,12 @@
 		<div>
 			<label class="label" for="password">Password</label>
 			<input class="input" id="password" name="password" type="password" required autocomplete="current-password" />
-			<a class="mt-1 inline-block text-xs font-semibold text-brand-700" href="/forgot">Forgotten your password?</a>
+			<a class="mt-1 inline-block text-xs text-hot underline underline-offset-4" href="/forgot">Forgotten your password?</a>
 		</div>
 		<button class="btn w-full">Log in</button>
 	</form>
 	<p class="mt-4 text-center text-sm text-zinc-600">
 		New here?
-		<a class="font-semibold text-brand-700" href={next ? `/signup?next=${encodeURIComponent(next)}` : '/signup'}>Create an account</a>
+		<a class="font-semibold text-hot underline underline-offset-4" href={next ? `/signup?next=${encodeURIComponent(next)}` : '/signup'}>Create an account</a>
 	</p>
 </div>

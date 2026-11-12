@@ -20,9 +20,9 @@
 		</div>
 	{/if}
 	<form method="POST" class="card space-y-3">
-		<h2 class="text-lg font-bold">New group</h2>
+		<h2>New group</h2>
 		{#if form?.error}<p class="error">{form.error}</p>{/if}
-		<div class="flex gap-2">
+		<div class="joined">
 			<input class="input" name="name" placeholder="The lads, Flat 2/1, Uni pals…" required maxlength="60" aria-label="Group name" />
 			<button class="btn shrink-0">Create group</button>
 		</div>

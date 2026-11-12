@@ -74,19 +74,19 @@ export function postMove(eventId: number, userId: number, place: string) {
 	const others = db
 		.prepare('SELECT user_id FROM event_members WHERE event_id = ? AND user_id != ?')
 		.all(eventId, userId) as { user_id: number }[];
-	for (const o of others) notify(o.user_id, eventId, `📍 ${name}: we've moved to ${place} (${event.title})`);
+	for (const o of others) notify(o.user_id, eventId, `${name}: we've moved to ${place} (${event.title})`);
 	publish(eventId);
 }
 
 // ---- Getting home plan (WG-17) ----
 
 export const HOME_KINDS = {
-	'last-train': '🚆 Last train',
-	'night-bus': '🚌 Night bus',
-	taxi: '🚕 Taxi / Uber split',
-	staying: '🛏️ Staying at someone’s',
-	walking: '🚶 Walking',
-	lift: '🚗 Getting a lift'
+	'last-train': 'Last train',
+	'night-bus': 'Night bus',
+	taxi: 'Taxi / Uber split',
+	staying: 'Staying at someone’s',
+	walking: 'Walking',
+	lift: 'Getting a lift'
 } as const;
 export type HomeKind = keyof typeof HOME_KINDS;
 
@@ -121,7 +121,7 @@ export function setHomePlan(eventId: number, userId: number, kind: string, detai
 export function nudgeNoPlan(eventId: number, userId: number) {
 	const event = requireMember(eventId, userId);
 	const missing = listHomePlans(eventId).filter((p) => !p.kind && p.user_id !== userId);
-	for (const p of missing) notify(p.user_id, eventId, `🏠 How are you getting home from ${event.title}? Add your plan.`);
+	for (const p of missing) notify(p.user_id, eventId, `How are you getting home from ${event.title}? Add your plan.`);
 	return missing.length;
 }
 

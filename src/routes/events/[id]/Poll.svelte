@@ -26,17 +26,17 @@
 	const nextVote = (v: 0 | 1 | undefined) => (v === undefined ? '1' : v === 1 ? '0' : '');
 </script>
 
-<section class="card space-y-5 p-0">
-	<div class="flex flex-wrap items-end justify-between gap-4 border-b border-zinc-200 p-5">
+<section class="card space-y-4">
+	<div class="space-y-3">
 		<div>
-			<h2 class="text-sm font-black text-zinc-900">Who can do what</h2>
+			<h2>Who can do what</h2>
 			{#if deadline}
 				<p class="mt-1 text-sm {data.votingOpen ? 'text-zinc-600' : 'font-bold text-red-700'}">
 					{data.votingOpen ? 'Vote by' : 'Voting closed'} {formatWhen(deadline)}
 				</p>
 			{/if}
 		</div>
-		<div class="flex gap-6">
+		<div class="stats">
 			<div class="stat"><b>{voted}/{members}</b><span>Voted</span></div>
 			<div class="stat"><b class="!text-lime">{bestDates.length ? bestDates.map((o) => formatShortDay(o.starts_at)).join(', ') : '–'}</b><span>Best date</span></div>
 			<div class="stat"><b>{best}/{members}</b><span>Can make it</span></div>
@@ -44,25 +44,25 @@
 	</div>
 
 	{#if !data.votingOpen}
-		<p class="mx-5 border px-3 py-2 text-sm {data.isHost ? 'border-amber-500 text-amber-800' : 'border-zinc-300 text-zinc-700'}">
+		<p class="border px-3 py-2 text-sm {data.isHost ? 'border-amber-500 text-amber-800' : 'border-zinc-300 text-zinc-700'}">
 			{data.isHost ? 'Voting has closed. Pick the winning date below to open RSVPs.' : 'Voting has closed. Waiting for the host to pick a date.'}
 		</p>
 	{/if}
 
-	<div class="overflow-x-auto px-5">
+	<div class="overflow-x-auto">
 		<table class="w-full min-w-[480px] border-separate border-spacing-1 tabular-nums">
 			<thead>
 				<tr>
 					<th class="w-28"></th>
 					{#each data.options as o (o.id)}
-						<th class="px-1 pb-2 align-bottom {o.can === best && best ? 'border-t-2 border-hot bg-brand-50' : ''}">
+						<th class="px-1 pb-2 align-bottom {o.can === best && best ? 'border-t-2 border-hot' : ''}">
 							{#if editing === o.id}
 								<form method="POST" action="?/updateOption" class="grid gap-1" use:enhance={() => async ({ update }) => { editing = null; await update(); }}>
 									<input type="hidden" name="option" value={o.id} />
 									<input class="input px-1 text-xs" type="datetime-local" name="starts_at" value={o.starts_at} required aria-label="New date" />
 									<div class="flex justify-center gap-1">
 										<button class="btn btn-small">Save</button>
-										<button type="button" class="btn-secondary btn-small" onclick={() => (editing = null)}>✕</button>
+										<button type="button" class="btn-secondary btn-small" onclick={() => (editing = null)}>Cancel</button>
 									</div>
 								</form>
 							{:else}
@@ -75,7 +75,7 @@
 									<span class="block text-[10px] font-normal text-zinc-500">by {o.suggested_by_name}</span>
 								{/if}
 								{#if data.payday && isJustAfterPayday(o.starts_at, data.payday)}
-									<span class="badge mt-1 text-lime-800" title="Within a week of your payday">💷 Payday</span>
+									<span class="badge mt-1 text-lime-800" title="Within a week of your payday">Payday</span>
 								{/if}
 							{/if}
 						</th>
@@ -136,17 +136,15 @@
 			</tfoot>
 		</table>
 	</div>
-	{#if data.votingOpen}<p class="px-5 text-xs text-zinc-500">Tap your row to cycle can / can't / no answer.</p>{/if}
+	{#if data.votingOpen}<p class="text-xs text-zinc-500">Tap your row to cycle can / can't / no answer.</p>{/if}
 
 	{#if data.votingOpen}
-		<form method="POST" action={data.isHost ? '?/addOption' : '?/suggest'} use:enhance class="border-t border-zinc-200 p-5">
+		<form method="POST" action={data.isHost ? '?/addOption' : '?/suggest'} use:enhance class="border-t border-zinc-200 pt-4">
 			<label class="label" for="new-date">{data.isHost ? 'Add a date option' : 'None of these work? Suggest a date'}</label>
-			<div class="flex gap-2">
+			<div class="joined">
 				<input class="input" id="new-date" type="datetime-local" name="starts_at" required />
 				<button class="btn-secondary shrink-0">{data.isHost ? 'Add' : 'Suggest'}</button>
 			</div>
 		</form>
-	{:else}
-		<div class="pb-1"></div>
 	{/if}
 </section>

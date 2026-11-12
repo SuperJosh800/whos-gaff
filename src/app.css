@@ -84,9 +84,13 @@
 		letter-spacing: -0.02em;
 		line-height: 1;
 	}
+	/* Section labels, as in the poll grid: small, wide-spaced capitals. */
 	h2 {
 		text-transform: uppercase;
-		letter-spacing: 0.06em;
+		letter-spacing: 0.14em;
+		font-size: var(--text-xs);
+		line-height: var(--text-xs--line-height);
+		font-weight: 800;
 	}
 	::selection {
 		background: var(--color-lime);
@@ -95,8 +99,9 @@
 }
 
 @layer components {
+	/* A section of a page: a rule above it, no box around it. */
 	.card {
-		@apply border border-zinc-200 bg-surface p-5;
+		@apply border-t border-zinc-200 pt-4;
 	}
 	.btn {
 		@apply inline-flex cursor-pointer items-center justify-center gap-2 border border-hot bg-hot px-4 py-2 text-sm font-extrabold tracking-wider text-ink uppercase transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50;
@@ -108,7 +113,7 @@
 		@apply px-3 py-1 text-xs;
 	}
 	.input {
-		@apply w-full min-w-0 border border-zinc-300 bg-zinc-50 px-3 py-2 text-sm text-zinc-900 outline-none placeholder:text-zinc-500 focus:border-lime;
+		@apply w-full min-w-0 border border-zinc-300 bg-zinc-50 px-3 py-2 text-sm text-zinc-900 outline-none placeholder:text-zinc-500 focus:outline-2 focus:outline-solid focus:-outline-offset-2 focus:outline-lime;
 	}
 	.label {
 		@apply mb-1 block text-xs font-bold tracking-widest text-zinc-500 uppercase;
@@ -116,12 +121,46 @@
 	.error {
 		@apply border border-hot bg-red-50 px-3 py-2 text-sm text-red-800;
 	}
+	/* A status word: coloured capitals, no box. */
 	.badge {
-		@apply inline-flex items-center border border-current px-2 py-0.5 text-[11px] font-extrabold tracking-widest uppercase;
+		@apply inline-flex items-center text-[11px] font-extrabold tracking-widest uppercase;
+	}
+	/*
+	 * A row of joined cells, like the poll grid: tabs, choices and grouped actions.
+	 * The current or chosen cell fills lime.
+	 */
+	.strip {
+		@apply grid auto-cols-fr grid-flow-col border border-zinc-200;
+	}
+	.strip > * {
+		@apply flex min-w-0 cursor-pointer items-center justify-center border-l border-zinc-200 px-2 py-2.5 text-center text-[11px] font-extrabold tracking-wide text-zinc-500 uppercase hover:bg-zinc-100 hover:text-zinc-900 sm:text-xs sm:tracking-widest;
+	}
+	.strip > *:first-child {
+		@apply border-l-0;
+	}
+	.strip > [aria-current],
+	.strip > [aria-pressed='true'],
+	.strip > [aria-selected='true'],
+	.strip > :has(:checked) {
+		@apply bg-lime text-ink hover:bg-lime hover:text-ink;
+	}
+	/* An input and its button sharing one border, like cells in the grid. */
+	.joined {
+		@apply flex;
+	}
+	.joined > * + * {
+		@apply border-l-0;
+	}
+	/* Big number over a small uppercase label, in a strip of joined cells. */
+	.stats {
+		@apply grid auto-cols-fr grid-flow-col border border-zinc-200;
+	}
+	.stat {
+		@apply min-w-0 border-l border-zinc-200 p-3 first:border-l-0;
 	}
 	/* Long-form pages: privacy policy and terms. */
 	.prose-page h2 {
-		@apply mb-2 text-lg font-bold text-zinc-900;
+		@apply mt-6 mb-2 text-zinc-900;
 	}
 	.prose-page p,
 	.prose-page li {
@@ -131,13 +170,12 @@
 		@apply list-disc space-y-1 pl-5;
 	}
 	.prose-page a {
-		@apply font-semibold text-brand-700 underline;
+		@apply text-hot underline underline-offset-4;
 	}
-	/* Big number over a small uppercase label, Neon's stats footer. */
 	.stat b {
 		@apply block text-2xl leading-none font-black text-zinc-900 tabular-nums;
 	}
 	.stat span {
-		@apply mt-1 block text-xs tracking-widest text-zinc-500 uppercase;
+		@apply mt-1 block text-[11px] tracking-widest text-zinc-500 uppercase;
 	}
 }

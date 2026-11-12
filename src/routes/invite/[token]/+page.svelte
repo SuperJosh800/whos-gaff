@@ -8,7 +8,7 @@
 </script>
 
 <div class="card mx-auto max-w-md space-y-4 text-center">
-	<p class="text-sm font-semibold text-brand-700">{data.preview.host_name} invited you to</p>
+	<p class="text-[11px] font-extrabold tracking-widest text-hot uppercase">{data.preview.host_name} invited you to</p>
 	<h1 class="text-3xl font-extrabold tracking-tight">{data.preview.title}</h1>
 	<p class="text-zinc-600">
 		{data.preview.starts_at ? formatWhen(data.preview.starts_at) : 'Date still being voted on'}

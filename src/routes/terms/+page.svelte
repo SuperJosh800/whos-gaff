@@ -9,7 +9,7 @@
 
 <article class="prose-page mx-auto max-w-2xl space-y-5">
 	<header>
-		<h1 class="text-3xl font-bold">Terms of use</h1>
+		<h1 class="text-4xl">Terms of use</h1>
 		<p class="text-sm text-zinc-500">Last updated 12 November 2026</p>
 	</header>
 

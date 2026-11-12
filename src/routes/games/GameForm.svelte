@@ -9,11 +9,8 @@
 
 <form method="POST" action="?/save" use:enhance={() => async ({ update }) => update({ reset })} class="card space-y-4">
 	{#if error}<p class="error" role="alert">{error}</p>{/if}
-	<div class="grid gap-3 sm:grid-cols-[5rem_1fr_10rem]">
-		<div>
-			<label class="label" for="emoji">Emoji</label>
-			<input class="input text-center text-lg" id="emoji" name="emoji" value={v.emoji} maxlength="8" />
-		</div>
+	<input type="hidden" name="emoji" value={v.emoji} />
+	<div class="grid gap-3 sm:grid-cols-[1fr_10rem]">
 		<div>
 			<label class="label" for="name">Name</label>
 			<input class="input" id="name" name="name" required maxlength={CUSTOM.name} placeholder="Pres power hour" value={v.name} />
@@ -21,7 +18,7 @@
 		<div>
 			<label class="label" for="setting">Best at</label>
 			<select class="input" id="setting" name="setting" value={v.setting}>
-				{#each SETTING_IDS as id (id)}<option value={id}>{SETTINGS[id].emoji} {SETTINGS[id].label}</option>{/each}
+				{#each SETTING_IDS as id (id)}<option value={id}>{SETTINGS[id].label}</option>{/each}
 			</select>
 		</div>
 	</div>

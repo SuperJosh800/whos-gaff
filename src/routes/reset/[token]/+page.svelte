@@ -7,7 +7,7 @@
 <svelte:head><title>Set a new password · Who's Gaff</title></svelte:head>
 
 <div class="mx-auto max-w-sm">
-	<h1 class="mb-4 text-2xl font-bold">Set a new password</h1>
+	<h1 class="mb-4 text-4xl">Set a new password</h1>
 	{#if data.valid}
 		<form method="POST" class="card space-y-4">
 			{#if form?.error}<p class="error">{form.error}</p>{/if}

@@ -7,7 +7,7 @@
 <svelte:head><title>Reset your password · Who's Gaff</title></svelte:head>
 
 <div class="mx-auto max-w-sm">
-	<h1 class="mb-4 text-2xl font-bold">Forgotten your password?</h1>
+	<h1 class="mb-4 text-4xl">Forgotten your password?</h1>
 	{#if form && 'sent' in form}
 		<div class="card space-y-3">
 			<p>If there’s an account for <strong>{form.email}</strong>, we’ve emailed it a link to set a new password. The link works for an hour.</p>
@@ -24,5 +24,5 @@
 			<button class="btn w-full">Send reset link</button>
 		</form>
 	{/if}
-	<p class="mt-4 text-center text-sm text-zinc-600"><a class="font-semibold text-brand-700" href="/login">Back to log in</a></p>
+	<p class="mt-4 text-center text-sm text-zinc-600"><a class="text-hot underline underline-offset-4" href="/login">Back to log in</a></p>
 </div>

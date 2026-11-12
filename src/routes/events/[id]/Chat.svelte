@@ -20,24 +20,24 @@
 </script>
 
 <section id="chat" class="card space-y-3">
-	<h2 class="text-lg font-bold">Group chat</h2>
+	<h2>Group chat</h2>
 	{#if data.messages.length}
-		<ul bind:this={list} class="max-h-80 space-y-2 overflow-y-auto">
+		<ul bind:this={list} class="max-h-80 divide-y divide-zinc-200 overflow-y-auto border border-zinc-200">
 			{#each data.messages as m (m.id)}
 				{@const mine = m.user_id === page.data.user?.id}
-				<li class="flex {mine ? 'justify-end' : ''}">
-					<div class="max-w-[80%] rounded-2xl px-3 py-2 text-sm {mine ? 'bg-lime text-ink' : 'bg-zinc-100'}">
-						{#if !mine}<p class="text-xs font-semibold text-zinc-600">{m.name}</p>{/if}
-						<p class="whitespace-pre-line break-words">{m.body}</p>
-						<p class="mt-0.5 text-[10px] {mine ? 'text-ink/60' : 'text-zinc-500'}">{time(m.created_at)}</p>
-					</div>
+				<li class="grid grid-cols-[4.5rem_1fr] text-sm">
+					<span class="border-r border-zinc-200 px-2 py-2 text-[11px] text-zinc-500 tabular-nums">{time(m.created_at)}</span>
+					<p class="min-w-0 px-3 py-2 break-words whitespace-pre-line">
+						<span class="font-extrabold {mine ? 'text-lime' : 'text-zinc-900'}">{mine ? 'You' : m.name}</span>
+						<span class="text-zinc-700">{m.body}</span>
+					</p>
 				</li>
 			{/each}
 		</ul>
 	{:else}
 		<p class="text-sm text-zinc-500">No messages yet. Say hi to everyone who's invited.</p>
 	{/if}
-	<form method="POST" action="?/message" use:enhance class="flex gap-2">
+	<form method="POST" action="?/message" use:enhance class="joined">
 		<textarea name="body" rows="1" maxlength="1000" required class="input resize-none"
 			placeholder="Message everyone invited" aria-label="Message"
 			onkeydown={(e) => {

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { formatWhen } from '#lib/time.ts';
+	import { formatTime, formatWhen } from '#lib/time.ts';
 	import type { DashboardEvent } from '#lib/server/dashboard.ts';
 
 	let { event }: { event: DashboardEvent } = $props();
@@ -11,35 +11,47 @@
 		past: ['Done', 'text-zinc-500']
 	} as const;
 	const todos = { vote: 'Vote on dates', rsvp: 'RSVP', pick: 'Pick a date' } as const;
+	const day = (local: string, part: 'short' | 'num' | 'mon') => {
+		const d = new Date(local + ':00Z');
+		if (part === 'num') return d.getUTCDate();
+		return d.toLocaleDateString('en-GB', { timeZone: 'UTC', ...(part === 'short' ? { weekday: 'short' } : { month: 'short' }) });
+	};
 	const noReply = $derived(event.invited - event.going - event.maybe - event.not_going);
 </script>
 
-<a href="/events/{event.id}" class="card block transition hover:border-hot">
-	<div class="flex items-start justify-between gap-3">
-		<div class="min-w-0">
-			<h3 class="truncate text-lg font-black uppercase">{event.title}</h3>
-			<p class="text-sm text-zinc-600">
-				{event.is_host ? 'You’re hosting' : `Hosted by ${event.host_name}`}
-				· {event.starts_at ? formatWhen(event.starts_at) : 'Date TBC'}
-			</p>
-		</div>
-		<span class="badge shrink-0 {badges[event.status][1]}">{badges[event.status][0]}</span>
-	</div>
-
-	<div class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+<a href="/events/{event.id}" class="grid grid-cols-[4.5rem_1fr] hover:bg-zinc-100">
+	<div class="flex flex-col items-center justify-center border-r border-zinc-200 py-3 text-center">
 		{#if event.starts_at}
-			<span class="font-semibold text-emerald-700">{event.going} going</span>
-			<span class="text-amber-700">{event.maybe} maybe</span>
-			<span class="text-red-700">{event.not_going} can't</span>
-			<span class="text-zinc-500">{noReply} no reply</span>
+			<span class="text-[11px] font-extrabold tracking-widest text-zinc-500 uppercase">{day(event.starts_at, 'short')}</span>
+			<span class="text-2xl leading-none font-black">{day(event.starts_at, 'num')}</span>
+			<span class="text-[11px] font-extrabold tracking-widest text-zinc-500 uppercase">{day(event.starts_at, 'mon')}</span>
 		{:else}
-			<span class="text-zinc-700">{event.voters} of {event.invited} voted</span>
-			{#if event.vote_deadline && event.status === 'voting'}
-				<span class="text-zinc-500">Vote by {formatWhen(event.vote_deadline)}</span>
+			<span class="text-[11px] font-extrabold tracking-widest text-hot uppercase">Date<br />TBC</span>
+		{/if}
+	</div>
+	<div class="min-w-0 p-3">
+		<div class="flex items-start justify-between gap-3">
+			<h3 class="truncate font-black uppercase">{event.title}</h3>
+			<span class="badge shrink-0 {badges[event.status][1]}">{badges[event.status][0]}</span>
+		</div>
+		<p class="text-sm text-zinc-600">
+			{event.is_host ? 'You’re hosting' : `Hosted by ${event.host_name}`}{#if event.starts_at}, {formatTime(event.starts_at)}{/if}
+		</p>
+		<div class="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+			{#if event.starts_at}
+				<span class="font-semibold text-emerald-700">{event.going} going</span>
+				<span class="text-amber-700">{event.maybe} maybe</span>
+				<span class="text-red-700">{event.not_going} can't</span>
+				<span class="text-zinc-500">{noReply} no reply</span>
+			{:else}
+				<span class="text-zinc-700">{event.voters} of {event.invited} voted</span>
+				{#if event.vote_deadline && event.status === 'voting'}
+					<span class="text-zinc-500">Vote by {formatWhen(event.vote_deadline)}</span>
+				{/if}
 			{/if}
-		{/if}
-		{#if event.todo}
-			<span class="badge ml-auto bg-hot text-ink">{todos[event.todo]}</span>
-		{/if}
+			{#if event.todo}
+				<span class="badge ml-auto text-hot">{todos[event.todo]}</span>
+			{/if}
+		</div>
 	</div>
 </a>
