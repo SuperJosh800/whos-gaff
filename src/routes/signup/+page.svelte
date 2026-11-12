@@ -20,8 +20,13 @@
 		</div>
 		<div>
 			<label class="label" for="password">Password</label>
-			<input class="input" id="password" name="password" type="password" required minlength="8" autocomplete="new-password" />
+			<input class="input" id="password" name="password" type="password" required minlength="8" maxlength="200" autocomplete="new-password" />
+			<p class="mt-1 text-xs text-zinc-500">At least 8 characters. A short phrase is easier to remember and harder to guess.</p>
 		</div>
+		<label class="flex items-start gap-2 text-sm text-zinc-700">
+			<input type="checkbox" name="agree" required class="mt-1" />
+			<span>I’m 18 or over and I agree to the <a class="font-semibold text-brand-700 underline" href="/terms" target="_blank">terms</a> and <a class="font-semibold text-brand-700 underline" href="/privacy" target="_blank">privacy policy</a>.</span>
+		</label>
 		<button class="btn w-full">Sign up</button>
 	</form>
 	<p class="mt-4 text-center text-sm text-zinc-600">

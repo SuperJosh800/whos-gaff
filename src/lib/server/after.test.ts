@@ -4,7 +4,7 @@ import { createEvent, getEvent, joinByToken, setRsvp } from './events.ts';
 import { addPhoto, getAwards, hallOfFame, listPhotos, readPhoto, voteAward } from './after.ts';
 
 let n = 0;
-const user = (name: string) => signUp(`${name}${++n}@after.test`, name, 'password123') as User;
+const user = (name: string) => signUp(`${name}${++n}@after.test`, name, 'correct-horse-9') as User;
 const AFTER = '2099-06-21T12:00';
 
 function night(title = 'Night') {

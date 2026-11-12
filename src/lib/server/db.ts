@@ -230,6 +230,38 @@ const migrations: string[] = [
 	`
 	ALTER TABLE pings ADD COLUMN plan TEXT NOT NULL DEFAULT 'anything' CHECK (plan IN ('pub', 'home', 'club', 'food', 'anything'));
 	ALTER TABLE pings ADD COLUMN on_date TEXT;
+	`,
+	`
+	-- Only a hash of each reset token is stored, like sessions.
+	CREATE TABLE password_resets (
+		token_hash TEXT PRIMARY KEY,
+		user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		expires_at INTEGER NOT NULL
+	);
+	CREATE INDEX sessions_user ON sessions(user_id);
+	ALTER TABLE users ADD COLUMN terms_accepted_at TEXT;
+	`,
+	`
+	-- The game currently running at an event. deck is a JSON array of card indexes in play order.
+	CREATE TABLE event_activity (
+		event_id INTEGER PRIMARY KEY REFERENCES events(id) ON DELETE CASCADE,
+		game TEXT NOT NULL,
+		deck TEXT NOT NULL,
+		position INTEGER NOT NULL DEFAULT 0,
+		target_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+		soft INTEGER NOT NULL DEFAULT 0,
+		updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+	);
+	CREATE TABLE challenge_results (
+		id INTEGER PRIMARY KEY,
+		event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+		user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		challenge TEXT NOT NULL,
+		points INTEGER NOT NULL,
+		done INTEGER NOT NULL CHECK (done IN (0, 1)),
+		created_at TEXT NOT NULL DEFAULT (datetime('now'))
+	);
+	CREATE INDEX challenge_results_event ON challenge_results(event_id);
 	`
 ];
 

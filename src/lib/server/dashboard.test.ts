@@ -4,7 +4,7 @@ import { signUp, type User } from './auth.ts';
 import { createEvent, getEvent, joinByToken, listOptions, setRsvp, setVote } from './events.ts';
 import { listDashboardEvents } from './dashboard.ts';
 
-const user = (name: string) => signUp(`${name}@dash.test`, name, 'password123') as User;
+const user = (name: string) => signUp(`${name}@dash.test`, name, 'correct-horse-9') as User;
 
 describe('dashboard', () => {
 	it('shows each event with its status, RSVP counts and what the user still has to do', () => {

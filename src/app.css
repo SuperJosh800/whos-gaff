@@ -119,6 +119,20 @@
 	.badge {
 		@apply inline-flex items-center border border-current px-2 py-0.5 text-[11px] font-extrabold tracking-widest uppercase;
 	}
+	/* Long-form pages: privacy policy and terms. */
+	.prose-page h2 {
+		@apply mb-2 text-lg font-bold text-zinc-900;
+	}
+	.prose-page p,
+	.prose-page li {
+		@apply leading-relaxed text-zinc-700;
+	}
+	.prose-page ul {
+		@apply list-disc space-y-1 pl-5;
+	}
+	.prose-page a {
+		@apply font-semibold text-brand-700 underline;
+	}
 	/* Big number over a small uppercase label, Neon's stats footer. */
 	.stat b {
 		@apply block text-2xl leading-none font-black text-zinc-900 tabular-nums;

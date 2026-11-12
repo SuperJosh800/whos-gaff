@@ -20,7 +20,7 @@ import {
 
 let n = 0;
 function user(name: string) {
-	return signUp(`${name.toLowerCase()}${++n}@example.com`, name, 'password123') as User;
+	return signUp(`${name.toLowerCase()}${++n}@example.com`, name, 'correct-horse-9') as User;
 }
 
 function poll(host: User, options = ['2099-03-14T20:00', '2099-03-15T20:00', '2099-03-21T20:00']) {
@@ -179,7 +179,7 @@ describe('email invites', () => {
 		await inviteByEmail(id, host.id, `${existing.email.toUpperCase()}, newbie@example.com`, 'http://x');
 		expect(listAttendees(id).map((a) => a.name)).toEqual(['Host', 'Existing']);
 
-		const newbie = signUp('newbie@example.com', 'Newbie', 'password123') as User;
+		const newbie = signUp('newbie@example.com', 'Newbie', 'correct-horse-9') as User;
 		claimEmailInvites(newbie.id, newbie.email);
 		expect(listAttendees(id).map((a) => a.name)).toContain('Newbie');
 	});

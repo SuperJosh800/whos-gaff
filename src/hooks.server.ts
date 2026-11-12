@@ -1,9 +1,36 @@
 import type { Handle } from '@sveltejs/kit/hooks';
-import { getSessionUser, SESSION_COOKIE } from '#lib/server/auth.ts';
+import { getSessionUser, purgeExpired, SESSION_COOKIE } from '#lib/server/auth.ts';
+
+// Clear out expired sessions and reset links once an hour.
+purgeExpired();
+setInterval(() => purgeExpired(), 60 * 60 * 1000).unref?.();
+
+// The Content-Security-Policy is set by SvelteKit (kit.csp in vite.config.ts) so it can hash its own inline scripts.
+const SECURITY_HEADERS: Record<string, string> = {
+	'x-content-type-options': 'nosniff',
+	'x-frame-options': 'DENY',
+	// Invite links carry a token in the URL; never send the path to other sites.
+	'referrer-policy': 'strict-origin-when-cross-origin',
+	'permissions-policy': 'camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()',
+	'cross-origin-opener-policy': 'same-origin',
+	'cross-origin-resource-policy': 'same-origin'
+};
 
 export const handle: Handle = async ({ event, resolve }) => {
 	const token = event.cookies.get(SESSION_COOKIE);
 	event.locals.user = token ? getSessionUser(token) : null;
 	if (token && !event.locals.user) event.cookies.delete(SESSION_COOKIE, { path: '/' });
-	return resolve(event);
+
+	const response = await resolve(event);
+	for (const [name, value] of Object.entries(SECURITY_HEADERS)) {
+		if (!response.headers.has(name)) response.headers.set(name, value);
+	}
+	if (event.url.protocol === 'https:') {
+		response.headers.set('strict-transport-security', 'max-age=31536000; includeSubDomains');
+	}
+	// Pages for logged-in people hold private details: don't let shared caches keep them.
+	if (event.locals.user && !response.headers.has('cache-control')) {
+		response.headers.set('cache-control', 'private, no-store');
+	}
+	return response;
 };
