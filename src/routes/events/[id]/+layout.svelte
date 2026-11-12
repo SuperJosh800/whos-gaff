@@ -2,6 +2,7 @@
 	import { goto, invalidate } from '$app/navigation';
 	import { page } from '$app/state';
 	import { formatWhen } from '#lib/time.ts';
+	import { GAMES } from '#lib/activities.ts';
 	import type { LayoutProps } from './$types';
 
 	let { data, children }: LayoutProps = $props();
@@ -12,6 +13,7 @@
 		{ href: base, label: 'Overview' },
 		{ href: `${base}/gaff`, label: 'Gaff' },
 		{ href: `${base}/night`, label: 'Night' },
+		{ href: `${base}/games`, label: 'Games' },
 		{ href: `${base}/money`, label: 'Money' },
 		{ href: `${base}/after`, label: 'After' }
 	]);
@@ -79,16 +81,24 @@
 		{/if}
 	</section>
 
-	<nav class="grid grid-cols-5 border border-zinc-200" aria-label="Event sections">
+	<nav class="grid grid-cols-6 border border-zinc-200" aria-label="Event sections">
 		{#each tabs as tab (tab.href)}
 			<a href={tab.href} aria-current={page.url.pathname === tab.href ? 'page' : undefined}
-				class="border-l border-zinc-200 py-2.5 text-center text-[11px] font-extrabold tracking-wide uppercase first:border-l-0 sm:text-xs sm:tracking-widest {page.url.pathname === tab.href
+				class="border-l border-zinc-200 py-2.5 text-center text-[10px] font-extrabold tracking-normal min-[400px]:text-[11px] min-[400px]:tracking-wide uppercase first:border-l-0 sm:text-xs sm:tracking-widest {page.url.pathname === tab.href
 					? 'bg-hot text-ink'
 					: 'text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900'}">
 				{tab.label}
 			</a>
 		{/each}
 	</nav>
+
+	{#if data.gameOn && page.url.pathname !== `${base}/games`}
+		<a href="{base}/games" class="flex items-center gap-3 border border-lime bg-emerald-50 px-4 py-3 text-sm font-bold text-lime">
+			<span class="text-lg" aria-hidden="true">{GAMES[data.gameOn].emoji}</span>
+			Game on: {GAMES[data.gameOn].name}
+			<span class="ml-auto text-xs tracking-widest uppercase">Join in →</span>
+		</a>
+	{/if}
 
 	{@render children()}
 </div>

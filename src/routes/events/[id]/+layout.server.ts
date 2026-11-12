@@ -1,6 +1,7 @@
 import { error, redirect } from '@sveltejs/kit';
 import { getEvent, isMember, listAttendees, votingOpen } from '#lib/server/events.ts';
 import { canSeeAddress, getGaff } from '#lib/server/gaff.ts';
+import { getActivity } from '#lib/server/activities.ts';
 import type { LayoutServerLoad } from './$types';
 
 export const load: LayoutServerLoad = ({ params, locals, url, depends }) => {
@@ -22,6 +23,7 @@ export const load: LayoutServerLoad = ({ params, locals, url, depends }) => {
 		attendees: listAttendees(eventId),
 		address: unlocked ? address : null,
 		addressLocked: !unlocked && !!address,
-		gaff: unlocked && gaff ? gaff : null
+		gaff: unlocked && gaff ? gaff : null,
+		gameOn: getActivity(eventId)?.game ?? null
 	};
 };
