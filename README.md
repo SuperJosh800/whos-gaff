@@ -48,6 +48,17 @@ Or run the Docker image, which keeps the database and photos in the `/data` volu
 docker run -p 3000:3000 -v whos-gaff:/data -e ORIGIN=https://your.domain ghcr.io/superjosh800/whos-gaff:latest
 ```
 
+### Hosting on your own Ubuntu machine
+
+`deploy/install.sh` runs the image on an Ubuntu machine, such as a spare laptop, and makes it public at the machine's free [Tailscale Funnel](https://tailscale.com/kb/1223/funnel) address. No router changes or domain are needed.
+
+```sh
+git clone https://github.com/SuperJosh800/whos-gaff
+sudo whos-gaff/deploy/install.sh
+```
+
+It installs Docker and Tailscale, asks you to log in to Tailscale and allow Funnel, and starts the app from `/opt/whos-gaff`. A systemd timer pulls the newest image every 5 minutes, so each green build on `main` goes live by itself. It also stops the laptop sleeping when the lid is closed (reboot once for that). Settings such as `SMTP_URL` go in `/opt/whos-gaff/.env`; then run `sudo systemctl start whos-gaff-update` to apply them. The installer is safe to run again and keeps that file.
+
 GitHub Actions (`.github/workflows/ci.yml`) type-checks, tests and builds every push and pull request, and builds the Docker image. On `main` it then publishes the image to GitHub Container Registry as `latest` and `sha-<commit>`.
 
 Live updates use server-sent events from an in-process bus, so run a single server process.
