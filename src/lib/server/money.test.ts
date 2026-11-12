@@ -5,7 +5,7 @@ import { addExpense, balances, getKitty, getRounds, parsePounds, payLink, record
 import { homeSafeCutoff } from './night.ts';
 
 let n = 0;
-const user = (name: string) => signUp(`${name}${++n}@money.test`, name, 'password123') as User;
+const user = (name: string) => signUp(`${name}${++n}@money.test`, name, 'correct-horse-9') as User;
 
 function night() {
 	const host = user('Host');

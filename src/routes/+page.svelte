@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { page } from '$app/state';
 	import EventCard from './EventCard.svelte';
 	import type { PageProps } from './$types';
 
@@ -62,6 +63,9 @@
 		{/if}
 	</div>
 {:else}
+	{#if page.url.searchParams.has('deleted')}
+		<p class="card mx-auto max-w-lg text-center" role="status">Your account has been deleted. Thanks for using Who’s Gaff.</p>
+	{/if}
 	<section class="py-16 text-center">
 		<h1 class="text-5xl sm:text-7xl">Who's coming to the gaff?</h1>
 		<p class="mx-auto mt-4 max-w-xl text-lg text-zinc-600">

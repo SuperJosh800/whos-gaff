@@ -52,6 +52,11 @@
 	</header>
 	<main class="mx-auto max-w-4xl px-4 py-6 {data.user ? 'pb-24 sm:pb-6' : ''}">
 		{@render children()}
+		<footer class="mt-12 flex flex-wrap gap-x-5 gap-y-1 border-t border-zinc-200 pt-4 text-xs text-zinc-500">
+			<a class="hover:text-zinc-900" href="/privacy">Privacy</a>
+			<a class="hover:text-zinc-900" href="/terms">Terms</a>
+			<span>18+ · Please drink responsibly · <a class="underline hover:text-zinc-900" href="https://www.drinkaware.co.uk" target="_blank" rel="noopener noreferrer">drinkaware.co.uk</a></span>
+		</footer>
 	</main>
 	{#if data.user}
 		<!-- Phones: the main sections sit in a tab bar under your thumb. -->

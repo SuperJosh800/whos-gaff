@@ -140,6 +140,7 @@
 	}
 	.strip > [aria-current],
 	.strip > [aria-pressed='true'],
+	.strip > [aria-selected='true'],
 	.strip > :has(:checked) {
 		@apply bg-lime text-ink hover:bg-lime hover:text-ink;
 	}
@@ -156,6 +157,20 @@
 	}
 	.stat {
 		@apply min-w-0 border-l border-zinc-200 p-3 first:border-l-0;
+	}
+	/* Long-form pages: privacy policy and terms. */
+	.prose-page h2 {
+		@apply mt-6 mb-2 text-zinc-900;
+	}
+	.prose-page p,
+	.prose-page li {
+		@apply leading-relaxed text-zinc-700;
+	}
+	.prose-page ul {
+		@apply list-disc space-y-1 pl-5;
+	}
+	.prose-page a {
+		@apply text-hot underline underline-offset-4;
 	}
 	.stat b {
 		@apply block text-2xl leading-none font-black text-zinc-900 tabular-nums;

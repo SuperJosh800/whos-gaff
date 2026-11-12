@@ -12,6 +12,7 @@ ENV NODE_ENV=production PORT=3000 DATABASE_PATH=/data/whos-gaff.db UPLOADS_PATH=
 COPY --from=build /app/package.json ./
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/build ./build
+COPY scripts ./scripts
 VOLUME /data
 EXPOSE 3000
 CMD ["node", "build"]

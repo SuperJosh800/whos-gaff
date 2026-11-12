@@ -4,7 +4,7 @@ import { createEvent, getEvent, joinByToken, setRsvp } from './events.ts';
 import { addBringItem, canSeeAddress, listBringItems, removeBringItem, saveGaff, toggleClaim } from './gaff.ts';
 
 let n = 0;
-const user = (name: string) => signUp(`${name}${++n}@gaff.test`, name, 'password123') as User;
+const user = (name: string) => signUp(`${name}${++n}@gaff.test`, name, 'correct-horse-9') as User;
 
 function party(host: User, ...guests: User[]) {
 	const id = createEvent(host.id, { title: 'Party', mode: 'fixed', startsAt: '2099-06-20T21:00' });

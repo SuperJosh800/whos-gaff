@@ -17,6 +17,7 @@
 		<div>
 			<label class="label" for="password">Password</label>
 			<input class="input" id="password" name="password" type="password" required autocomplete="current-password" />
+			<a class="mt-1 inline-block text-xs text-hot underline underline-offset-4" href="/forgot">Forgotten your password?</a>
 		</div>
 		<button class="btn w-full">Log in</button>
 	</form>

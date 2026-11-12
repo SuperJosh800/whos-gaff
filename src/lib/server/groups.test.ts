@@ -15,7 +15,7 @@ import {
 } from './groups.ts';
 
 let n = 0;
-const user = (name: string) => signUp(`${name}${++n}@groups.test`, name, 'password123') as User;
+const user = (name: string) => signUp(`${name}${++n}@groups.test`, name, 'correct-horse-9') as User;
 const notes = (u: User) =>
 	(db.prepare('SELECT message FROM notifications WHERE user_id = ? ORDER BY id').all(u.id) as { message: string }[]).map(
 		(r) => r.message

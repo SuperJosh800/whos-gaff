@@ -163,6 +163,9 @@ export function getKitty(eventId: number) {
 				.all(eventId) as (Person & { payment_link: string })[]
 		).map((p) => [p.id, p])
 	);
+	// Debts can involve someone no longer in the event, such as a deleted account ("Deleted user").
+	const userById = db.prepare('SELECT id, name, payment_link FROM users WHERE id = ?');
+	const person = (id: number) => people.get(id) ?? (userById.get(id) as (Person & { payment_link: string }) | undefined);
 	return {
 		expenses,
 		people: [...people.values()].map(({ id, name }) => ({ id, name })),
@@ -170,9 +173,9 @@ export function getKitty(eventId: number) {
 		total: expenses.reduce((sum, e) => sum + e.amount_pence, 0),
 		transfers: transfers.map((t) => ({
 			...t,
-			fromName: people.get(t.from)?.name ?? '?',
-			toName: people.get(t.to)?.name ?? '?',
-			link: payLink(people.get(t.to)?.payment_link ?? '', t.amount)
+			fromName: person(t.from)?.name ?? '?',
+			toName: person(t.to)?.name ?? '?',
+			link: payLink(person(t.to)?.payment_link ?? '', t.amount)
 		}))
 	};
 }

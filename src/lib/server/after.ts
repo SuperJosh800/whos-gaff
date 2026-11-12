@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { mkdirSync, writeFileSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { db } from './db.ts';
 import { publish } from './realtime.ts';
@@ -131,5 +131,15 @@ export function readPhoto(eventId: number, photoId: number) {
 		.prepare('SELECT filename, mime FROM event_photos WHERE id = ? AND event_id = ?')
 		.get(photoId, eventId) as { filename: string; mime: string } | undefined;
 	if (!photo) return null;
-	return { mime: photo.mime, bytes: readFileSync(join(UPLOADS, photo.filename)) };
+	const path = join(UPLOADS, photo.filename);
+	if (!existsSync(path)) return null;
+	return { mime: photo.mime, bytes: readFileSync(path) };
+}
+
+/** Removes photo files from disk; call before deleting their rows. */
+export function removePhotoFiles(filenames: string[]) {
+	for (const name of filenames) {
+		// Filenames are UUIDs the server made, but never follow anything that looks like a path.
+		if (/^[\w-]+\.\w+$/.test(name)) rmSync(join(UPLOADS, name), { force: true });
+	}
 }

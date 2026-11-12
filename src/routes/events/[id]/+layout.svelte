@@ -12,6 +12,7 @@
 		{ href: base, label: 'Overview' },
 		{ href: `${base}/gaff`, label: 'Gaff' },
 		{ href: `${base}/night`, label: 'Night' },
+		{ href: `${base}/games`, label: 'Games' },
 		{ href: `${base}/money`, label: 'Money' },
 		{ href: `${base}/after`, label: 'After' }
 	]);
@@ -79,11 +80,18 @@
 		{/if}
 	</section>
 
-	<nav class="strip" aria-label="Event sections">
+	<nav class="strip [&>*]:px-0.5 [&>*]:text-[10px] [&>*]:tracking-normal min-[400px]:[&>*]:text-[11px] sm:[&>*]:text-xs sm:[&>*]:tracking-widest" aria-label="Event sections">
 		{#each tabs as tab (tab.href)}
 			<a href={tab.href} aria-current={page.url.pathname === tab.href ? 'page' : undefined}>{tab.label}</a>
 		{/each}
 	</nav>
+
+	{#if data.gameOn && page.url.pathname !== `${base}/games`}
+		<a href="{base}/games" class="grid grid-cols-[1fr_auto] border border-lime text-sm hover:bg-zinc-100">
+			<span class="px-3 py-2.5"><span class="badge text-lime">Game on</span> {data.gameOn.name}</span>
+			<span class="flex items-center bg-lime px-3 text-[11px] font-extrabold tracking-widest text-ink uppercase">Join in</span>
+		</a>
+	{/if}
 
 	{@render children()}
 </div>

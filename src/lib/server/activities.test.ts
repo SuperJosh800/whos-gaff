@@ -1,0 +1,195 @@
+import { describe, expect, it } from 'vitest';
+import { db } from './db.ts';
+import { signUp, type User } from './auth.ts';
+import { createEvent, getEvent, joinByToken, setRsvp } from './events.ts';
+import { challengeScores, endGame, finishChallenge, getActivity, nextCard, startGame } from './activities.ts';
+import { cardsToText, deleteCustomGame, getCustomGame, listGamesForEvent, parseCards, saveCustomGame } from './customGames.ts';
+import { fillNames, GAMES, namesNeeded } from '../activities.ts';
+
+let n = 0;
+const user = (name: string) => signUp(`${name}${++n}@games.test`, name, 'correct-horse-9') as User;
+
+function party(guests = 2) {
+	const host = user('Host');
+	const people = Array.from({ length: guests }, (_, i) => user(`Guest${i}`));
+	const outsider = user('Outsider');
+	const id = createEvent(host.id, { title: 'Games night', mode: 'fixed', startsAt: '2099-05-01T20:00' });
+	for (const p of people) {
+		joinByToken(getEvent(id)!.invite_token, p.id);
+		setRsvp(id, p.id, 'yes');
+	}
+	return { id, host, people, everyone: [host, ...people], outsider };
+}
+
+/** Forces the current card to one of our choosing, so tests don't depend on the shuffle. */
+function setCard(eventId: number, card: object, picks: number[]) {
+	db.prepare('UPDATE event_activity SET cards = ?, deck = ?, position = 0, picks = ? WHERE event_id = ?').run(
+		JSON.stringify([card, { text: 'Another card' }]),
+		JSON.stringify([0, 1]),
+		JSON.stringify(picks),
+		eventId
+	);
+}
+
+describe('names on cards', () => {
+	it('finds and fills {1}, {2} and {3}', () => {
+		expect(namesNeeded('{1} buys {2} a drink')).toBe(2);
+		expect(namesNeeded('Everyone drinks')).toBe(0);
+		expect(fillNames('{1} buys {2} a drink', ['Sam', 'Jo'])).toBe('Sam buys Jo a drink');
+		expect(fillNames('{1} and {3}', ['Sam'])).toBe('Sam and someone');
+	});
+
+	it('names different people from the event on each card', () => {
+		const { id, host, everyone } = party(3);
+		startGame(id, host.id, 'pub-roulette', false);
+		for (let i = 0; i < 10; i++) {
+			db.prepare('UPDATE event_activity SET cards = ?, deck = ?, position = 0 WHERE event_id = ?').run(
+				JSON.stringify([{ text: 'Warm up' }, { text: '{1}|{2}' }]),
+				JSON.stringify([0, 1]),
+				id
+			);
+			nextCard(id, host.id, 0);
+			const [a, b] = getActivity(id, host.id)!.card.split('|');
+			expect(everyone.map((p) => p.name)).toEqual(expect.arrayContaining([a, b]));
+			expect(a).not.toBe(b);
+		}
+	});
+});
+
+describe('games', () => {
+	it('only lets people on the event start a game', () => {
+		const { id, host, outsider } = party();
+		expect(() => startGame(id, outsider.id, 'never', false)).toThrow(/not invited/);
+		expect(() => startGame(id, host.id, 'darts', false)).toThrow(/Pick a game/);
+		startGame(id, host.id, 'ring-of-fire', true);
+		const a = getActivity(id, host.id)!;
+		expect(a).toMatchObject({ game: 'ring-of-fire', name: 'Ring of fire', soft: true, position: 0, number: 1, total: 52 });
+		expect(a.rules).toMatch(/water/);
+	});
+
+	it('moves on once when two people tap next on the same card, and reshuffles at the end', () => {
+		const { id, host, people } = party();
+		startGame(id, host.id, 'categories', false);
+		nextCard(id, host.id, 0);
+		nextCard(id, people[0].id, 0);
+		expect(getActivity(id, host.id)!.position).toBe(1);
+
+		const total = GAMES.categories.cards.length;
+		startGame(id, host.id, 'categories', false);
+		const seen = new Set<string>();
+		for (let i = 0; i < total; i++) {
+			seen.add(getActivity(id, host.id)!.card);
+			if (i < total - 1) nextCard(id, host.id, i);
+		}
+		expect(seen.size).toBe(total); // every card once before any repeats
+		nextCard(id, host.id, total - 1);
+		expect(getActivity(id, host.id)!.number).toBe(1);
+	});
+
+	it('scores challenges for whoever was picked, then picks someone else', () => {
+		const { id, host } = party();
+		startGame(id, host.id, 'challenges', false);
+		const first = getActivity(id, host.id)!;
+		finishChallenge(id, host.id, 0, 'done');
+		const second = getActivity(id, host.id)!;
+		expect(second.player!.id).not.toBe(first.player!.id);
+		finishChallenge(id, host.id, 1, 'bailed');
+		finishChallenge(id, host.id, 1, 'done'); // stale tap: ignored
+		const scores = challengeScores(id);
+		expect(scores.find((s) => s.id === first.player!.id)).toMatchObject({ points: first.points, done: 1 });
+		expect(scores.find((s) => s.id === second.player!.id)).toMatchObject({ points: 0, bailed: 1 });
+	});
+
+	it('ends the game for everyone', () => {
+		const { id, host } = party();
+		startGame(id, host.id, 'rather', false);
+		endGame(id, host.id);
+		expect(getActivity(id, host.id)).toBeNull();
+		expect(() => nextCard(id, host.id, 0)).toThrow(/No game/);
+	});
+});
+
+describe('secret missions', () => {
+	function mission() {
+		const p = party();
+		startGame(p.id, p.host.id, 'secret-missions', false);
+		const [player, other] = p.people;
+		setCard(p.id, { text: '{1}: get {2} to say banana', secret: true, cover: '{1}: take a sip.', points: 3 }, [player.id, other.id]);
+		return { ...p, player, other };
+	}
+
+	it('shows the real mission only to the player and the fake task to everyone else', () => {
+		const { id, host, player, other } = mission();
+		const mine = getActivity(id, player.id)!;
+		expect(mine).toMatchObject({ secret: true, mine: true, card: `${player.name}: get ${other.name} to say banana` });
+		expect(mine.cover).toBe(`${player.name}: take a sip.`);
+		for (const viewer of [host, other]) {
+			const theirs = getActivity(id, viewer.id)!;
+			expect(theirs).toMatchObject({ secret: true, mine: false, card: `${player.name}: take a sip.`, cover: null });
+			expect(JSON.stringify(theirs)).not.toContain('banana');
+		}
+	});
+
+	it('lets only others catch the player, and reveals the mission to everyone after', () => {
+		const { id, host, player } = mission();
+		expect(() => finishChallenge(id, player.id, 0, 'caught')).toThrow(/catch yourself/);
+		expect(() => finishChallenge(id, host.id, 0, 'done')).toThrow(/Only the player/);
+		finishChallenge(id, host.id, 0, 'caught');
+		const after = getActivity(id, host.id)!;
+		expect(after.reveal).toMatchObject({ name: player.name, outcome: 'caught' });
+		expect(after.reveal!.mission).toContain('banana');
+		expect(challengeScores(id).find((s) => s.id === player.id)).toMatchObject({ points: 0, bailed: 1 });
+	});
+
+	it('scores the real mission when the player pulls it off', () => {
+		const { id, player } = mission();
+		finishChallenge(id, player.id, 0, 'done');
+		expect(challengeScores(id).find((s) => s.id === player.id)).toMatchObject({ points: 3, done: 1 });
+		const row = db.prepare('SELECT challenge FROM challenge_results WHERE event_id = ?').get(id) as { challenge: string };
+		expect(row.challenge).toContain('banana');
+	});
+});
+
+describe('custom games', () => {
+	const cards = '{1}, finish your drink.\n\n{1} buys {2} a shot\nsecret: get {2} to stand up | {1}: say cheers\nsecret: hum a tune';
+
+	it('reads one card per line, with secret missions and fake tasks', () => {
+		expect(parseCards(cards, true)).toEqual([
+			{ text: '{1}, finish your drink.', points: 1 },
+			{ text: '{1} buys {2} a shot', points: 1 },
+			{ text: '{1}: get {2} to stand up', secret: true, cover: '{1}: say cheers', points: 2 },
+			{ text: '{1}: hum a tune', secret: true, cover: '{1}: take a sip of your drink.', points: 2 }
+		]);
+		expect(parseCards(cardsToText(parseCards(cards, false)), false)).toEqual(parseCards(cards, false));
+	});
+
+	it('checks the game before saving and only lets the owner change it', () => {
+		const owner = user('Maker');
+		const other = user('Nosy');
+		const base = { name: 'Pres power hour', emoji: '🍻', setting: 'gaff', rules: '', scored: false, cards };
+		expect(() => saveCustomGame(owner.id, { ...base, name: ' ' })).toThrow(/name/);
+		expect(() => saveCustomGame(owner.id, { ...base, setting: 'moon' })).toThrow(/where/);
+		expect(() => saveCustomGame(owner.id, { ...base, cards: 'one\ntwo' })).toThrow(/at least 3/);
+		expect(() => saveCustomGame(owner.id, { ...base, cards: `${'x'.repeat(201)}\nb\nc` })).toThrow(/under/);
+		const gameId = saveCustomGame(owner.id, base);
+		expect(() => saveCustomGame(other.id, base, gameId)).toThrow(/not found/);
+		expect(() => deleteCustomGame(other.id, gameId)).toThrow(/not found/);
+		saveCustomGame(owner.id, { ...base, name: 'Renamed' }, gameId);
+		expect(getCustomGame(gameId)!.name).toBe('Renamed');
+	});
+
+	it('can be played at events its owner is on, and keeps going if the owner edits it', () => {
+		const { id, host, people } = party();
+		const lonely = createEvent(user('Elsewhere').id, { title: 'Other', mode: 'fixed', startsAt: '2099-05-01T20:00' });
+		const gameId = saveCustomGame(people[0].id, { name: 'Our game', emoji: '🔥', setting: 'pub', rules: 'Do it.', scored: true, cards });
+		expect(listGamesForEvent(id).map((g) => g.id)).toContain(gameId);
+		expect(listGamesForEvent(lonely).map((g) => g.id)).not.toContain(gameId);
+		expect(() => startGame(lonely, getEvent(lonely)!.host_id, `custom:${gameId}`, false)).toThrow(/Pick a game/);
+
+		startGame(id, host.id, `custom:${gameId}`, false);
+		expect(getActivity(id, host.id)).toMatchObject({ name: 'Our game', emoji: '🔥', scored: true, custom: true, total: 4 });
+		deleteCustomGame(people[0].id, gameId);
+		nextCard(id, host.id, 0);
+		expect(getActivity(id, host.id)!.name).toBe('Our game');
+	});
+});
