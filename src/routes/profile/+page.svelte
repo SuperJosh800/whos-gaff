@@ -30,4 +30,7 @@
 		</div>
 	</form>
 	<HallOfFame entries={data.hallOfFame} />
+	<form method="POST" action="/logout" class="sm:hidden">
+		<button class="btn-secondary w-full">Log out</button>
+	</form>
 </div>

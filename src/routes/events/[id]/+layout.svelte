@@ -79,12 +79,12 @@
 		{/if}
 	</section>
 
-	<nav class="flex gap-1 overflow-x-auto border-b border-zinc-200" aria-label="Event sections">
+	<nav class="grid grid-cols-5 border border-zinc-200" aria-label="Event sections">
 		{#each tabs as tab (tab.href)}
 			<a href={tab.href} aria-current={page.url.pathname === tab.href ? 'page' : undefined}
-				class="-mb-px whitespace-nowrap border-b-2 px-3 py-2 text-sm font-semibold {page.url.pathname === tab.href
-					? 'border-brand-600 text-brand-700'
-					: 'border-transparent text-zinc-500 hover:text-zinc-800'}">
+				class="border-l border-zinc-200 py-2.5 text-center text-[11px] font-extrabold tracking-wide uppercase first:border-l-0 sm:text-xs sm:tracking-widest {page.url.pathname === tab.href
+					? 'bg-hot text-ink'
+					: 'text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900'}">
 				{tab.label}
 			</a>
 		{/each}
