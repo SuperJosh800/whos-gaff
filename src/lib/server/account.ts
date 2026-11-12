@@ -31,6 +31,8 @@ const PERSONAL: [table: string, column: string][] = [
 	['challenge_results', 'user_id'],
 	['game_players', 'user_id'],
 	['round_group_members', 'user_id'],
+	['missions', 'user_id'],
+	['mission_guesses', 'user_id'],
 	['custom_games', 'owner_id']
 ];
 
@@ -79,12 +81,14 @@ export function deleteAccount(userId: number) {
 		for (const table of [
 			'sessions', 'password_resets', 'event_members', 'rsvps', 'votes', 'messages', 'notifications',
 			'moves', 'home_plans', 'home_safe', 'group_members', 'free_gaffs', 'pings', 'ping_answers',
-			'event_photos', 'challenge_results', 'game_players', 'round_group_members'
+			'event_photos', 'challenge_results', 'game_players', 'round_group_members',
+			'missions'
 		]) {
 			db.prepare(`DELETE FROM ${table} WHERE user_id = ?`).run(userId);
 		}
 		db.prepare('DELETE FROM gaffs WHERE owner_id = ?').run(userId);
 		db.prepare('DELETE FROM award_votes WHERE voter_id = ? OR nominee_id = ?').run(userId, userId);
+		db.prepare('DELETE FROM mission_guesses WHERE user_id = ? OR suspect_id = ?').run(userId, userId);
 		db.prepare('UPDATE bring_items SET claimed_by = NULL WHERE claimed_by = ?').run(userId);
 		db.prepare('DELETE FROM custom_games WHERE owner_id = ?').run(userId);
 		// Otherwise the old address would show up again as a pending email invite.

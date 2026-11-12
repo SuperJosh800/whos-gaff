@@ -227,10 +227,10 @@ describe('game lobby', () => {
 	});
 });
 
-describe('secret missions', () => {
+describe('secret cards in custom games', () => {
 	function mission() {
 		const p = party();
-		startGame(p.id, p.host.id, 'secret-missions', false);
+		startGame(p.id, p.host.id, 'challenges', false);
 		const [player, other] = p.people;
 		setCard(p.id, { text: '{1}: get {2} to say banana', secret: true, cover: '{1}: take a sip.', points: 3 }, [player.id, other.id]);
 		return { ...p, player, other };

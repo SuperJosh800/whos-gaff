@@ -309,6 +309,35 @@ const migrations: string[] = [
 	-- Players who have tapped "Next card" on the current card (JSON list of user ids). The card moves on
 	-- once at least half the players have, and the list empties.
 	ALTER TABLE event_activity ADD COLUMN next_votes TEXT NOT NULL DEFAULT '[]';
+	`,
+	`
+	-- Secret missions run through the whole night (Night tab), one per person, instead of as a card game.
+	-- text is the mission with names filled in; a photo mission needs a photo as proof.
+	-- caught_by is whoever called it out; status is live until done, caught or swapped.
+	CREATE TABLE missions (
+		id INTEGER PRIMARY KEY,
+		event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+		user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		text TEXT NOT NULL,
+		points INTEGER NOT NULL,
+		photo INTEGER NOT NULL DEFAULT 0,
+		status TEXT NOT NULL DEFAULT 'live' CHECK (status IN ('live', 'done', 'caught', 'swapped')),
+		caught_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+		photo_id INTEGER REFERENCES event_photos(id) ON DELETE SET NULL,
+		created_at TEXT NOT NULL DEFAULT (datetime('now')),
+		finished_at TEXT
+	);
+	CREATE INDEX missions_event ON missions(event_id);
+	CREATE UNIQUE INDEX missions_one_live ON missions(event_id, user_id) WHERE status = 'live';
+	-- Every call-out, so wrong guesses are shown and the same person can't be called out over and over.
+	CREATE TABLE mission_guesses (
+		id INTEGER PRIMARY KEY,
+		event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+		user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		suspect_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		correct INTEGER NOT NULL CHECK (correct IN (0, 1)),
+		created_at TEXT NOT NULL DEFAULT (datetime('now'))
+	);
 	`
 ];
 

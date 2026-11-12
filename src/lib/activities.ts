@@ -321,40 +321,36 @@ const CHALLENGES: Card[] = [
 	{ text: '{1}: tell the story of how you met {2} in exactly three sentences.', points: 2 }
 ];
 
-const COVERS = [
-	'{1}: take a sip of your drink.',
-	'{1}: say cheers to the whole group.',
-	'{1}: tell everyone your favourite crisp flavour.',
-	'{1}: give {2} a high five.',
-	'{1}: name your go-to karaoke song.',
-	'{1}: take two sips.'
+/**
+ * Secret missions for the Night tab. Everyone who opts in gets one, private to them, to pull off any time
+ * before the night ends; {2} is someone else on the night. Photo missions need a photo as proof.
+ */
+export type Mission = { text: string; points: number; photo?: boolean };
+
+export const MISSIONS: Mission[] = [
+	{ text: 'Get {2} to say “banana” without them realising it’s a dare.', points: 3 },
+	{ text: 'Work the word “pineapple” into conversation three times.', points: 2 },
+	{ text: 'Get three people to clink glasses with you within 10 minutes.', points: 2 },
+	{ text: 'Swap seats with {2} without anyone noticing.', points: 3 },
+	{ text: 'Get someone to give you a high five without asking.', points: 1 },
+	{ text: 'Convince {2} you’ve been to a country you’ve never visited.', points: 3 },
+	{ text: 'Get the whole group to cheers without directly suggesting it.', points: 3 },
+	{ text: 'Get {2} to tell you the time twice, at least an hour apart.', points: 2 },
+	{ text: 'Get {2} to sing a line of any song.', points: 3 },
+	{ text: 'Mention a made-up celebrity and get someone to say they’ve heard of them.', points: 3 },
+	{ text: 'Say “to be fair” at the start of five sentences in a row.', points: 2 },
+	{ text: 'Get someone to offer to buy you a drink.', points: 3 },
+	{ text: 'Get the group talking about pigeons for at least a minute.', points: 3 },
+	{ text: 'Get {2} to stand up without asking them to.', points: 2 },
+	{ text: 'Get a photo of {2} doing a thumbs up without telling them why.', points: 2, photo: true },
+	{ text: 'Get a photo of the whole group pulling the same face.', points: 3, photo: true },
+	{ text: 'Get a photo with a stranger who agrees to pose with you.', points: 3, photo: true },
+	{ text: 'Get a photo of {2} holding two drinks at once.', points: 2, photo: true },
+	{ text: 'Get a group selfie where nobody realises you set it up for a mission.', points: 2, photo: true },
+	{ text: 'Get a photo of {2} wearing something that isn’t theirs.', points: 3, photo: true },
+	{ text: 'Get a photo of the bar staff smiling at the camera.', points: 3, photo: true },
+	{ text: 'Get a photo of {2} mid-dance.', points: 2, photo: true }
 ];
-const MISSIONS: [string, number][] = [
-	['Get {2} to say “banana” without them realising it’s a dare.', 3],
-	['Work the word “pineapple” into conversation three times.', 2],
-	['Get three people to clink glasses with you in the next 10 minutes.', 2],
-	['Swap seats with {2} without anyone noticing.', 3],
-	['Get {2} to take a sip at the same time as you, without asking them to.', 2],
-	['Get someone to give you a high five within 5 minutes, without asking.', 1],
-	['Convince {2} you’ve been to a country you’ve never visited.', 3],
-	['Get the whole group to cheers without directly suggesting it.', 3],
-	['Get {2} to tell you the time twice.', 2],
-	['Start a slow clap and get at least two people to join in.', 2],
-	['Get {2} to sing a line of any song.', 3],
-	['Mention a made-up celebrity and get someone to say they’ve heard of them.', 3],
-	['Get {2} to finish their drink before you finish yours.', 2],
-	['Say “to be fair” at the start of your next five sentences.', 2],
-	['Get someone to offer to get you a drink.', 3],
-	['Make {2} laugh using only facial expressions.', 2],
-	['Get {2} to stand up without asking them to.', 2],
-	['Get the group talking about pigeons for at least a minute.', 3]
-];
-const SECRET_MISSIONS: Card[] = MISSIONS.map(([text, points], i) => ({
-	text: `{1}: ${text}`,
-	points,
-	secret: true,
-	cover: COVERS[i % COVERS.length]
-}));
 
 const GAME_LIST: Game[] = [
 	{
@@ -432,18 +428,6 @@ const GAME_LIST: Game[] = [
 		rules: 'Don’t want to answer or do it? Take two sips and pass.',
 		softRules: 'Don’t want to answer or do it? Pass, and the group picks a forfeit.',
 		cards: TRUTH
-	},
-	{
-		id: 'secret-missions',
-		name: 'Secret missions',
-		emoji: '🕵️',
-		setting: 'gaff',
-		blurb: 'Only the picked player sees their mission. Everyone else sees an easy fake task, so watch out.',
-		rules:
-			'Do the fake task openly as cover, and pull off the real mission without getting caught. Caught? Finish your drink. Succeed and the person you fooled drinks.',
-		softRules: 'Do the fake task openly as cover. Caught? No points. Succeed and score.',
-		scored: true,
-		cards: SECRET_MISSIONS
 	},
 	{
 		id: 'likely',
