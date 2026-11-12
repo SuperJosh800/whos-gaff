@@ -42,5 +42,13 @@ ORIGIN=https://your.domain BODY_SIZE_LIMIT=10M node build
 | `ORIGIN` | from request | Public URL, used by adapter-node for CSRF checks |
 | `BODY_SIZE_LIMIT` | `512K` | Raise to allow photo uploads up to 8 MB |
 
+Or run the Docker image, which keeps the database and photos in the `/data` volume:
+
+```sh
+docker run -p 3000:3000 -v whos-gaff:/data -e ORIGIN=https://your.domain ghcr.io/superjosh800/whos-gaff:latest
+```
+
+GitHub Actions (`.github/workflows/ci.yml`) type-checks, tests and builds every push and pull request, and builds the Docker image. On `main` it then publishes the image to GitHub Container Registry as `latest` and `sha-<commit>`.
+
 Live updates use server-sent events from an in-process bus, so run a single server process.
 All event times are UK local time (Europe/London).
