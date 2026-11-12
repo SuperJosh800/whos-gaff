@@ -48,6 +48,9 @@ if [ ! -f "$DIR/.env" ]; then
 ORIGIN=$URL
 # To send invite emails, add for example: SMTP_URL=smtps://user:pass@smtp.example.com
 EOF
+else
+	# Follow a renamed machine or tailnet; keep every other setting.
+	sed -i "s|^ORIGIN=.*|ORIGIN=$URL|" "$DIR/.env"
 fi
 
 cat >/etc/systemd/system/whos-gaff-update.service <<EOF
