@@ -1,11 +1,11 @@
-import { db } from './db.ts';
+import { db, tx } from './db.ts';
 import { publish } from './realtime.ts';
 import { EventError, isMember, requireMember } from './events.ts';
 
 type Person = { id: number; name: string };
 
 /** Everyone going, plus the host: the people in rounds and in the kitty by default. */
-function goingPeople(eventId: number) {
+export function goingPeople(eventId: number) {
 	return db
 		.prepare(
 			`SELECT u.id, u.name FROM event_members m
@@ -18,16 +18,40 @@ function goingPeople(eventId: number) {
 		.all(eventId) as Person[];
 }
 
-// ---- Rounds tracker (WG-20) ----
+// ---- Rounds tracker (WG-20), with smaller rounds (WG-40) ----
 
+/**
+ * The rounds at an event. Anyone can split off a smaller round with just their mates; everyone else
+ * going stays in the main round (id null). Each round goes round its own people in turn.
+ */
 export function getRounds(eventId: number) {
-	const order = goingPeople(eventId);
+	const groups = db
+		.prepare(
+			`SELECT g.id, u.id AS user_id, u.name FROM round_groups g
+			 JOIN round_group_members gm ON gm.group_id = g.id JOIN users u ON u.id = gm.user_id
+			 WHERE g.event_id = ? ORDER BY g.id, u.id`
+		)
+		.all(eventId) as { id: number; user_id: number; name: string }[];
+	const inGroup = new Set(groups.map((g) => g.user_id));
+	const lists: { id: number | null; people: Person[] }[] = [
+		{ id: null, people: goingPeople(eventId).filter((p) => !inGroup.has(p.id)) }
+	];
+	for (const g of groups) {
+		if (lists.at(-1)!.id !== g.id) lists.push({ id: g.id, people: [] });
+		lists.at(-1)!.people.push({ id: g.user_id, name: g.name });
+	}
+	return lists.filter((l) => l.id !== null || l.people.length).map(({ id, people }) => roundState(eventId, id, people));
+}
+
+export type Round = ReturnType<typeof roundState>;
+
+function roundState(eventId: number, groupId: number | null, order: Person[]) {
 	const history = db
 		.prepare(
 			`SELECT r.id, r.user_id, u.name, r.skipped, r.created_at FROM rounds r
-			 JOIN users u ON u.id = r.user_id WHERE r.event_id = ? ORDER BY r.id`
+			 JOIN users u ON u.id = r.user_id WHERE r.event_id = ? AND r.group_id IS ? ORDER BY r.id`
 		)
-		.all(eventId) as { id: number; user_id: number; name: string; skipped: number; created_at: string }[];
+		.all(eventId, groupId) as { id: number; user_id: number; name: string; skipped: number; created_at: string }[];
 	// Rounds go round in a fixed order; the next one is whoever follows the last person recorded.
 	const lastIndex = history.length ? order.findIndex((p) => p.id === history.at(-1)!.user_id) : -1;
 	const next = order.length ? order[(lastIndex + 1) % order.length] : null;
@@ -36,16 +60,69 @@ export function getRounds(eventId: number) {
 		bought: history.filter((h) => h.user_id === p.id && !h.skipped).length,
 		skipped: history.filter((h) => h.user_id === p.id && h.skipped).length
 	}));
-	return { next, tally, history: history.slice().reverse() };
+	return { id: groupId, next, tally, history: history.slice().reverse() };
 }
 
-/** Records the current round as bought or skipped. forUser guards against two people tapping at once. */
-export function recordRound(eventId: number, userId: number, forUser: number, skipped: boolean) {
+/** Records a round's current turn as bought or skipped. forUser guards against two people tapping at once. */
+export function recordRound(eventId: number, userId: number, groupId: number | null, forUser: number, skipped: boolean) {
 	requireMember(eventId, userId);
-	const { next } = getRounds(eventId);
-	if (!next || next.id !== forUser) throw new EventError('Someone already updated the rounds. Have another look.');
-	db.prepare('INSERT INTO rounds (event_id, user_id, skipped) VALUES (?, ?, ?)').run(eventId, forUser, skipped ? 1 : 0);
+	const round = getRounds(eventId).find((r) => r.id === groupId);
+	if (!round?.next || round.next.id !== forUser) throw new EventError('Someone already updated the rounds. Have another look.');
+	db.prepare('INSERT INTO rounds (event_id, user_id, skipped, group_id) VALUES (?, ?, ?, ?)').run(
+		eventId,
+		forUser,
+		skipped ? 1 : 0,
+		groupId
+	);
 	publish(eventId);
+}
+
+/**
+ * Sets who is in a smaller round, or makes a new one when groupId is null. People move out of any
+ * other smaller round they were in, and a round left with fewer than two people is closed.
+ */
+export function saveRoundGroup(eventId: number, userId: number, groupId: number | null, memberIds: number[]) {
+	requireMember(eventId, userId);
+	const members = [...new Set(memberIds)];
+	if (members.length < 2) throw new EventError('Pick at least two people for the round.');
+	if (!members.every((id) => isMember(eventId, id))) throw new EventError('Everyone in the round has to be on the event.');
+	tx(() => {
+		let id = groupId;
+		if (id === null) {
+			id = Number(db.prepare('INSERT INTO round_groups (event_id) VALUES (?)').run(eventId).lastInsertRowid);
+		} else if (!db.prepare('SELECT 1 FROM round_groups WHERE id = ? AND event_id = ?').get(id, eventId)) {
+			throw new EventError('That round has finished.');
+		}
+		const marks = members.map(() => '?').join(',');
+		db.prepare(
+			`DELETE FROM round_group_members WHERE user_id IN (${marks}) AND group_id != ?
+			 AND group_id IN (SELECT id FROM round_groups WHERE event_id = ?)`
+		).run(...members, id, eventId);
+		db.prepare(`DELETE FROM round_group_members WHERE group_id = ? AND user_id NOT IN (${marks})`).run(id, ...members);
+		const add = db.prepare('INSERT OR IGNORE INTO round_group_members (group_id, user_id) VALUES (?, ?)');
+		for (const m of members) add.run(id, m);
+		closeSmallRounds(eventId);
+	});
+	publish(eventId);
+}
+
+/** Leaves a smaller round and goes back to the main one. */
+export function leaveRoundGroup(eventId: number, userId: number, groupId: number) {
+	requireMember(eventId, userId);
+	tx(() => {
+		db.prepare(
+			'DELETE FROM round_group_members WHERE user_id = ? AND group_id IN (SELECT id FROM round_groups WHERE id = ? AND event_id = ?)'
+		).run(userId, groupId, eventId);
+		closeSmallRounds(eventId);
+	});
+	publish(eventId);
+}
+
+function closeSmallRounds(eventId: number) {
+	db.prepare(
+		`DELETE FROM round_groups WHERE event_id = ?
+		 AND (SELECT COUNT(*) FROM round_group_members WHERE group_id = round_groups.id) < 2`
+	).run(eventId);
 }
 
 // ---- Kitty / split (WG-21) ----

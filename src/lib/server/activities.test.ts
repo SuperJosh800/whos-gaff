@@ -2,12 +2,44 @@ import { describe, expect, it } from 'vitest';
 import { db } from './db.ts';
 import { signUp, type User } from './auth.ts';
 import { createEvent, getEvent, joinByToken, setRsvp } from './events.ts';
-import { challengeScores, endGame, finishChallenge, getActivity, nextCard, startGame } from './activities.ts';
+import {
+	beginGame,
+	challengeScores,
+	endGame,
+	finishChallenge,
+	gameInvites,
+	getActivity,
+	joinGame,
+	leaveGame,
+	nextCard,
+	openGame
+} from './activities.ts';
+import { listNotifications } from './notifications.ts';
 import { cardsToText, deleteCustomGame, getCustomGame, listGamesForEvent, parseCards, saveCustomGame } from './customGames.ts';
 import { fillNames, GAMES, namesNeeded } from '../activities.ts';
 
 let n = 0;
 const user = (name: string) => signUp(`${name}${++n}@games.test`, name, 'correct-horse-9') as User;
+
+/** Opens a game, has everyone going join it, and starts it: the old one-step start. */
+function startGame(eventId: number, userId: number, gameId: string, soft: boolean) {
+	openGame(eventId, userId, gameId, soft);
+	if (getActivity(eventId, userId)!.started) return;
+	for (const p of goingIds(eventId)) joinGame(eventId, p);
+	beginGame(eventId, userId);
+}
+
+function goingIds(eventId: number) {
+	return (
+		db
+			.prepare(
+				`SELECT m.user_id FROM event_members m JOIN events e ON e.id = m.event_id
+				 LEFT JOIN rsvps r ON r.event_id = m.event_id AND r.user_id = m.user_id
+				 WHERE m.event_id = ? AND (r.response = 'yes' OR m.user_id = e.host_id)`
+			)
+			.all(eventId) as { user_id: number }[]
+	).map((r) => r.user_id);
+}
 
 function party(guests = 2) {
 	const host = user('Host');
@@ -106,6 +138,54 @@ describe('games', () => {
 		endGame(id, host.id);
 		expect(getActivity(id, host.id)).toBeNull();
 		expect(() => nextCard(id, host.id, 0)).toThrow(/No game/);
+	});
+});
+
+describe('game lobby', () => {
+	it('opens a lobby, tells everyone going, and only deals cards to people who joined', () => {
+		const { id, host, people, outsider } = party(3);
+		const [sam, jo, alex] = people;
+		openGame(id, sam.id, 'pub-roulette', false);
+		const lobby = getActivity(id, host.id)!;
+		expect(lobby).toMatchObject({ started: false, joined: false, players: [{ id: sam.id }] });
+		expect(listNotifications(host.id)[0].message).toBe(`${sam.name} wants to play Pub roulette at Games night. Join in!`);
+		expect(listNotifications(sam.id).some((n) => /wants to play/.test(n.message))).toBe(false);
+		expect(listNotifications(outsider.id)).toEqual([]);
+		expect(gameInvites(jo.id)).toEqual([expect.objectContaining({ event_id: id, joined: false, started: false, count: 1 })]);
+
+		expect(() => nextCard(id, sam.id, 0)).toThrow(/hasn’t started/);
+		expect(() => beginGame(id, sam.id)).toThrow(/one more person/);
+		joinGame(id, jo.id);
+		expect(() => beginGame(id, alex.id)).toThrow(/Join the game/);
+		beginGame(id, jo.id);
+		beginGame(id, sam.id); // a second tap on start changes nothing
+		expect(getActivity(id, sam.id)!.position).toBe(0);
+
+		for (let i = 0; i < 20; i++) {
+			db.prepare('UPDATE event_activity SET cards = ?, deck = ?, position = 0 WHERE event_id = ?').run(
+				JSON.stringify([{ text: 'Warm up' }, { text: '{1}|{2}' }]),
+				JSON.stringify([0, 1]),
+				id
+			);
+			nextCard(id, sam.id, 0);
+			const named = getActivity(id, sam.id)!.card.split('|');
+			expect([sam.name, jo.name]).toEqual(expect.arrayContaining(named));
+		}
+		expect(() => nextCard(id, alex.id, 1)).toThrow(/Join the game/);
+		expect(gameInvites(alex.id)).toEqual([]); // a game already on isn't pushed at people who didn't join
+	});
+
+	it('swaps the game in the lobby without losing players, and ends when the last player leaves', () => {
+		const { id, people } = party(2);
+		const [sam, jo] = people;
+		openGame(id, sam.id, 'pub-roulette', false);
+		joinGame(id, jo.id);
+		openGame(id, jo.id, 'categories', true);
+		expect(getActivity(id, sam.id)).toMatchObject({ game: 'categories', soft: true, started: false, players: [{ id: sam.id }, { id: jo.id }] });
+		leaveGame(id, sam.id);
+		expect(getActivity(id, jo.id)!.players).toEqual([{ id: jo.id, name: jo.name }]);
+		leaveGame(id, jo.id);
+		expect(getActivity(id, jo.id)).toBeNull();
 	});
 });
 

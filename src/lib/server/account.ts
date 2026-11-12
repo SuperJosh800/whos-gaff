@@ -29,6 +29,8 @@ const PERSONAL: [table: string, column: string][] = [
 	['award_votes', 'nominee_id'],
 	['event_photos', 'user_id'],
 	['challenge_results', 'user_id'],
+	['game_players', 'user_id'],
+	['round_group_members', 'user_id'],
 	['custom_games', 'owner_id']
 ];
 
@@ -77,7 +79,7 @@ export function deleteAccount(userId: number) {
 		for (const table of [
 			'sessions', 'password_resets', 'event_members', 'rsvps', 'votes', 'messages', 'notifications',
 			'moves', 'home_plans', 'home_safe', 'group_members', 'free_gaffs', 'pings', 'ping_answers',
-			'event_photos', 'challenge_results'
+			'event_photos', 'challenge_results', 'game_players', 'round_group_members'
 		]) {
 			db.prepare(`DELETE FROM ${table} WHERE user_id = ?`).run(userId);
 		}

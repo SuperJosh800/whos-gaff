@@ -1,5 +1,5 @@
 import { asAction } from '#lib/server/events.ts';
-import { challengeScores, endGame, finishChallenge, getActivity, nextCard, startGame } from '#lib/server/activities.ts';
+import { beginGame, challengeScores, endGame, finishChallenge, getActivity, joinGame, leaveGame, nextCard, openGame } from '#lib/server/activities.ts';
 import { listGamesForEvent } from '#lib/server/customGames.ts';
 import { eventInput } from '#lib/server/form.ts';
 import type { Actions, PageServerLoad } from './$types';
@@ -25,9 +25,21 @@ export const load: PageServerLoad = async ({ params, parent, locals }) => {
 };
 
 export const actions: Actions = {
-	start: async (e) => {
+	open: async (e) => {
 		const { userId, eventId, get } = await eventInput(e);
-		return asAction(() => startGame(eventId, userId, get('game'), get('soft') === 'on'));
+		return asAction(() => openGame(eventId, userId, get('game'), get('soft') === 'on'));
+	},
+	join: async (e) => {
+		const { userId, eventId } = await eventInput(e);
+		return asAction(() => joinGame(eventId, userId));
+	},
+	leave: async (e) => {
+		const { userId, eventId } = await eventInput(e);
+		return asAction(() => leaveGame(eventId, userId));
+	},
+	begin: async (e) => {
+		const { userId, eventId } = await eventInput(e);
+		return asAction(() => beginGame(eventId, userId));
 	},
 	next: async (e) => {
 		const { userId, eventId, get } = await eventInput(e);

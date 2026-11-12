@@ -26,7 +26,7 @@ export const load: LayoutServerLoad = ({ params, locals, url, depends }) => {
 		gaff: unlocked && gaff ? gaff : null,
 		gameOn: (() => {
 			const game = getActivity(eventId, locals.user.id);
-			return game ? { name: game.name, emoji: game.emoji } : null;
+			return game ? { name: game.name, started: game.started, joined: game.joined, count: game.players.length } : null;
 		})()
 	};
 };

@@ -87,9 +87,14 @@
 	</nav>
 
 	{#if data.gameOn && page.url.pathname !== `${base}/games`}
+		{@const g = data.gameOn}
 		<a href="{base}/games" class="grid grid-cols-[1fr_auto] border border-lime text-sm hover:bg-zinc-100">
-			<span class="px-3 py-2.5"><span class="badge text-lime">Game on</span> {data.gameOn.name}</span>
-			<span class="flex items-center bg-lime px-3 text-[11px] font-extrabold tracking-widest text-ink uppercase">Join in</span>
+			<span class="px-3 py-2.5">
+				<span class="badge text-lime">{g.started ? 'Game on' : 'Lobby open'}</span> {g.name} · {g.count} in
+			</span>
+			<span class="flex items-center bg-lime px-3 text-[11px] font-extrabold tracking-widest text-ink uppercase">
+				{g.joined ? 'Back to game' : 'Join'}
+			</span>
 		</a>
 	{/if}
 

@@ -281,6 +281,29 @@ const migrations: string[] = [
 		created_at TEXT NOT NULL DEFAULT (datetime('now'))
 	);
 	CREATE INDEX challenge_results_event ON challenge_results(event_id);
+	`,
+	`
+	-- Games open in a lobby: people join, then someone starts it and only those players are dealt cards.
+	-- A game already running when this was added counts as started.
+	ALTER TABLE event_activity ADD COLUMN started INTEGER NOT NULL DEFAULT 1;
+	CREATE TABLE game_players (
+		event_id INTEGER NOT NULL REFERENCES event_activity(event_id) ON DELETE CASCADE,
+		user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		joined_at TEXT NOT NULL DEFAULT (datetime('now')),
+		PRIMARY KEY (event_id, user_id)
+	);
+	-- Smaller rounds within an event (WG-40). With none, everyone going is one round (group_id NULL).
+	CREATE TABLE round_groups (
+		id INTEGER PRIMARY KEY,
+		event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+		created_at TEXT NOT NULL DEFAULT (datetime('now'))
+	);
+	CREATE TABLE round_group_members (
+		group_id INTEGER NOT NULL REFERENCES round_groups(id) ON DELETE CASCADE,
+		user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		PRIMARY KEY (group_id, user_id)
+	);
+	ALTER TABLE rounds ADD COLUMN group_id INTEGER REFERENCES round_groups(id) ON DELETE CASCADE;
 	`
 ];
 
