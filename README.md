@@ -10,7 +10,8 @@ A SvelteKit app (TypeScript, Tailwind, SQLite via Node's built-in `node:sqlite`)
 - **UK night out (WG-16):** getting-home plans, "home safe" check-ins, pres → pub → club timeline with "we've moved" updates, rounds tracker, kitty with bank-transfer links.
 - **Smarter planning (WG-27):** payday mode, "who's out this weekend?" pings.
 - **Social (WG-31):** awards and hall of fame, night recap card, Spotify playlist link, hosting leaderboard.
-- **Games:** a Games tab on each event with Never have I ever, Most likely to, Would you rather, Truth or dare, Categories and scored Challenges. Everyone sees the same card live, and a soft mode replaces drinking with forfeits.
+- **Games:** a Games tab on each event, played from everyone's phone at once. Drinking games are sorted by where you are: Pub (Pub roulette, Pub quiz forfeits), Club (Shot o'clock, Dance-floor dares), Gaff (Ring of fire, Table stakes, Secret missions, Never have I ever, Truth or dare) and Anywhere. Cards name random people from the event (`{1} buys {2} a drink`). Secret missions only reach the player's phone, while everyone else sees an easy fake task. Scored games keep a leaderboard, and soft mode swaps drinks for water.
+- **Make your own games** at `/games`: one card per line, `{1}`/`{2}`/`{3}` for random people, and `secret: mission | fake task` for secret cards. They show up on every event you're on.
 - **Security and privacy:** password reset by email, rate-limited login, sign-up and resets, security headers (CSP, HSTS, no framing), change password, log out other devices, download your data, delete your account, and privacy policy and terms pages.
 
 Not built yet, because they need outside accounts: Google Calendar sync (WG-15), free/busy date suggestions (WG-28) and the Discord/WhatsApp bot (WG-37).

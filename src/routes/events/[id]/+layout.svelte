@@ -2,7 +2,6 @@
 	import { goto, invalidate } from '$app/navigation';
 	import { page } from '$app/state';
 	import { formatWhen } from '#lib/time.ts';
-	import { GAMES } from '#lib/activities.ts';
 	import type { LayoutProps } from './$types';
 
 	let { data, children }: LayoutProps = $props();
@@ -94,8 +93,8 @@
 
 	{#if data.gameOn && page.url.pathname !== `${base}/games`}
 		<a href="{base}/games" class="flex items-center gap-3 border border-lime bg-emerald-50 px-4 py-3 text-sm font-bold text-lime">
-			<span class="text-lg" aria-hidden="true">{GAMES[data.gameOn].emoji}</span>
-			Game on: {GAMES[data.gameOn].name}
+			<span class="text-lg" aria-hidden="true">{data.gameOn.emoji}</span>
+			Game on: {data.gameOn.name}
 			<span class="ml-auto text-xs tracking-widest uppercase">Join in →</span>
 		</a>
 	{/if}

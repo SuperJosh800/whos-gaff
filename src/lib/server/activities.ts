@@ -1,11 +1,17 @@
-// The game running at an event (Games tab): everyone in the event sees the same card, live.
+// The game running at an event (Games tab). Everyone on the event plays from their own phone and sees
+// the same card live, except secret cards: only the person they name sees the real text.
 import { randomInt } from 'node:crypto';
 import { db, tx } from './db.ts';
 import { publish } from './realtime.ts';
 import { EventError, requireMember } from './events.ts';
-import { GAMES, isGameId, type GameId } from '../activities.ts';
+import { DEFAULT_COVER, fillNames, GAMES, namesNeeded, SOFT_NOTE, type Card } from '../activities.ts';
+import { customGameForEvent } from './customGames.ts';
 
-type Row = { game: GameId; deck: string; position: number; target_id: number | null; soft: number };
+/** What a running game needs, copied when it starts so later edits to a custom game can't break it. */
+type Meta = { name: string; emoji: string; rules: string; softRules: string; scored: boolean; custom: boolean };
+type Row = { game: string; meta: string; cards: string; deck: string; position: number; picks: string; reveal: string | null; soft: number };
+type Reveal = { name: string; mission: string; outcome: 'done' | 'bailed' | 'caught' };
+type Person = { id: number; name: string };
 
 function shuffle(length: number) {
 	const deck = Array.from({ length }, (_, i) => i);
@@ -16,7 +22,7 @@ function shuffle(length: number) {
 	return deck;
 }
 
-/** People who can be picked for a challenge: the host and everyone going, or everyone in the event if nobody has RSVP'd. */
+/** People cards can name: the host and everyone going, or everyone on the event if fewer than two are going. */
 export function players(eventId: number) {
 	const going = db
 		.prepare(
@@ -24,104 +30,178 @@ export function players(eventId: number) {
 			 LEFT JOIN rsvps r ON r.event_id = m.event_id AND r.user_id = m.user_id
 			 WHERE m.event_id = ? AND (r.response = 'yes' OR m.user_id = e.host_id) ORDER BY u.name`
 		)
-		.all(eventId) as { id: number; name: string }[];
+		.all(eventId) as Person[];
 	if (going.length > 1) return going;
 	return db
 		.prepare(`SELECT u.id, u.name FROM event_members m JOIN users u ON u.id = m.user_id WHERE m.event_id = ? ORDER BY u.name`)
-		.all(eventId) as { id: number; name: string }[];
+		.all(eventId) as Person[];
 }
 
-/** Picks someone for the next challenge, avoiding whoever just had one when there's a choice. */
-function pickTarget(eventId: number, previous: number | null) {
+/**
+ * Picks the people a card names, all different. The first pick avoids whoever went first last time,
+ * so the same person isn't picked twice in a row when there's a choice.
+ */
+function pickPeople(eventId: number, card: Card, previousFirst: number | null, scored: boolean) {
+	const wanted = Math.max(namesNeeded(card.text), namesNeeded(card.cover ?? ''), scored || card.secret ? 1 : 0);
 	const pool = players(eventId);
-	const choices = pool.length > 1 ? pool.filter((p) => p.id !== previous) : pool;
-	return choices.length ? choices[randomInt(choices.length)].id : null;
+	const picks: number[] = [];
+	for (let i = 0; i < wanted && pool.length; i++) {
+		let choices = pool.filter((p) => !picks.includes(p.id));
+		if (i === 0 && choices.length > 1) choices = choices.filter((p) => p.id !== previousFirst);
+		if (!choices.length) break;
+		picks.push(choices[randomInt(choices.length)].id);
+	}
+	return picks;
 }
 
-export function getActivity(eventId: number) {
-	const row = db.prepare('SELECT game, deck, position, target_id, soft FROM event_activity WHERE event_id = ?').get(eventId) as
-		| Row
-		| undefined;
+function loadRow(eventId: number) {
+	return db
+		.prepare('SELECT game, meta, cards, deck, position, picks, reveal, soft FROM event_activity WHERE event_id = ?')
+		.get(eventId) as Row | undefined;
+}
+
+function names(ids: number[]) {
+	return ids.map((id) => (db.prepare('SELECT name FROM users WHERE id = ?').get(id) as { name: string } | undefined)?.name ?? 'someone');
+}
+
+/** The current card as one person should see it. Never includes another person's secret. */
+export function getActivity(eventId: number, viewerId: number) {
+	const row = loadRow(eventId);
 	if (!row) return null;
-	const game = GAMES[row.game];
+	const meta = JSON.parse(row.meta) as Meta;
+	const cards = JSON.parse(row.cards) as Card[];
 	const deck = JSON.parse(row.deck) as number[];
-	const index = deck[row.position % deck.length];
-	const target = row.target_id
-		? (db.prepare('SELECT id, name FROM users WHERE id = ?').get(row.target_id) as { id: number; name: string })
-		: null;
+	const card = cards[deck[row.position % deck.length]];
+	const pickIds = JSON.parse(row.picks) as number[];
+	const picked = names(pickIds);
+	const player = pickIds.length ? { id: pickIds[0], name: picked[0] } : null;
+	const secret = !!card.secret;
+	const mine = !!player && player.id === viewerId;
+	const text = secret && !mine ? (card.cover ?? DEFAULT_COVER) : card.text;
 	return {
 		game: row.game,
-		card: game.cards[index],
-		points: game.points?.[index] ?? null,
+		name: meta.name,
+		emoji: meta.emoji,
+		rules: row.soft ? meta.softRules : meta.rules,
+		scored: meta.scored,
+		custom: meta.custom,
+		card: fillNames(text, picked),
+		/** Whether this card is a secret, and so whether the viewer is looking at the real thing or the cover. */
+		secret,
+		mine,
+		/** On a secret card, the player is shown the fake task the others see, to use as cover. */
+		cover: secret && mine ? fillNames(card.cover ?? DEFAULT_COVER, picked) : null,
+		points: card.points ?? (meta.scored ? 1 : null),
 		position: row.position,
-		// Which card this is in the current pass through the deck, counting from 1.
 		number: (row.position % deck.length) + 1,
 		total: deck.length,
-		target,
-		soft: !!row.soft
+		player,
+		soft: !!row.soft,
+		reveal: row.reveal ? (JSON.parse(row.reveal) as Reveal) : null
 	};
 }
 
+export type Activity = NonNullable<ReturnType<typeof getActivity>>;
+
 /** Starts a game for everyone in the event, replacing any game already running. */
-export function startGame(eventId: number, userId: number, game: string, soft: boolean) {
+export function startGame(eventId: number, userId: number, gameId: string, soft: boolean) {
 	requireMember(eventId, userId);
-	if (!isGameId(game)) throw new EventError('Pick a game.');
-	const deck = shuffle(GAMES[game].cards.length);
-	const target = game === 'challenges' ? pickTarget(eventId, null) : null;
+	let meta: Meta;
+	let cards: Card[];
+	const builtIn = GAMES[gameId];
+	if (builtIn) {
+		meta = {
+			name: builtIn.name,
+			emoji: builtIn.emoji,
+			rules: builtIn.rules,
+			softRules: builtIn.softRules ?? `${builtIn.rules} ${SOFT_NOTE}`,
+			scored: !!builtIn.scored,
+			custom: false
+		};
+		cards = builtIn.cards;
+	} else {
+		const custom = /^custom:(\d+)$/.exec(gameId);
+		const game = custom ? customGameForEvent(eventId, Number(custom[1])) : null;
+		if (!game) throw new EventError('Pick a game.');
+		const rules = game.rules || 'Do what the card says. Refuse and take a sip.';
+		meta = { name: game.name, emoji: game.emoji, rules, softRules: `${rules} ${SOFT_NOTE}`, scored: game.scored, custom: true };
+		cards = game.cards;
+	}
+	const deck = shuffle(cards.length);
+	const picks = pickPeople(eventId, cards[deck[0]], null, meta.scored);
 	db.prepare(
-		`INSERT INTO event_activity (event_id, game, deck, position, target_id, soft, updated_at)
-		 VALUES (?, ?, ?, 0, ?, ?, datetime('now'))
-		 ON CONFLICT (event_id) DO UPDATE SET game = excluded.game, deck = excluded.deck, position = 0,
-		 target_id = excluded.target_id, soft = excluded.soft, updated_at = excluded.updated_at`
-	).run(eventId, game, JSON.stringify(deck), target, soft ? 1 : 0);
+		`INSERT INTO event_activity (event_id, game, meta, cards, deck, position, picks, reveal, soft, updated_at)
+		 VALUES (?, ?, ?, ?, ?, 0, ?, NULL, ?, datetime('now'))
+		 ON CONFLICT (event_id) DO UPDATE SET game = excluded.game, meta = excluded.meta, cards = excluded.cards,
+		 deck = excluded.deck, position = 0, picks = excluded.picks, reveal = NULL, soft = excluded.soft,
+		 updated_at = excluded.updated_at`
+	).run(eventId, gameId, JSON.stringify(meta), JSON.stringify(cards), JSON.stringify(deck), JSON.stringify(picks), soft ? 1 : 0);
 	publish(eventId);
 }
 
 /**
  * Moves to the next card. `seen` is the position the person was looking at, so two people
- * tapping "next" at once only skip one card. The deck reshuffles after the last card.
+ * tapping at once only move on one card. The deck reshuffles after the last card.
  */
-function advance(eventId: number, seen: number) {
-	const row = db.prepare('SELECT game, deck, position, target_id FROM event_activity WHERE event_id = ?').get(eventId) as
-		| Row
-		| undefined;
-	if (!row) throw new EventError('No game is running.');
+function advance(eventId: number, row: Row, seen: number, reveal: Reveal | null) {
 	if (row.position !== seen) return false;
+	const meta = JSON.parse(row.meta) as Meta;
+	const cards = JSON.parse(row.cards) as Card[];
 	const deck = JSON.parse(row.deck) as number[];
 	const next = row.position + 1;
 	const newDeck = next % deck.length === 0 ? shuffle(deck.length) : deck;
-	const target = row.game === 'challenges' ? pickTarget(eventId, row.target_id) : null;
-	db.prepare('UPDATE event_activity SET position = ?, deck = ?, target_id = ?, updated_at = datetime(\'now\') WHERE event_id = ?').run(
-		next,
-		JSON.stringify(newDeck),
-		target,
-		eventId
-	);
+	const previousFirst = (JSON.parse(row.picks) as number[])[0] ?? null;
+	const picks = pickPeople(eventId, cards[newDeck[next % newDeck.length]], previousFirst, meta.scored);
+	db.prepare(
+		`UPDATE event_activity SET position = ?, deck = ?, picks = ?, reveal = ?, updated_at = datetime('now') WHERE event_id = ?`
+	).run(next, JSON.stringify(newDeck), JSON.stringify(picks), reveal ? JSON.stringify(reveal) : row.reveal, eventId);
 	return true;
 }
 
-export function nextCard(eventId: number, userId: number, seen: number) {
-	requireMember(eventId, userId);
-	if (advance(eventId, seen)) publish(eventId);
+function requireRow(eventId: number) {
+	const row = loadRow(eventId);
+	if (!row) throw new EventError('No game is running.');
+	return row;
 }
 
-/** Records whether the picked person completed or bailed on the current challenge, then deals the next one. */
-export function finishChallenge(eventId: number, userId: number, seen: number, done: boolean) {
+/** Next card, or skip the current one (a skipped challenge scores nothing). */
+export function nextCard(eventId: number, userId: number, seen: number) {
+	requireMember(eventId, userId);
+	const changed = tx(() => advance(eventId, requireRow(eventId), seen, null));
+	if (changed) publish(eventId);
+}
+
+export type Outcome = 'done' | 'bailed' | 'caught';
+
+/**
+ * Settles the current scored card, then deals the next one.
+ * On a secret card only the player can say they did it or bailed, and only someone else can catch them.
+ */
+export function finishChallenge(eventId: number, userId: number, seen: number, outcome: Outcome) {
 	requireMember(eventId, userId);
 	const changed = tx(() => {
-		const current = getActivity(eventId);
-		if (!current || current.game !== 'challenges') throw new EventError('No challenge is running.');
-		if (current.position !== seen) return false;
-		if (current.target) {
+		const row = requireRow(eventId);
+		const current = getActivity(eventId, userId)!;
+		if (!current.scored) throw new EventError('This game doesn’t keep score.');
+		if (row.position !== seen) return false;
+		if (current.secret) {
+			if (outcome === 'caught' && current.mine) throw new EventError('You can’t catch yourself!');
+			if (outcome !== 'caught' && !current.mine) throw new EventError('Only the player can say how their mission went.');
+		}
+		let reveal: Reveal | null = null;
+		if (current.player) {
+			// Look at the card as the player sees it, so the real mission is what's recorded.
+			const real = getActivity(eventId, current.player.id)!;
 			db.prepare('INSERT INTO challenge_results (event_id, user_id, challenge, points, done) VALUES (?, ?, ?, ?, ?)').run(
 				eventId,
-				current.target.id,
-				current.card,
-				done ? (current.points ?? 0) : 0,
-				done ? 1 : 0
+				current.player.id,
+				real.card,
+				outcome === 'done' ? (real.points ?? 0) : 0,
+				outcome === 'done' ? 1 : 0
 			);
+			if (real.secret) reveal = { name: current.player.name, mission: real.card, outcome };
 		}
-		return advance(eventId, seen);
+		return advance(eventId, row, seen, reveal);
 	});
 	if (changed) publish(eventId);
 }
@@ -132,7 +212,7 @@ export function endGame(eventId: number, userId: number) {
 	publish(eventId);
 }
 
-/** Challenge points for the night, highest first. */
+/** Points for the night, highest first. */
 export function challengeScores(eventId: number) {
 	return db
 		.prepare(

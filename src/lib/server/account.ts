@@ -28,7 +28,8 @@ const PERSONAL: [table: string, column: string][] = [
 	['award_votes', 'voter_id'],
 	['award_votes', 'nominee_id'],
 	['event_photos', 'user_id'],
-	['challenge_results', 'user_id']
+	['challenge_results', 'user_id'],
+	['custom_games', 'owner_id']
 ];
 
 /** Everything stored about a user, as plain data for a JSON download. Passwords and session tokens are left out. */
@@ -81,7 +82,7 @@ export function deleteAccount(userId: number) {
 		db.prepare('DELETE FROM gaffs WHERE owner_id = ?').run(userId);
 		db.prepare('DELETE FROM award_votes WHERE voter_id = ? OR nominee_id = ?').run(userId, userId);
 		db.prepare('UPDATE bring_items SET claimed_by = NULL WHERE claimed_by = ?').run(userId);
-		db.prepare('UPDATE event_activity SET target_id = NULL WHERE target_id = ?').run(userId);
+		db.prepare('DELETE FROM custom_games WHERE owner_id = ?').run(userId);
 
 		// The row stays so shared money and bring-list records still add up, but nothing identifies the person.
 		db.prepare(

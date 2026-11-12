@@ -242,16 +242,35 @@ const migrations: string[] = [
 	ALTER TABLE users ADD COLUMN terms_accepted_at TEXT;
 	`,
 	`
-	-- The game currently running at an event. deck is a JSON array of card indexes in play order.
+	-- The game currently running at an event. cards and meta are a snapshot of the game when it started,
+	-- so editing or deleting a custom game doesn't break one in progress. deck is the play order (card indexes),
+	-- picks the players named on the current card ({1}, {2}…).
 	CREATE TABLE event_activity (
 		event_id INTEGER PRIMARY KEY REFERENCES events(id) ON DELETE CASCADE,
 		game TEXT NOT NULL,
+		meta TEXT NOT NULL,
+		cards TEXT NOT NULL,
 		deck TEXT NOT NULL,
 		position INTEGER NOT NULL DEFAULT 0,
-		target_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+		picks TEXT NOT NULL DEFAULT '[]',
+		-- The last secret mission, shown to everyone once it's finished (JSON, or NULL).
+		reveal TEXT,
 		soft INTEGER NOT NULL DEFAULT 0,
 		updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 	);
+	-- Games people make themselves. Anyone on an event with the owner can play them there.
+	CREATE TABLE custom_games (
+		id INTEGER PRIMARY KEY,
+		owner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		name TEXT NOT NULL,
+		emoji TEXT NOT NULL DEFAULT '🎲',
+		setting TEXT NOT NULL CHECK (setting IN ('pub', 'club', 'gaff', 'any')),
+		rules TEXT NOT NULL DEFAULT '',
+		scored INTEGER NOT NULL DEFAULT 0,
+		cards TEXT NOT NULL,
+		created_at TEXT NOT NULL DEFAULT (datetime('now'))
+	);
+	CREATE INDEX custom_games_owner ON custom_games(owner_id);
 	CREATE TABLE challenge_results (
 		id INTEGER PRIMARY KEY,
 		event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,

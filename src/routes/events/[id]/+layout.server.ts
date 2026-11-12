@@ -24,6 +24,9 @@ export const load: LayoutServerLoad = ({ params, locals, url, depends }) => {
 		address: unlocked ? address : null,
 		addressLocked: !unlocked && !!address,
 		gaff: unlocked && gaff ? gaff : null,
-		gameOn: getActivity(eventId)?.game ?? null
+		gameOn: (() => {
+			const game = getActivity(eventId, locals.user.id);
+			return game ? { name: game.name, emoji: game.emoji } : null;
+		})()
 	};
 };
