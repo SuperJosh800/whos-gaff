@@ -12,6 +12,9 @@ import {
 	requireGroupMember,
 	sendPing
 } from '#lib/server/groups.ts';
+import { getProfile } from '#lib/server/auth.ts';
+import { nowLocal } from '#lib/time.ts';
+import type { Plan } from '#lib/plans.ts';
 import type { Actions, PageServerLoad, RequestEvent } from './$types';
 
 export const load: PageServerLoad = ({ params, locals, url }) => {
@@ -25,7 +28,9 @@ export const load: PageServerLoad = ({ params, locals, url }) => {
 		members: listGroupMembers(groupId),
 		freeGaffs: listFreeGaffs(groupId),
 		pings: listPings(groupId),
-		leaderboard: hostingLeaderboard(groupId)
+		leaderboard: hostingLeaderboard(groupId),
+		payday: getProfile(locals.user.id).payday,
+		today: nowLocal().slice(0, 10)
 	};
 };
 
@@ -41,9 +46,9 @@ export const actions: Actions = {
 		return asAction(() => markFreeGaff(groupId, userId, get('place'), get('from'), get('to')));
 	},
 	ping: async (e) => {
-		const { userId, groupId } = await input(e);
+		const { userId, groupId, get } = await input(e);
 		return asAction(() => {
-			sendPing(groupId, userId);
+			sendPing(groupId, userId, get('plan') as Plan, get('date'));
 		});
 	},
 	answer: async (e) => {

@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { page } from '$app/state';
+	import { PLANS, type Plan } from '#lib/plans.ts';
+	import { isJustAfterPayday } from '#lib/time.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -9,6 +11,13 @@
 	const day = (d: string) => new Date(d + 'T00:00Z').toLocaleDateString('en-GB', { timeZone: 'UTC', weekday: 'short', day: 'numeric', month: 'short' });
 	const newEvent = (params: Record<string, string>) =>
 		`/events/new?${new URLSearchParams({ group: String(data.group.id), ...params })}`;
+	const plans = Object.entries(PLANS) as [Plan, (typeof PLANS)[Plan]][];
+	// Default the ask to the coming Saturday (today if it is Saturday).
+	const saturday = $derived.by(() => {
+		const d = new Date(data.today + 'T00:00Z');
+		d.setUTCDate(d.getUTCDate() + ((6 - d.getUTCDay() + 7) % 7));
+		return d.toISOString().slice(0, 10);
+	});
 	const maxHosted = $derived(Math.max(1, ...data.leaderboard.map((r) => r.hosted)));
 </script>
 
@@ -25,14 +34,32 @@
 	{#if form?.error}<p class="error" role="alert">{form.error}</p>{/if}
 
 	<section class="card space-y-3">
-		<div class="flex flex-wrap items-center justify-between gap-2">
-			<h2 class="text-lg font-bold">Who’s out this weekend? 🍻</h2>
-			<form method="POST" action="?/ping" use:enhance><button class="btn btn-small">Ask the group</button></form>
-		</div>
+		<h2 class="text-lg font-bold">Who’s out? 🍻</h2>
+		<form method="POST" action="?/ping" use:enhance={() => ({ update }) => update({ reset: false })} class="space-y-2">
+			<div class="flex flex-wrap gap-2" role="radiogroup" aria-label="What kind of night">
+				{#each plans as [key, plan] (key)}
+					<label class="cursor-pointer border border-zinc-300 px-3 py-1.5 text-xs font-extrabold tracking-wider uppercase has-checked:border-lime has-checked:bg-lime has-checked:text-ink has-focus-visible:outline-2 has-focus-visible:outline-hot">
+						<input class="sr-only" type="radio" name="plan" value={key} checked={key === 'pub'} />{plan.emoji} {plan.label}
+					</label>
+				{/each}
+			</div>
+			<div class="flex flex-wrap gap-2">
+				<input class="input w-auto" type="date" name="date" required min={data.today} value={saturday} aria-label="Date" />
+				<button class="btn">Ask the group</button>
+			</div>
+		</form>
 		{#each data.pings as p (p.id)}
 			{@const mine = p.yes.some((a) => a.user_id === me) ? 'yes' : p.no.some((a) => a.user_id === me) ? 'no' : null}
-			<div class="rounded-xl border border-zinc-200 p-3">
-				<p class="text-sm"><strong>{p.name}</strong> asked who’s out</p>
+			{@const plan = PLANS[p.plan]}
+			<div class="border border-zinc-200 p-3">
+				<div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+					<span class="text-lg font-black uppercase">{p.on_date ? day(p.on_date) : 'This weekend'}</span>
+					<span class="badge text-lime">{plan.emoji} {plan.label}</span>
+					{#if p.on_date && data.payday && isJustAfterPayday(p.on_date, data.payday)}
+						<span class="badge text-lime-800" title="Within a week of your payday">💷 Payday</span>
+					{/if}
+				</div>
+				<p class="mt-1 text-sm text-zinc-600"><strong class="text-zinc-900">{p.name}</strong> asked who’s out{plan.ask}</p>
 				<p class="mt-1 text-sm">
 					<span class="font-semibold text-emerald-700">{p.yes.length} up for it</span>{#if p.yes.length}: {p.yes.map((a) => a.name).join(', ')}{/if}
 					· <span class="text-zinc-500">{p.no.length} not this time</span>
@@ -46,12 +73,12 @@
 					{#if p.event_id}
 						<a class="btn-secondary btn-small ml-auto" href="/events/{p.event_id}">See the event →</a>
 					{:else if p.yes.length >= 2}
-						<a class="btn btn-small ml-auto" href={newEvent({ ping: String(p.id), title: 'Out this weekend' })}>Make it an event</a>
+						<a class="btn btn-small ml-auto" href={newEvent({ ping: String(p.id), title: plan.title, ...(p.on_date ? { date: `${p.on_date}T20:00` } : {}) })}>Make it an event</a>
 					{/if}
 				</div>
 			</div>
 		{:else}
-			<p class="text-sm text-zinc-500">Tap “Ask the group” to see who’s up for something.</p>
+			<p class="text-sm text-zinc-500">Pick a night and a date, then ask the group who’s up for it.</p>
 		{/each}
 	</section>
 

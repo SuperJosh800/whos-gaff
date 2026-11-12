@@ -3,6 +3,7 @@ import { db } from './db.ts';
 import { notify } from './notifications.ts';
 import { EventError } from './events.ts';
 import { nowLocal } from '../time.ts';
+import { PLANS, type Plan } from '../plans.ts';
 
 export type Group = { id: number; name: string; invite_token: string; created_by: number };
 type Member = { id: number; name: string };
@@ -98,13 +99,20 @@ export function listFreeGaffs(groupId: number) {
 	}[];
 }
 
-// ---- "Who's out this weekend?" (WG-30) ----
+// ---- "Who's out?" (WG-30) ----
 
-export function sendPing(groupId: number, userId: number) {
+export function sendPing(groupId: number, userId: number, plan: Plan, date: string) {
 	const group = requireGroupMember(groupId, userId);
-	const { lastInsertRowid } = db.prepare('INSERT INTO pings (group_id, user_id) VALUES (?, ?)').run(groupId, userId);
+	if (!Object.hasOwn(PLANS, plan)) throw new EventError('Pick what kind of night it is.');
+	if (!DATE.test(date)) throw new EventError('Pick a date.');
+	if (date < nowLocal().slice(0, 10)) throw new EventError('That date has already passed.');
+	const { lastInsertRowid } = db
+		.prepare('INSERT INTO pings (group_id, user_id, plan, on_date) VALUES (?, ?, ?, ?)')
+		.run(groupId, userId, plan, date);
 	db.prepare("INSERT INTO ping_answers (ping_id, user_id, answer) VALUES (?, ?, 'yes')").run(lastInsertRowid, userId);
-	notifyGroup(groupId, userId, `🍻 ${userName(userId)} asks: who's out this weekend? Answer in ${group.name}.`);
+	const { emoji, ask } = PLANS[plan];
+	const day = new Date(date + 'T00:00Z').toLocaleDateString('en-GB', { timeZone: 'UTC', weekday: 'short', day: 'numeric', month: 'short' });
+	notifyGroup(groupId, userId, `${emoji} ${userName(userId)} asks: who's out${ask} on ${day}? Answer in ${group.name}.`);
 	return Number(lastInsertRowid);
 }
 
@@ -126,14 +134,23 @@ export function answerPing(groupId: number, userId: number, pingId: number, answ
 	).run(pingId, userId, answer);
 }
 
-/** Pings from the last week, newest first, with everyone's answers. */
+/** Pings for today or later (soonest first), plus undated ones from the last week, with everyone's answers. */
 export function listPings(groupId: number) {
 	const pings = db
 		.prepare(
-			`SELECT p.id, p.user_id, u.name, p.event_id, p.created_at FROM pings p JOIN users u ON u.id = p.user_id
-			 WHERE p.group_id = ? AND p.created_at >= datetime('now', '-7 days') ORDER BY p.id DESC`
+			`SELECT p.id, p.user_id, u.name, p.event_id, p.plan, p.on_date, p.created_at FROM pings p JOIN users u ON u.id = p.user_id
+			 WHERE p.group_id = ? AND (p.on_date >= ? OR (p.on_date IS NULL AND p.created_at >= datetime('now', '-7 days')))
+			 ORDER BY COALESCE(p.on_date, date(p.created_at)), p.id DESC`
 		)
-		.all(groupId) as { id: number; user_id: number; name: string; event_id: number | null; created_at: string }[];
+		.all(groupId, nowLocal().slice(0, 10)) as {
+		id: number;
+		user_id: number;
+		name: string;
+		event_id: number | null;
+		plan: Plan;
+		on_date: string | null;
+		created_at: string;
+	}[];
 	const answers = db.prepare(
 		`SELECT a.user_id, u.name, a.answer FROM ping_answers a JOIN users u ON u.id = a.user_id WHERE a.ping_id = ? ORDER BY u.name`
 	);

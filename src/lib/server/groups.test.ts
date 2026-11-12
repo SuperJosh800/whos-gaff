@@ -42,15 +42,28 @@ describe('groups', () => {
 
 	it('turns a "who\'s out?" ping into an event that invites the whole group', () => {
 		const { id, a, b, c } = crew();
-		const ping = sendPing(id, a.id);
+		const ping = sendPing(id, a.id, 'club', '2099-03-14');
 		answerPing(id, b.id, ping, 'yes');
 		answerPing(id, c.id, ping, 'no');
 		const [p] = listPings(id);
+		expect(p).toMatchObject({ plan: 'club', on_date: '2099-03-14' });
 		expect([p.yes.map((x) => x.name), p.no.map((x) => x.name)]).toEqual([['A', 'B'], ['C']]);
+		expect(notes(b)).toEqual(["🪩 A asks: who's out clubbing on Sat 14 Mar? Answer in The lads."]);
 
 		const eventId = createEvent(a.id, { title: 'Out', mode: 'fixed', startsAt: '2099-03-14T20:00', groupId: id });
 		expect(listAttendees(eventId).map((x) => x.name)).toEqual(['A', 'B', 'C']);
 		expect(notes(c).at(-1)).toBe('A invited you to Out.');
+	});
+
+	it('lists pings for today onwards, soonest night first, and rejects past dates and unknown plans', () => {
+		const { id, a } = crew();
+		const later = sendPing(id, a.id, 'pub', '2099-03-21');
+		const sooner = sendPing(id, a.id, 'anything', '2099-03-14');
+		// Sent today but for a night that has passed: hidden even though it is recent.
+		db.prepare("INSERT INTO pings (group_id, user_id, plan, on_date) VALUES (?, ?, 'pub', '2020-01-01')").run(id, a.id);
+		expect(listPings(id).map((p) => p.id)).toEqual([sooner, later]);
+		expect(() => sendPing(id, a.id, 'pub', '2020-01-01')).toThrow('already passed');
+		expect(() => sendPing(id, a.id, 'toString' as 'pub', '2099-03-14')).toThrow('what kind of night');
 	});
 
 	it('ranks hosts by dated group events and only nudges people who have never hosted', () => {

@@ -226,6 +226,10 @@ const migrations: string[] = [
 		mime TEXT NOT NULL,
 		created_at TEXT NOT NULL DEFAULT (datetime('now'))
 	);
+	`,
+	`
+	ALTER TABLE pings ADD COLUMN plan TEXT NOT NULL DEFAULT 'anything' CHECK (plan IN ('pub', 'home', 'club', 'food', 'anything'));
+	ALTER TABLE pings ADD COLUMN on_date TEXT;
 	`
 ];
 
