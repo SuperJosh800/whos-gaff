@@ -2,6 +2,7 @@
 // have happened), with totals and who topped each thing. Only counts what's already recorded.
 import { db } from './db.ts';
 import { AWARDS, WINNERS, type Award } from './after.ts';
+import { bestRated } from './ratings.ts';
 import { nowLocal } from '../time.ts';
 
 type Ranked = { id: number; name: string; count: number };
@@ -84,6 +85,9 @@ export function yearReview(groupId: number, viewerId: number, year: number, now 
 		starts_at: n.starts_at,
 		people: (headcount.get(n.id) as { c: number }).c
 	}));
+	// The best-rated night, named only for people who were invited, like the list.
+	const best = bestRated(nights.map((n) => n.id));
+	const bestNight = best && shown.find((n) => n.id === best.event_id);
 	const biggest = nights.length > 1 ? [...shown].sort((a, b) => b.people - a.people || a.starts_at.localeCompare(b.starts_at))[0] : null;
 
 	return {
@@ -91,6 +95,7 @@ export function yearReview(groupId: number, viewerId: number, year: number, now 
 		nights: shown.map(({ id, title, starts_at }) => ({ id, title, starts_at })),
 		totals: { nights: nights.length, photos, spentPence: spent.pence },
 		biggest: biggest && biggest.people > 1 ? biggest : null,
+		best: best && bestNight ? { id: best.event_id, title: bestNight.title, starts_at: bestNight.starts_at, average: Math.round(best.average * 10) / 10, count: best.count } : null,
 		mostOut: top(attendance),
 		attendance: [...attendance].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name)),
 		topHost: top(hosted),

@@ -100,6 +100,12 @@
 
 		<section class="card space-y-3">
 			<h2>The nights</h2>
+			{#if r.best}
+				<p class="text-sm text-zinc-600">
+					Best rated:
+					{#if r.best.title}<a class="font-extrabold text-zinc-900 underline underline-offset-4" href="/events/{r.best.id}/after">{r.best.title}</a>{:else}{formatWhen(r.best.starts_at)}{/if}, {r.best.average.toFixed(1)}/5 from {r.best.count} ratings.
+				</p>
+			{/if}
 			{#if r.biggest}
 				<p class="text-sm text-zinc-600">
 					Biggest:

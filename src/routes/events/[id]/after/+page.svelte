@@ -17,6 +17,13 @@
 	const hg = $derived(data.hangover);
 	const worst = $derived(hg.worst.length ? `${hg.worst.map((h) => h.name).join(' & ')} (${hg.scale[hg.worst[0].head]})` : '');
 	let headError = $state('');
+	const rt = $derived(data.rating);
+	const ratingText = $derived(rt.average === null ? '' : `${rt.average.toFixed(1)}/5 from ${rt.count} ${rt.count === 1 ? 'rating' : 'ratings'}`);
+	let rateError = $state('');
+	const inRate: SubmitFunction = () => async ({ update, result }) => {
+		rateError = result.type === 'failure' ? String(result.data?.error ?? 'Something went wrong.') : '';
+		if (result.type !== 'failure') await update({ reset: false });
+	};
 	const inHead: SubmitFunction = () => async ({ update, result }) => {
 		headError = result.type === 'failure' ? String(result.data?.error ?? 'Something went wrong.') : '';
 		if (result.type !== 'failure') await update({ reset: false });
@@ -34,6 +41,7 @@
 		[
 			`${data.event.title}${data.event.starts_at ? ` · ${formatWhen(data.event.starts_at)}` : ''}`,
 			`Who came: ${going.map((p) => p.name).join(', ')}`,
+			ratingText ? `Rated ${ratingText}` : '',
 			...data.awards.filter((a) => a.winners.length).map((a) => `${a.label}: ${a.winners.map((w) => w.name).join(' & ')}`),
 			worst ? `Worst hangover: ${worst}` : '',
 			callers.length ? `Called it: ${callers.map((c) => c.name).join(' & ')} (${topScore}/${data.awards.length})` : '',
@@ -69,6 +77,7 @@
 			<p class="text-[11px] font-extrabold tracking-widest text-hot uppercase">Night recap</p>
 			<h2 class="!text-4xl !leading-none !tracking-tight">{data.event.title}</h2>
 			{#if data.event.starts_at}<p class="text-hot">{formatWhen(data.event.starts_at)}</p>{/if}
+			{#if ratingText}<p class="mt-1 text-sm text-zinc-600">Rated <strong class="text-zinc-900">{ratingText}</strong></p>{/if}
 
 			{#if data.photos.length}
 				<div class="mt-4 grid grid-cols-3 gap-2">
@@ -102,6 +111,22 @@
 				<button type="button" class="btn" onclick={share}>Share to the group chat</button>
 				{#if shared}<span class="text-sm">{shared}</span>{/if}
 			</div>
+		</section>
+
+		<section class="card space-y-3" id="rate">
+			<h2>Rate the night</h2>
+			{#if rateError}<p class="error" role="alert">{rateError}</p>{/if}
+			{#if rt.canRate}
+				<form method="POST" action="?/rate" use:enhance={inRate} class="strip" role="group" aria-label="Your rating">
+					{#each [1, 2, 3, 4, 5] as n (n)}
+						<button name="stars" value={n} aria-pressed={rt.mine === n} aria-label="{n} {n === 1 ? 'star' : 'stars'}" class="!text-lg {rt.mine && n <= rt.mine ? 'bg-lime !text-ink' : ''}">★</button>
+					{/each}
+				</form>
+			{/if}
+			<p class="text-sm text-zinc-500">
+				{ratingText ? `${ratingText}.` : 'Nobody’s rated it yet.'}
+				{#if rt.canRate}{rt.mine ? ` You gave it ${rt.mine}. Change it for a week after the night.` : ' Open for a week after the night.'}{:else if rt.closed}{rt.mine ? ` You gave it ${rt.mine}.` : ''} Rating’s closed.{/if}
+			</p>
 		</section>
 
 		<section class="card space-y-3">

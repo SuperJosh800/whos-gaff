@@ -713,6 +713,15 @@ const migrations: string[] = [
 		year INTEGER NOT NULL,
 		PRIMARY KEY (about_id, user_id, year)
 	);
+	`,
+	// Star ratings for a night, 1 to 5, from the people who went.
+	`
+	CREATE TABLE night_ratings (
+		event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+		user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		stars INTEGER NOT NULL CHECK (stars BETWEEN 1 AND 5),
+		PRIMARY KEY (event_id, user_id)
+	);
 	`
 ];
 
