@@ -2,6 +2,7 @@
 	import { goto, invalidate } from '$app/navigation';
 	import { page } from '$app/state';
 	import { formatWhen } from '#lib/time.ts';
+	import { linkHost } from '#lib/index.ts';
 	import type { LayoutProps } from './$types';
 
 	let { data, children }: LayoutProps = $props();
@@ -77,10 +78,10 @@
 		{#if event.details}<p class="whitespace-pre-line">{event.details}</p>{/if}
 		{#if event.venue}
 			<div class="grid grid-cols-[auto_1fr_auto] border border-zinc-200 text-sm">
-				<a href="{base}#venue" class="badge flex items-center border-r border-zinc-200 px-3 text-lime hover:bg-zinc-100">Where</a>
+				<span class="badge flex items-center border-r border-zinc-200 px-3 text-lime">Where</span>
 				<a href="{base}#venue" class="min-w-0 px-3 py-2.5 font-extrabold break-words hover:bg-zinc-100">{event.venue}</a>
 				{#if event.venue_link}
-					<a class="flex items-center border-l border-zinc-200 px-3 text-[11px] font-extrabold tracking-widest text-hot uppercase hover:bg-zinc-100" href={event.venue_link} target="_blank" rel="noopener noreferrer">Map</a>
+					<a class="flex items-center border-l border-zinc-200 px-3 text-xs font-extrabold text-hot hover:bg-zinc-100" href={event.venue_link} target="_blank" rel="noopener noreferrer">{linkHost(event.venue_link)}</a>
 				{/if}
 			</div>
 		{/if}

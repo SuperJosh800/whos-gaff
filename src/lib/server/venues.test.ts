@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { db } from './db.ts';
 import { signUp, type User } from './auth.ts';
 import { createEvent, getEvent, joinByToken, setRsvp } from './events.ts';
-import { listVenues, lockVenue, MAX_VENUES, removeVenue, reopenVenue, suggestVenue, voteVenue } from './venues.ts';
+import { listVenues, lockVenue, MAX_EACH, MAX_VENUES, removeVenue, reopenVenue, suggestVenue, voteVenue } from './venues.ts';
 import { deleteAccount, exportData } from './account.ts';
 
 let n = 0;
@@ -34,8 +34,15 @@ describe('venue vote', () => {
 		expect(() => suggestVenue(id, b.id, '\u200B', '')).toThrow('name of the pub');
 		expect(() => suggestVenue(id, stranger.id, 'Elsewhere', '')).toThrow('not invited');
 		expect(() => listVenues(id, stranger.id)).toThrow('not invited');
-		for (let i = 1; i < MAX_VENUES; i++) suggestVenue(id, b.id, `Pub ${i}`, '');
-		expect(() => suggestVenue(id, b.id, 'One more', '')).toThrow('plenty of places');
+		for (let i = 1; i <= MAX_EACH; i++) suggestVenue(id, b.id, `Pub ${i}`, '');
+		expect(() => suggestVenue(id, b.id, 'One more', '')).toThrow(`suggested ${MAX_EACH} already`);
+		const g = getEvent(id)!.invite_token;
+		for (let i = MAX_EACH + 1; i < MAX_VENUES; i++) {
+			const helper = user('Helper');
+			joinByToken(g, helper.id);
+			suggestVenue(id, helper.id, `Pub ${i}`, '');
+		}
+		expect(() => suggestVenue(id, a.id, 'One more', '')).toThrow('plenty of places');
 	});
 
 	it('lets everyone tick as many places as they’d go to, and untick them, idempotently', () => {
@@ -56,7 +63,13 @@ describe('venue vote', () => {
 		const one = night();
 		const two = night();
 		suggestVenue(two.id, two.a.id, 'Elsewhere', '');
-		const far = listVenues(two.id, two.a.id).options[0].id;
+		suggestVenue(two.id, two.b.id, 'Mine', '');
+		const [far, mine] = listVenues(two.id, two.a.id).options.map((o) => o.id);
+		expect(() => voteVenue(two.id, one.a.id, far, true)).toThrow('not invited');
+		expect(() => removeVenue(two.id, one.a.id, far)).toThrow('not invited');
+		expect(() => lockVenue(two.id, one.host.id, far)).toThrow('Only the host');
+		expect(listVenues(two.id, two.b.id).options.find((o) => o.id === mine)!.canRemove).toBe(true);
+		removeVenue(two.id, two.b.id, mine);
 		expect(() => voteVenue(one.id, one.a.id, far, true)).toThrow('isn’t on the list');
 		expect(() => removeVenue(one.id, one.host.id, far)).toThrow('isn’t on the list');
 		expect(() => lockVenue(one.id, one.host.id, far)).toThrow('isn’t on the list');
@@ -87,6 +100,12 @@ describe('venue vote', () => {
 		reopenVenue(id, host.id);
 		expect(getEvent(id)).toMatchObject({ venue: '', venue_link: '' });
 		lockVenue(id, host.id, ox);
+		expect(notes(a)).toHaveLength(1);
+		// The same place in different case isn't news either.
+		reopenVenue(id, host.id);
+		removeVenue(id, host.id, ox);
+		suggestVenue(id, b.id, 'THE OX', '');
+		lockVenue(id, host.id, listVenues(id, b.id).options.find((o) => o.name === 'THE OX')!.id);
 		expect(notes(a)).toHaveLength(1);
 		reopenVenue(id, host.id);
 		lockVenue(id, host.id, sub);

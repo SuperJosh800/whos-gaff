@@ -8,10 +8,10 @@ export const MAX_THEMES = 12;
 const MAX_LABEL = 60;
 
 /** Tidies a label: drops invisible characters, squashes spaces, and needs at least one letter or digit. */
-export function cleanLabel(label: string, empty: string, max = MAX_LABEL) {
+export function cleanLabel(label: string, empty: string) {
 	label = label.replace(/\p{Cf}/gu, '').replace(/\s+/g, ' ').trim();
 	if (!/[\p{L}\p{N}]/u.test(label)) throw new EventError(empty);
-	if (label.length > max) throw new EventError(`Keep it to ${max} characters.`);
+	if (label.length > MAX_LABEL) throw new EventError(`Keep it to ${MAX_LABEL} characters.`);
 	return label;
 }
 

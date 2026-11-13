@@ -7,6 +7,8 @@ import { EventError, requireHost, requireMember, type Event } from './events.ts'
 import { cleanLabel, peopleNotOut } from './themes.ts';
 
 export const MAX_VENUES = 12;
+/** So one person can't fill the list. */
+export const MAX_EACH = 4;
 
 function requireOpen(event: Event) {
 	if (event.venue) throw new EventError('The host has picked where you’re going.');
@@ -69,8 +71,11 @@ export function suggestVenue(eventId: number, userId: number, name: string, link
 	requireOpen(requireMember(eventId, userId));
 	name = cleanLabel(name, 'Type the name of the pub or club.');
 	link = cleanLink(link);
-	const { n } = db.prepare('SELECT COUNT(*) AS n FROM venue_options WHERE event_id = ?').get(eventId) as { n: number };
+	const { n, mine } = db
+		.prepare('SELECT COUNT(*) AS n, COALESCE(SUM(suggested_by = ?), 0) AS mine FROM venue_options WHERE event_id = ?')
+		.get(userId, eventId) as { n: number; mine: number };
 	if (n >= MAX_VENUES) throw new EventError('That’s plenty of places. Tick the ones you’d go to.');
+	if (mine >= MAX_EACH) throw new EventError(`You’ve suggested ${MAX_EACH} already. Let someone else have a go.`);
 	if (db.prepare('SELECT 1 FROM venue_options WHERE event_id = ? AND name = ? COLLATE NOCASE').get(eventId, name)) {
 		throw new EventError('That place is already on the list.');
 	}
