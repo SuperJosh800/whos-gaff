@@ -37,7 +37,9 @@ const PERSONAL: [table: string, column: string][] = [
 	['custom_games', 'owner_id'],
 	['push_subscriptions', 'user_id'],
 	['predictions', 'user_id'],
-	['predictions', 'nominee_id']
+	['predictions', 'nominee_id'],
+	['bingo_cards', 'user_id'],
+	['bingo_marks', 'marked_by']
 ];
 
 /** Everything stored about a user, as plain data for a JSON download. Passwords and session tokens are left out. */
@@ -101,13 +103,15 @@ export function deleteAccount(userId: number) {
 			'sessions', 'password_resets', 'push_subscriptions', 'event_members', 'rsvps', 'votes', 'messages', 'notifications',
 			'moves', 'home_plans', 'home_safe', 'group_members', 'free_gaffs', 'pings', 'ping_answers',
 			'event_photos', 'challenge_results', 'game_players', 'round_group_members',
-			'missions'
+			'missions', 'bingo_cards'
 		]) {
 			db.prepare(`DELETE FROM ${table} WHERE user_id = ?`).run(userId);
 		}
 		db.prepare('DELETE FROM gaffs WHERE owner_id = ?').run(userId);
 		db.prepare('DELETE FROM award_votes WHERE voter_id = ? OR nominee_id = ?').run(userId, userId);
 		db.prepare('DELETE FROM predictions WHERE user_id = ? OR nominee_id = ?').run(userId, userId);
+		// Squares that happened stay marked for everyone else, without the name.
+		db.prepare('UPDATE bingo_marks SET marked_by = NULL WHERE marked_by = ?').run(userId);
 		db.prepare('DELETE FROM mission_guesses WHERE user_id = ? OR suspect_id = ?').run(userId, userId);
 		db.prepare('UPDATE bring_items SET claimed_by = NULL WHERE claimed_by = ?').run(userId);
 		db.prepare('DELETE FROM custom_games WHERE owner_id = ?').run(userId);

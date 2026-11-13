@@ -16,6 +16,7 @@
 	const going = $derived(data.homePlans.some((p) => p.user_id === me));
 	const suspects = $derived(data.homePlans.filter((p) => p.user_id !== me));
 	const pr = $derived(data.predictions);
+	const bingo = $derived(data.bingo);
 	let preview = $state<string | null>(null);
 	const moveTime = (utc: string) =>
 		new Date(utc.replace(' ', 'T') + 'Z').toLocaleTimeString('en-GB', { hour: 'numeric', minute: '2-digit' });
@@ -104,6 +105,60 @@
 			<p class="text-xs text-zinc-500">
 				Who’ll win each award? Picks stay hidden until the night starts ({formatWhen(data.event.starts_at!)}), then the award votes afterwards decide who called it.
 			</p>
+		{/if}
+	</section>
+
+	<section class="card space-y-3" id="bingo">
+		<div class="flex flex-wrap items-baseline justify-between gap-2">
+			<h2>Bingo</h2>
+			{#if bingo.players}<span class="text-xs text-zinc-500">{bingo.players} playing</span>{/if}
+		</div>
+		{#if bingo.winners.length}
+			<p class="border border-lime px-3 py-2.5 text-sm"><span class="badge text-lime">Bingo</span> {bingo.winners.map((place) => place.join(' and ')).join(', then ')}</p>
+		{/if}
+		{#if !bingo.going}
+			<p class="text-sm text-zinc-500">RSVP “going” to get a bingo card.</p>
+		{:else if !bingo.card}
+			<form method="POST" action="?/bingoCard" use:enhance>
+				<button class="btn w-full">Get a bingo card</button>
+			</form>
+			<p class="text-xs text-zinc-500">Nine things that happen on a night out. When one does, tap it and it fills in on everyone’s card. First full line wins.</p>
+		{:else}
+			<div class="grid grid-cols-3 border-t border-l border-zinc-200 {started ? '' : 'opacity-60'}">
+				{#each bingo.card as sq (sq.moment)}
+					<form method="POST" action="?/bingoMark" use:enhance class="contents">
+						<input type="hidden" name="moment" value={sq.moment} />
+						<input type="hidden" name="mark" value={sq.marked ? '0' : '1'} />
+						<button disabled={!started || (sq.marked && !sq.canUnmark)} aria-pressed={sq.marked}
+							class="flex aspect-square flex-col items-center justify-center gap-1 border-r border-b border-zinc-200 p-1.5 text-center text-xs leading-tight font-bold disabled:cursor-default {sq.marked ? 'bg-lime text-ink' : 'hover:bg-zinc-100'}">
+							<span>{sq.label}</span>
+							{#if sq.by}<span class="text-[10px] font-semibold opacity-70">{sq.by}</span>{/if}
+						</button>
+					</form>
+				{/each}
+			</div>
+			<p class="text-xs text-zinc-500">
+				{started ? 'Tap a square when it happens; it fills in on everyone’s card. Tap again to undo one you marked.' : `Squares can be marked once the night starts${data.event.starts_at ? ` (${formatWhen(data.event.starts_at)})` : ''}.`}
+			</p>
+		{/if}
+		{#if bingo.called.length}
+			<div>
+				<p class="label">Happened so far</p>
+				<ul class="divide-y divide-zinc-200 border border-zinc-200 text-sm">
+					{#each bingo.called as c (c.moment)}
+						<li class="grid grid-cols-[1fr_auto] items-center">
+							<p class="min-w-0 px-3 py-2">{c.label} <span class="text-zinc-500">· {c.by}</span></p>
+							{#if c.canUnmark && started}
+								<form method="POST" action="?/bingoMark" use:enhance>
+									<input type="hidden" name="moment" value={c.moment} />
+									<input type="hidden" name="mark" value="0" />
+									<button class="h-9 w-9 text-lg text-zinc-500 hover:text-hot" aria-label="Undo {c.label}">×</button>
+								</form>
+							{/if}
+						</li>
+					{/each}
+				</ul>
+			</div>
 		{/if}
 	</section>
 

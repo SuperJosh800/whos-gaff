@@ -363,6 +363,25 @@ const migrations: string[] = [
 		nominee_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
 		PRIMARY KEY (event_id, user_id, award)
 	);
+	`,
+	`
+	-- Night bingo: each person's card of 9 squares (a JSON list of moment keys), and the squares that have
+	-- happened, shared by everyone. announced is set once someone's bingo has been sent to the group.
+	CREATE TABLE bingo_cards (
+		event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+		user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		squares TEXT NOT NULL,
+		announced INTEGER NOT NULL DEFAULT 0,
+		PRIMARY KEY (event_id, user_id)
+	);
+	CREATE TABLE bingo_marks (
+		id INTEGER PRIMARY KEY,
+		event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+		moment TEXT NOT NULL,
+		marked_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+		marked_at TEXT NOT NULL DEFAULT (datetime('now')),
+		UNIQUE (event_id, moment)
+	);
 	`
 ];
 
