@@ -3,7 +3,7 @@ import { signUp, type User } from './auth.ts';
 import { createEvent, getEvent, joinByToken, setRsvp } from './events.ts';
 import { askForHelp, listHelp, onMyWay, purgeHelp, readSpot, resolveHelp } from './help.ts';
 import { listNotifications } from './notifications.ts';
-import { deleteAccount } from './account.ts';
+import { deleteAccount, exportData } from './account.ts';
 import { db } from './db.ts';
 
 let n = 0;
@@ -48,25 +48,84 @@ describe('come get me', () => {
 		expect(listHelp(id, alex.id, DURING)[0].map).toBeNull();
 	});
 
-	it('only works for people going, from the start of the night until the next day', () => {
+	it('only works for people going, from 3 hours before the night starts until the next day', () => {
 		const { id, sam, maybe } = night();
 		expect(() => askForHelp(id, maybe.id, SPOT, '', DURING)).toThrow('RSVP “going”');
 		expect(() => askForHelp(id, user('Stranger').id, SPOT, '', DURING)).toThrow('not invited');
-		expect(() => askForHelp(id, sam.id, SPOT, '', '2099-06-20T20:59')).toThrow('from when the night starts');
-		expect(() => askForHelp(id, sam.id, SPOT, '', '2099-06-21T21:00')).toThrow('from when the night starts');
-		askForHelp(id, sam.id, SPOT, '', START);
+		expect(() => askForHelp(id, sam.id, SPOT, '', '2099-06-20T17:59')).toThrow('3 hours before');
+		expect(() => askForHelp(id, sam.id, SPOT, '', '2099-06-21T21:00')).toThrow('3 hours before');
+		askForHelp(id, sam.id, SPOT, '', '2099-06-20T18:00');
 		askForHelp(id, sam.id, SPOT, '', '2099-06-21T20:59');
 		expect(listHelp(id, sam.id, '2099-06-21T20:59')).toHaveLength(1);
 	});
 
-	it('keeps one request per person, updating the location, and re-tells people at most 3 times in 10 minutes', () => {
+	it('keeps one request per person, and re-tells people about it at most 3 times in 10 minutes', () => {
 		const { id, sam, alex } = night();
-		askForHelp(id, sam.id, null, 'by the bins', DURING);
-		for (let i = 0; i < 4; i++) askForHelp(id, sam.id, { lat: 55 + i, lng: -4, accuracy: 10 }, 'by the bins', DURING);
-		expect(notes(alex.id, /come get/)).toHaveLength(3);
+		expect(askForHelp(id, sam.id, null, 'by the bins', DURING)).toEqual({ told: true });
+		const told = [0, 1, 2, 3].map((i) => askForHelp(id, sam.id, { lat: 55 + i, lng: -4, accuracy: 10 }, 'by the bins', DURING).told);
+		expect(told).toEqual([true, true, true, false]);
+		expect(notes(alex.id, /come get/)).toHaveLength(4);
 		const all = listHelp(id, alex.id, DURING);
 		expect(all).toHaveLength(1);
 		expect(all[0].map).toContain('query=58,-4');
+		// Someone else's re-sends have their own allowance.
+		askForHelp(id, alex.id, null, '', DURING);
+		expect(askForHelp(id, alex.id, null, 'still here', DURING).told).toBe(true);
+	});
+
+	it('keeps the last good location when a re-send has none, and updates the note', () => {
+		const { id, sam, alex } = night();
+		askForHelp(id, sam.id, SPOT, 'by the bins', DURING);
+		askForHelp(id, sam.id, null, `round the back ${'x'.repeat(300)}`, DURING);
+		const [h] = listHelp(id, alex.id, DURING);
+		expect(h.map).toContain('query=55.8721,-4.2892');
+		expect(h.accuracy).toBe(25);
+		expect(h.note).toHaveLength(200);
+		expect(h.note.startsWith('round the back')).toBe(true);
+	});
+
+	it('always tells people about a new request, even straight after the last one was OK', () => {
+		const { id, sam, alex } = night();
+		askForHelp(id, sam.id, SPOT, '', DURING);
+		askForHelp(id, sam.id, SPOT, '', DURING);
+		askForHelp(id, sam.id, SPOT, '', DURING);
+		resolveHelp(id, sam.id, DURING);
+		expect(askForHelp(id, sam.id, null, 'really need help now', DURING)).toEqual({ told: true });
+		expect(notes(alex.id, /come get/)).toHaveLength(4);
+	});
+
+	it('stops telling people after 5 new requests in an hour, and then doesn’t stand them down either', () => {
+		const { id, sam, alex } = night();
+		for (let i = 0; i < 5; i++) {
+			expect(askForHelp(id, sam.id, null, '', DURING).told).toBe(true);
+			resolveHelp(id, sam.id, DURING);
+		}
+		expect(askForHelp(id, sam.id, null, '', DURING).told).toBe(false);
+		resolveHelp(id, sam.id, DURING);
+		expect(notes(alex.id, /come get/)).toHaveLength(5);
+		expect(notes(alex.id, /OK now/)).toHaveLength(5);
+		expect(notes(sam.id, /OK now|come get/)).toEqual([]);
+	});
+
+	it('starts afresh after 12 hours, without the old “on my way”s', () => {
+		const { id, sam, alex } = night();
+		askForHelp(id, sam.id, SPOT, '', DURING);
+		const old = listHelp(id, alex.id, DURING)[0].id;
+		onMyWay(id, alex.id, old);
+		askForHelp(id, sam.id, null, '', '2099-06-21T12:00');
+		const [h] = listHelp(id, sam.id, '2099-06-21T12:00');
+		expect(h.id).not.toBe(old);
+		expect(h.coming).toEqual([]);
+		expect(h.map).toBeNull();
+	});
+
+	it('lets you see and stand down your own request after you stop going', () => {
+		const { id, sam, alex } = night();
+		askForHelp(id, sam.id, SPOT, '', DURING);
+		setRsvp(id, sam.id, 'no');
+		expect(listHelp(id, sam.id, DURING).map((h) => h.mine)).toEqual([true]);
+		resolveHelp(id, sam.id, DURING);
+		expect(listHelp(id, alex.id, DURING)).toEqual([]);
 	});
 
 	it('tells the person once when someone is on their way, and not for their own request', () => {
@@ -79,6 +138,10 @@ describe('come get me', () => {
 		expect(listHelp(id, sam.id, DURING)[0].coming).toEqual(['Alex']);
 		expect(listHelp(id, alex.id, DURING)[0].iAmComing).toBe(true);
 		expect(listHelp(id, host.id, DURING)[0].iAmComing).toBe(false);
+		onMyWay(id, alex.id, request, false);
+		onMyWay(id, alex.id, request, false);
+		expect(notes(sam.id, /can’t come/)).toEqual(['Alex can’t come after all.']);
+		expect(listHelp(id, sam.id, DURING)[0].coming).toEqual([]);
 		expect(() => onMyWay(id, sam.id, request)).toThrow('your own');
 		expect(() => onMyWay(id, maybe.id, request)).toThrow('RSVP “going”');
 		const other = night();
@@ -103,11 +166,17 @@ describe('come get me', () => {
 		expect(listHelp(id, alex.id, '2099-06-21T11:30')).toHaveLength(1);
 		expect(listHelp(id, alex.id, '2099-06-21T11:31')).toEqual([]);
 		const count = () => (db.prepare('SELECT COUNT(*) AS n FROM help_requests WHERE event_id = ?').get(id) as { n: number }).n;
+		const lat = () => (db.prepare('SELECT lat FROM help_requests WHERE event_id = ?').get(id) as { lat: number | null }).lat;
+		purgeHelp('2099-06-21T11:30');
+		expect(lat()).toBe(SPOT.lat);
+		purgeHelp('2099-06-21T11:31');
+		expect(lat()).toBeNull();
 		purgeHelp('2099-06-27T23:30');
 		expect(count()).toBe(1);
 		purgeHelp('2099-06-27T23:31');
 		expect(count()).toBe(0);
 		askForHelp(id, alex.id, SPOT, '', DURING);
+		expect((exportData(alex.id).help_requests as { lat: number }[]).map((r) => r.lat)).toEqual([SPOT.lat]);
 		deleteAccount(alex.id);
 		expect(count()).toBe(0);
 	});

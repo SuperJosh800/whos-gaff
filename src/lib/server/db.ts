@@ -513,6 +513,7 @@ const migrations: string[] = [
 		accuracy INTEGER,
 		note TEXT NOT NULL DEFAULT '',
 		at TEXT NOT NULL,
+		told INTEGER NOT NULL DEFAULT 0,
 		resolved_at TEXT
 	);
 	CREATE INDEX help_requests_event ON help_requests (event_id, resolved_at);
