@@ -19,6 +19,7 @@ import { eventInput } from '#lib/server/form.ts';
 import { canSeeAddress } from '#lib/server/gaff.ts';
 import { getDrinks, logDrink, undoDrink, WATER_EVERY } from '#lib/server/drinks.ts';
 import { askForHelp, helpWindow, listHelp, onMyWay, readSpot, resolveHelp } from '#lib/server/help.ts';
+import { armDrop, cancelDrop, getDrops, sendDropPhoto } from '#lib/server/photoDrops.ts';
 import { callOut, completeMission, getMissions, swapMission, takeMission } from '#lib/server/missions.ts';
 import { nowLocal } from '#lib/time.ts';
 import { AWARDS, getPredictions, savePredictions } from '#lib/server/after.ts';
@@ -49,6 +50,8 @@ export const load: PageServerLoad = async ({ params, parent, locals }) => {
 		buddies: getBuddies(event.id, locals.user!.id),
 		help: listHelp(event.id, locals.user!.id),
 		helpWindow: helpWindow(event),
+		drops: getDrops(event.id, locals.user!.id),
+		nowMs: Date.now(),
 		drinks: getDrinks(event.id, locals.user!.id),
 		waterEvery: WATER_EVERY,
 		// No transport API yet: link out to journey planning from the venue (WG-17).
@@ -90,6 +93,18 @@ export const actions: Actions = {
 	imOk: async (e) => {
 		const { userId, eventId } = await eventInput(e);
 		return asAction(() => resolveHelp(eventId, userId));
+	},
+	armDrop: async (e) => {
+		const { userId, eventId, get } = await eventInput(e);
+		return asAction(() => armDrop(eventId, userId, get('when') === 'now' ? 'now' : 'random'));
+	},
+	cancelDrop: async (e) => {
+		const { userId, eventId } = await eventInput(e);
+		return asAction(() => cancelDrop(eventId, userId));
+	},
+	dropPhoto: async (e) => {
+		const { userId, eventId, get, form } = await eventInput(e);
+		return asAction(() => sendDropPhoto(eventId, userId, Number(get('drop')), form.get('photo') as File | null));
 	},
 	drink: async (e) => {
 		const { userId, eventId, get } = await eventInput(e);

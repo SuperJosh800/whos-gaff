@@ -55,7 +55,8 @@ const PERSONAL: [table: string, column: string][] = [
 	['help_requests', 'user_id'],
 	['help_responders', 'user_id'],
 	['song_requests', 'suggested_by'],
-	['song_votes', 'user_id']
+	['song_votes', 'user_id'],
+	['drop_photos', 'user_id']
 ];
 
 /** Everything stored about a user, as plain data for a JSON download. Passwords and session tokens are left out. */
@@ -129,7 +130,7 @@ export function deleteAccount(userId: number) {
 			'sessions', 'password_resets', 'push_subscriptions', 'event_members', 'rsvps', 'votes', 'messages', 'notifications',
 			'moves', 'home_plans', 'home_safe', 'group_members', 'free_gaffs', 'pings', 'ping_answers',
 			'event_photos', 'challenge_results', 'game_players', 'round_group_members',
-			'missions', 'bingo_cards', 'buddies', 'ticket_holders', 'theme_votes', 'venue_votes', 'waitlist', 'drivers', 'drink_log', 'help_responders', 'help_requests', 'song_votes'
+			'missions', 'bingo_cards', 'buddies', 'ticket_holders', 'theme_votes', 'venue_votes', 'waitlist', 'drivers', 'drink_log', 'help_responders', 'help_requests', 'song_votes', 'drop_photos'
 		]) {
 			db.prepare(`DELETE FROM ${table} WHERE user_id = ?`).run(userId);
 		}

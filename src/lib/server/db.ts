@@ -541,6 +541,22 @@ const migrations: string[] = [
 		user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
 		PRIMARY KEY (song_id, user_id)
 	);
+	`,
+	`
+	-- Photo drop: when each drop goes off (ms since 1970, kept secret until then) and the photo each person sent.
+	CREATE TABLE photo_drops (
+		id INTEGER PRIMARY KEY,
+		event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+		fire_at INTEGER NOT NULL,
+		notified INTEGER NOT NULL DEFAULT 0
+	);
+	CREATE INDEX photo_drops_due ON photo_drops (notified, fire_at);
+	CREATE TABLE drop_photos (
+		drop_id INTEGER NOT NULL REFERENCES photo_drops(id) ON DELETE CASCADE,
+		user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		photo_id INTEGER NOT NULL REFERENCES event_photos(id) ON DELETE CASCADE,
+		PRIMARY KEY (drop_id, user_id)
+	);
 	`
 ];
 
