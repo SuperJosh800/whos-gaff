@@ -650,6 +650,24 @@ const migrations: string[] = [
 		result INTEGER,
 		PRIMARY KEY (bet_id, user_id)
 	);
+	`,
+	// Lost property after a night: what people lost or found, and who replied ("I've got it" / "That's mine").
+	`
+	CREATE TABLE lost_items (
+		id INTEGER PRIMARY KEY,
+		event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+		user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		kind TEXT NOT NULL CHECK (kind IN ('lost', 'found')),
+		text TEXT NOT NULL,
+		posted_at INTEGER NOT NULL,
+		sorted INTEGER NOT NULL DEFAULT 0
+	);
+	CREATE INDEX lost_items_event ON lost_items (event_id);
+	CREATE TABLE lost_replies (
+		item_id INTEGER NOT NULL REFERENCES lost_items(id) ON DELETE CASCADE,
+		user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		PRIMARY KEY (item_id, user_id)
+	);
 	`
 ];
 
