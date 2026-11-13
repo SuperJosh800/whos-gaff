@@ -16,7 +16,7 @@
 		if (part === 'num') return d.getUTCDate();
 		return d.toLocaleDateString('en-GB', { timeZone: 'UTC', ...(part === 'short' ? { weekday: 'short' } : { month: 'short' }) });
 	};
-	const noReply = $derived(event.invited - event.going - event.maybe - event.not_going);
+	const noReply = $derived(event.invited - event.going - event.maybe - event.not_going - event.waiting);
 </script>
 
 <a href="/events/{event.id}" class="grid grid-cols-[4.5rem_1fr] hover:bg-zinc-100">
@@ -43,6 +43,7 @@
 				<span class="text-amber-700">{event.maybe} maybe</span>
 				<span class="text-red-700">{event.not_going} can't</span>
 				<span class="text-zinc-500">{noReply} no reply</span>
+				{#if event.waiting}<span class="text-amber-700">{event.waiting} waiting</span>{/if}
 			{:else}
 				<span class="text-zinc-700">{event.voters} of {event.invited} voted</span>
 				{#if event.vote_deadline && event.status === 'voting'}
@@ -51,6 +52,8 @@
 			{/if}
 			{#if event.todo}
 				<span class="badge ml-auto text-hot">{todos[event.todo]}</span>
+			{:else if event.waitlisted}
+				<span class="badge ml-auto text-amber-700">On the waitlist</span>
 			{/if}
 		</div>
 	</div>

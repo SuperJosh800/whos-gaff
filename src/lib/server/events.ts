@@ -390,11 +390,15 @@ export function setRsvp(eventId: number, userId: number, response: Rsvp) {
 }
 
 /** The host caps how many can go (host included), or lifts the cap with null. Raising it lets people in off the waitlist. */
-export function setGuestLimit(eventId: number, hostId: number, limit: number | null) {
-	requireHost(eventId, hostId);
+export function checkGuestLimit(limit: number | null) {
 	if (limit !== null && (!Number.isInteger(limit) || limit < 2 || limit > 500)) {
 		throw new EventError('The guest limit has to be between 2 and 500, counting you.');
 	}
+}
+
+export function setGuestLimit(eventId: number, hostId: number, limit: number | null) {
+	requireHost(eventId, hostId);
+	checkGuestLimit(limit);
 	db.prepare('UPDATE events SET guest_limit = ? WHERE id = ?').run(limit, eventId);
 	fillSpots(eventId);
 	publish(eventId);
@@ -405,7 +409,9 @@ export function fillSpots(eventId: number) {
 	const promoted = tx(() => {
 		const event = getEvent(eventId);
 		if (!event) return null;
-		const queue = db.prepare('SELECT user_id FROM waitlist WHERE event_id = ? ORDER BY id').all(eventId) as { user_id: number }[];
+		const queue = db
+			.prepare('SELECT user_id FROM waitlist WHERE event_id = ? AND user_id != ? ORDER BY id')
+			.all(eventId, event.host_id) as { user_id: number }[];
 		const room = event.guest_limit === null ? queue.length : Math.max(0, event.guest_limit - goingCount(eventId));
 		const lucky = queue.slice(0, room).map((q) => q.user_id);
 		for (const id of lucky) {

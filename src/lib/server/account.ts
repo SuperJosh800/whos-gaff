@@ -105,6 +105,8 @@ export function deleteAccount(userId: number) {
 				// The gaff profile belongs to the old host and is deleted with them, so detach it.
 				// The repeat stops too: the new host didn't set it up, and may not be in the group it invites.
 				db.prepare('UPDATE events SET host_id = ?, gaff_id = NULL, repeat_days = NULL WHERE id = ?').run(heir.user_id, id);
+				// Hosts always count as going, so the new one can't also be queuing for a spot.
+				db.prepare('DELETE FROM waitlist WHERE event_id = ? AND user_id = ?').run(id, heir.user_id);
 			} else {
 				photos.push(...(db.prepare('SELECT filename FROM event_photos WHERE event_id = ?').all(id) as { filename: string }[]).map((p) => p.filename));
 				db.prepare('DELETE FROM events WHERE id = ?').run(id);

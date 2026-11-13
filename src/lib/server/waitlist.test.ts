@@ -5,6 +5,7 @@ import { createEvent, getEvent, joinByToken, listWaitlist, setGuestLimit, setRsv
 import { goingPeople } from './money.ts';
 import { deleteAccount, exportData } from './account.ts';
 import { makeRepeats, setRepeat } from './repeats.ts';
+import { listDashboardEvents } from './dashboard.ts';
 
 let n = 0;
 const user = (name: string) => signUp(`${name}${++n}@waitlist.test`, name, 'correct-horse-9') as User;
@@ -34,7 +35,7 @@ describe('guest limit and waitlist', () => {
 	});
 
 	it('counts the host, and puts anyone past the limit on the waitlist in order', () => {
-		const { id, a, b, c, d } = gaff();
+		const { id, host, a, b, c, d } = gaff();
 		expect(setRsvp(id, a.id, 'yes')).toBe('set');
 		expect(setRsvp(id, b.id, 'yes')).toBe('set');
 		expect(setRsvp(id, c.id, 'yes')).toBe('waitlisted');
@@ -42,9 +43,26 @@ describe('guest limit and waitlist', () => {
 		expect(setRsvp(id, c.id, 'yes')).toBe('waitlisted'); // asking again keeps their place
 		expect(going(id)).toEqual(['Host', 'A', 'B']);
 		expect(queue(id)).toEqual(['C', 'D']);
-		// Saying yes again when you're already going isn't blocked by the limit.
+		// Saying yes again when you're already going isn't blocked by the limit, and nor is the host.
 		expect(setRsvp(id, a.id, 'yes')).toBe('set');
+		expect(setRsvp(id, host.id, 'yes')).toBe('set');
 		expect(going(id)).toEqual(['Host', 'A', 'B']);
+		expect(queue(id)).toEqual(['C', 'D']);
+	});
+
+	it('keeps a waitlisted person’s earlier answer, and the dashboard shows them waiting, not to-do', () => {
+		const { id, a, b, c, d } = gaff();
+		setRsvp(id, a.id, 'yes');
+		setRsvp(id, b.id, 'yes');
+		setRsvp(id, c.id, 'maybe');
+		setRsvp(id, c.id, 'yes');
+		setRsvp(id, d.id, 'yes');
+		expect(db.prepare('SELECT response FROM rsvps WHERE event_id = ? AND user_id = ?').get(id, c.id)).toEqual({ response: 'maybe' });
+		expect(db.prepare('SELECT response FROM rsvps WHERE event_id = ? AND user_id = ?').get(id, d.id)).toBeUndefined();
+		const card = (u: User) => listDashboardEvents(u.id, '2099-01-01T00:00').upcoming.find((e) => e.id === id)!;
+		expect(card(d)).toMatchObject({ todo: null, waitlisted: 1, waiting: 2, maybe: 0 });
+		expect(card(c)).toMatchObject({ todo: null, waitlisted: 1 });
+		expect(card(a)).toMatchObject({ todo: null, waitlisted: 0, going: 2 });
 	});
 
 	it('gives a freed spot to the first on the waitlist and tells them, and maybe or no leaves the queue', () => {
@@ -91,6 +109,23 @@ describe('guest limit and waitlist', () => {
 		expect(notes(c)).toEqual([SPOT]);
 		deleteAccount(c.id);
 		expect(db.prepare('SELECT COUNT(*) AS n FROM waitlist WHERE user_id = ?').get(c.id)).toEqual({ n: 0 });
+	});
+
+	it('someone taking over a deleted host’s night leaves the waitlist, and the next in line gets the spot', () => {
+		const { id, host, a, b, c, d } = gaff();
+		// C joined the event first, so C takes over if the host goes.
+		db.prepare(`UPDATE event_members SET joined_at = '2000-01-01' WHERE event_id = ? AND user_id = ?`).run(id, c.id);
+		setRsvp(id, a.id, 'yes');
+		setRsvp(id, b.id, 'yes');
+		setRsvp(id, c.id, 'yes');
+		setRsvp(id, d.id, 'yes');
+		deleteAccount(host.id);
+		expect(getEvent(id)!.host_id).toBe(c.id);
+		expect(queue(id)).toEqual(['D']);
+		setRsvp(id, a.id, 'no');
+		expect(going(id)).toEqual(['B', 'C', 'D']);
+		expect(notes(c)).toEqual([]);
+		expect(notes(d)).toEqual([SPOT]);
 	});
 
 	it('repeat nights keep the limit', () => {

@@ -12,6 +12,7 @@ import {
 	postMessage,
 	removeOption,
 	setPlaylist,
+	checkGuestLimit,
 	setGuestLimit,
 	setRsvp,
 	listWaitlist,
@@ -79,7 +80,9 @@ export const actions: Actions = {
 	},
 	rsvp: async (e) => {
 		const { userId, eventId, get } = await eventInput(e);
-		return asAction(() => ({ rsvp: setRsvp(eventId, userId, get('response') as Rsvp) }));
+		return asAction(() => {
+			setRsvp(eventId, userId, get('response') as Rsvp);
+		});
 	},
 	message: async (e) => {
 		const { userId, eventId, get } = await eventInput(e);
@@ -147,8 +150,10 @@ export const actions: Actions = {
 		const { userId, eventId, get } = await eventInput(e);
 		return asAction(() => {
 			// The repeat goes first: it's the one most likely to be refused, and nothing is saved if it is.
+			const limit = get('guest_limit') ? Number(get('guest_limit')) : null;
+			checkGuestLimit(limit);
 			setRepeat(eventId, userId, get('repeat') ? Number(get('repeat')) : null);
-			setGuestLimit(eventId, userId, get('guest_limit') ? Number(get('guest_limit')) : null);
+			setGuestLimit(eventId, userId, limit);
 			setPlaylist(eventId, userId, get('playlist_url'));
 			attachGaff(eventId, userId, Number(get('gaff')) || null);
 			return { saved: true };

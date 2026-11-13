@@ -10,8 +10,8 @@
 	const going = $derived(data.attendees.filter((a) => a.response === 'yes' || a.is_host).length);
 	const full = $derived(limit !== null && going >= limit);
 	const place = $derived(data.waitlist.findIndex((w) => w.id === page.data.user?.id) + 1);
-	// What each person shows as: the host counts as going until they say otherwise.
-	const shownAs = (a: (typeof data.attendees)[number]) => a.response ?? (a.is_host ? 'yes' : null);
+	// What each person shows as. The host always counts as going (for the kitty, rounds and the guest limit too).
+	const shownAs = (a: (typeof data.attendees)[number]) => (a.is_host ? 'yes' : a.response);
 	// Being on the waitlist is your answer, whatever you'd said before.
 	const mine = $derived(place ? 'yes' : me && shownAs(me));
 	const groups = $derived([
@@ -29,20 +29,24 @@
 
 <section class="card space-y-4">
 	<h2>Are you coming?</h2>
-	<form method="POST" action="?/rsvp" use:enhance class="strip">
-		{#each choices as c (c.value)}
-			<button name="response" value={c.value} aria-pressed={mine === c.value} class={mine === c.value ? c.on : ''}>
-				{#if c.value === 'yes' && place}On the waitlist{:else if c.value === 'yes' && full && mine !== 'yes'}Join the waitlist{:else}{c.label}{/if}
-			</button>
-		{/each}
-	</form>
+	{#if me?.is_host}
+		<p class="text-sm text-zinc-600">You’re hosting, so you’re down as going.</p>
+	{:else}
+		<form method="POST" action="?/rsvp" use:enhance class="strip">
+			{#each choices as c (c.value)}
+				<button name="response" value={c.value} aria-pressed={mine === c.value} class={mine === c.value ? c.on : ''}>
+					{#if c.value === 'yes' && place}On the waitlist{:else if c.value === 'yes' && full && mine !== 'yes'}Join the waitlist{:else}{c.label}{/if}
+				</button>
+			{/each}
+		</form>
+	{/if}
 
 	{#if limit !== null}
 		<p class="text-sm {full ? 'text-amber-700' : 'text-zinc-600'}" role="status">
 			{#if place}
 				You’re number {place} on the waitlist. You’ll get a notification if a spot opens up.
 			{:else if full}
-				Full: {going} of {limit} going.{data.waitlist.length ? ` ${data.waitlist.length} on the waitlist.` : ''}
+				{going > limit ? `Over the limit: ${going} going, limit ${limit}.` : `Full: ${going} of ${limit} going.`}{data.waitlist.length ? ` ${data.waitlist.length} on the waitlist.` : ''}
 			{:else}
 				{going} of {limit} spots taken.
 			{/if}
