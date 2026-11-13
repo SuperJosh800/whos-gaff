@@ -1,12 +1,19 @@
 <script lang="ts">
-	import { enhance } from '$app/forms';
+	import { enhance, type SubmitFunction } from '$app/forms';
 	import type { PageData } from './$types';
 
 	let { data, nudged }: { data: PageData; nudged?: number } = $props();
 	const t = $derived(data.tickets);
 	const pounds = (pence: number) => `£${(pence / 100).toFixed(2)}`;
 	let editing = $state(false);
-	const keep = () => async ({ update, result }: { update: (o?: { reset?: boolean }) => Promise<void>; result: { type: string } }) => {
+	let error = $state('');
+	// Shows a failed save, tap or nudge here in the card, not at the top of the page.
+	const submit: SubmitFunction = () => async ({ update, result }) => {
+		if (result.type === 'failure') {
+			error = String(result.data?.error ?? 'Something went wrong.');
+			return;
+		}
+		error = '';
 		await update({ reset: false });
 		if (result.type === 'success') editing = false;
 	};
@@ -15,6 +22,7 @@
 {#if t || data.isHost}
 	<section class="card space-y-4">
 		<h2>Tickets</h2>
+		{#if error}<p class="error" role="alert">{error}</p>{/if}
 		{#if t && !editing}
 			<div class="grid grid-cols-[1fr_auto] border border-zinc-200">
 				<div class="min-w-0 px-3 py-2.5">
@@ -27,7 +35,7 @@
 			</div>
 
 			{#if t.going}
-				<form method="POST" action="?/ticket" use:enhance class="strip">
+				<form method="POST" action="?/ticket" use:enhance={submit} class="strip">
 					<button name="have" value="1" aria-pressed={t.mine}>Got my ticket</button>
 					<button name="have" value="0" aria-pressed={!t.mine}>Still need one</button>
 				</form>
@@ -53,18 +61,18 @@
 					{#if !t.canNudge}
 						<span class="text-sm text-zinc-500" role="status">{nudged ? `Nudged ${nudged} ${nudged === 1 ? 'person' : 'people'}.` : 'Nudged in the last hour.'}</span>
 					{:else if t.need.some((p) => p.id !== data.event.host_id)}
-						<form method="POST" action="?/nudgeTickets" use:enhance>
+						<form method="POST" action="?/nudgeTickets" use:enhance={submit}>
 							<button class="btn-small">Nudge the rest</button>
 						</form>
 					{/if}
-					<button type="button" class="text-sm font-semibold text-zinc-500 underline underline-offset-4" onclick={() => (editing = true)}>Edit tickets</button>
+					<button type="button" class="text-sm font-semibold text-zinc-500 underline underline-offset-4" onclick={() => ((editing = true), (error = ''))}>Edit tickets</button>
 				</div>
 			{/if}
 		{:else}
-			<form method="POST" action="?/tickets" use:enhance={keep} class="space-y-3">
+			<form method="POST" action="?/tickets" use:enhance={submit} class="space-y-3">
 				<div>
 					<label class="label" for="ticket_url">Ticket link</label>
-					<input class="input" id="ticket_url" name="url" type="url" placeholder="https://…" value={t?.url ?? ''} />
+					<input class="input" id="ticket_url" name="url" type="url" maxlength="500" placeholder="https://…" value={t?.url ?? ''} />
 				</div>
 				<div>
 					<label class="label" for="ticket_price">Price each</label>
@@ -77,10 +85,10 @@
 				<div class="flex flex-wrap items-center gap-3">
 					<button class="btn">{t ? 'Save tickets' : 'Add tickets'}</button>
 					{#if t}
-						<button type="button" class="text-sm font-semibold text-zinc-500 underline underline-offset-4" onclick={() => (editing = false)}>Cancel</button>
+						<button type="button" class="text-sm font-semibold text-zinc-500 underline underline-offset-4" onclick={() => ((editing = false), (error = ''))}>Cancel</button>
 					{/if}
 				</div>
-				<p class="text-xs text-zinc-500">Going to a club? Add where to buy and everyone going can mark when they’ve got theirs. Clear every box and save to remove them.</p>
+				<p class="text-xs text-zinc-500">Going to a club? Add where to buy and everyone going can mark when they’ve got theirs. Clear every box and save to remove them, along with everyone’s ticket marks.</p>
 			</form>
 		{/if}
 	</section>

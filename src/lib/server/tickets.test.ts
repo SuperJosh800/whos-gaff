@@ -30,6 +30,8 @@ describe('tickets', () => {
 		expect(() => setTickets(id, host.id, { url: 'javascript:alert(1)', price: '', note: '' })).toThrow('https://');
 		expect(() => setTickets(id, host.id, { url: 'http://tix.example', price: '', note: '' })).toThrow('https://');
 		expect(() => setTickets(id, host.id, { url: LINK, price: 'twelve', note: '' })).toThrow('like 12.50');
+		expect(() => setTickets(id, host.id, { url: '', price: '10', note: '' })).toThrow('https://');
+		expect(() => setTickets(id, host.id, { url: `${LINK}?${'x'.repeat(500)}`, price: '', note: '' })).toThrow('too long');
 		setTickets(id, host.id, { url: LINK, price: '£12.5', note: 'Last entry 11:30' });
 		setTickets(id, host.id, { url: LINK, price: '14', note: 'Last entry 11:30' }); // price went up
 		expect(getTickets(id, a.id)).toMatchObject({ url: LINK, price_pence: 1400, note: 'Last entry 11:30' });
@@ -44,11 +46,14 @@ describe('tickets', () => {
 		setTickets(id, host.id, { url: LINK, price: '', note: '' });
 		setHaveTicket(id, a.id, true);
 		setHaveTicket(id, a.id, true); // a double tap changes nothing
+		setHaveTicket(id, host.id, true); // the host counts as going without an RSVP
 		expect(() => setHaveTicket(id, maybe.id, true)).toThrow('RSVP “going”');
+		expect(getTickets(id, maybe.id)).toMatchObject({ url: LINK, going: false, mine: false });
 		let t = getTickets(id, b.id)!;
-		expect(names(t.have)).toEqual(['A']);
-		expect(names(t.need)).toEqual(['Host', 'B']);
+		expect(names(t.have)).toEqual(['Host', 'A']);
+		expect(names(t.need)).toEqual(['B']);
 		expect(t.mine).toBe(false);
+		setHaveTicket(id, host.id, false);
 		// Someone who stops going drops off both lists, and comes back with their ticket.
 		setRsvp(id, a.id, 'no');
 		expect(names(getTickets(id, b.id)!.have)).toEqual([]);
@@ -75,14 +80,37 @@ describe('tickets', () => {
 		expect(() => nudgeTickets(id, host.id, 1000 + NUDGE_GAP_MS)).toThrow('Everyone going');
 	});
 
-	it('clearing every box removes them, and accounts export and delete their tickets', () => {
+	it('keeps strangers and undated polls out', () => {
+		const { id, host } = club();
+		const stranger = user('Stranger');
+		setTickets(id, host.id, { url: LINK, price: '', note: '' });
+		expect(() => getTickets(id, stranger.id)).toThrow('not invited');
+		expect(() => setHaveTicket(id, stranger.id, true)).toThrow('not invited');
+		const poll = createEvent(host.id, { title: 'Poll', mode: 'poll', options: ['2099-07-01T20:00', '2099-07-02T20:00'] });
+		expect(() => setTickets(poll, host.id, { url: LINK, price: '', note: '' })).toThrow('once the date is set');
+	});
+
+	it('clearing and re-adding doesn’t re-announce, reset the nudge limit, or keep old marks', () => {
+		const { id, host, a, b } = club();
+		setTickets(id, host.id, { url: LINK, price: '', note: '' });
+		setHaveTicket(id, a.id, true);
+		nudgeTickets(id, host.id, 1000);
+		const before = notes(b).length;
+		setTickets(id, host.id, { url: '', price: '', note: '' });
+		expect(getTickets(id, a.id)).toBeNull();
+		expect(() => setHaveTicket(id, a.id, true)).toThrow('hasn’t added tickets');
+		setTickets(id, host.id, { url: 'https://dice.fm/other-night', price: '', note: '' });
+		expect(notes(b).length).toBe(before);
+		expect(getTickets(id, a.id, 2000)).toMatchObject({ mine: false, canNudge: false });
+		expect(() => nudgeTickets(id, host.id, 2000)).toThrow('last hour');
+	});
+
+	it('accounts export and delete their tickets', () => {
 		const { id, host, a } = club();
 		setTickets(id, host.id, { url: LINK, price: '', note: '' });
 		setHaveTicket(id, a.id, true);
 		expect(exportData(a.id)).toMatchObject({ ticket_holders: [{ event_id: id, user_id: a.id }] });
 		deleteAccount(a.id);
 		expect(names(getTickets(id, host.id)!.have)).toEqual([]);
-		setTickets(id, host.id, { url: ' ', price: '', note: '' });
-		expect(getTickets(id, host.id)).toBeNull();
 	});
 });

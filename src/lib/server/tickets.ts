@@ -11,39 +11,50 @@ export const NUDGE_GAP_MS = 60 * 60 * 1000;
 
 type TicketRow = { url: string; price_pence: number | null; note: string; nudged_at: number | null };
 
-const ticketRow = (eventId: number) =>
+// Removing the tickets blanks the row rather than deleting it, so the hourly nudge limit and the
+// first-time announcement survive the host clearing and re-adding them. A blank link means no tickets.
+const storedRow = (eventId: number) =>
 	db.prepare('SELECT url, price_pence, note, nudged_at FROM tickets WHERE event_id = ?').get(eventId) as TicketRow | undefined;
+const ticketRow = (eventId: number) => {
+	const row = storedRow(eventId);
+	return row?.url ? row : undefined;
+};
+
+function requireDated<T extends { starts_at: string | null }>(event: T) {
+	if (!event.starts_at) throw new EventError('Tickets open once the date is set.');
+	return event;
+}
 
 /**
  * Sets the ticket link, price and a note (such as "last entry 11:30"). Saving with everything empty takes
- * the tickets off the event. People going hear about it the first time tickets are added.
+ * the tickets off the event, along with everyone's marks. People going hear about it only the first time.
  */
 export function setTickets(eventId: number, hostId: number, input: { url: string; price: string; note: string }) {
-	const event = requireHost(eventId, hostId);
+	const event = requireDated(requireHost(eventId, hostId));
 	const url = input.url.trim();
 	const price = input.price.trim();
 	const note = input.note.trim().slice(0, 200);
 	if (!url && !price && !note) {
-		db.prepare('DELETE FROM tickets WHERE event_id = ?').run(eventId);
+		db.prepare(`UPDATE tickets SET url = '', price_pence = NULL, note = '' WHERE event_id = ?`).run(eventId);
+		db.prepare('DELETE FROM ticket_holders WHERE event_id = ?').run(eventId);
 		publish(eventId);
 		return;
 	}
-	if (url) {
-		let parsed: URL | null = null;
-		try {
-			parsed = new URL(url);
-		} catch {
-			/* checked below */
-		}
-		if (parsed?.protocol !== 'https:') throw new EventError('Paste the ticket link, starting https://');
+	let parsed: URL | null = null;
+	try {
+		parsed = new URL(url);
+	} catch {
+		/* checked below */
 	}
+	if (parsed?.protocol !== 'https:') throw new EventError('Paste the ticket link, starting https://');
+	if (url.length > 500) throw new EventError('That link is too long. Paste the event page instead.');
 	const pence = price ? parsePounds(price) : null;
 	if (price && !pence) throw new EventError('Enter a price like 12.50, or leave it blank.');
-	const isNew = !ticketRow(eventId);
+	const isNew = !storedRow(eventId);
 	db.prepare(
 		`INSERT INTO tickets (event_id, url, price_pence, note) VALUES (?, ?, ?, ?)
 		 ON CONFLICT (event_id) DO UPDATE SET url = excluded.url, price_pence = excluded.price_pence, note = excluded.note`
-	).run(eventId, url.slice(0, 500), pence, note);
+	).run(eventId, url, pence, note);
 	if (isNew) {
 		const cost = pence ? ` (${formatPounds(pence)})` : '';
 		for (const p of goingPeople(eventId)) {
@@ -55,7 +66,7 @@ export function setTickets(eventId: number, hostId: number, input: { url: string
 
 /** Marks whether you've got your ticket. Only people going (and the host) need one. */
 export function setHaveTicket(eventId: number, userId: number, have: boolean) {
-	requireMember(eventId, userId);
+	requireDated(requireMember(eventId, userId));
 	if (!ticketRow(eventId)) throw new EventError('The host hasn’t added tickets yet.');
 	if (have) {
 		if (!goingPeople(eventId).some((p) => p.id === userId)) throw new EventError('RSVP “going” first.');
@@ -89,7 +100,7 @@ export function getTickets(eventId: number, userId: number, now = Date.now()) {
 
 /** The host reminds everyone going who hasn't got a ticket. At most once an hour. Returns how many were nudged. */
 export function nudgeTickets(eventId: number, hostId: number, now = Date.now()) {
-	const event = requireHost(eventId, hostId);
+	const event = requireDated(requireHost(eventId, hostId));
 	const tickets = getTickets(eventId, hostId, now);
 	if (!tickets) throw new EventError('Add the tickets first.');
 	if (!tickets.canNudge) throw new EventError('You’ve nudged them in the last hour. Give them a minute.');
