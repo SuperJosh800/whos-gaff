@@ -628,6 +628,28 @@ const migrations: string[] = [
 		correct INTEGER NOT NULL,
 		PRIMARY KEY (question_id, user_id)
 	);
+	`,
+	// Bets with pretend coins. outcome is set when settled ('off' gives everyone their coins back), and
+	// each stake's result is the coins it won (positive) or lost (negative).
+	`
+	CREATE TABLE bets (
+		id INTEGER PRIMARY KEY,
+		event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+		proposer_id INTEGER NOT NULL REFERENCES users(id),
+		text TEXT NOT NULL,
+		outcome TEXT CHECK (outcome IN ('yes', 'no', 'off')),
+		settled_by INTEGER REFERENCES users(id),
+		created_at TEXT NOT NULL DEFAULT (datetime('now'))
+	);
+	CREATE INDEX bets_event ON bets (event_id);
+	CREATE TABLE bet_stakes (
+		bet_id INTEGER NOT NULL REFERENCES bets(id) ON DELETE CASCADE,
+		user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		side TEXT NOT NULL CHECK (side IN ('yes', 'no')),
+		coins INTEGER NOT NULL CHECK (coins > 0),
+		result INTEGER,
+		PRIMARY KEY (bet_id, user_id)
+	);
 	`
 ];
 

@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { enhance } from '$app/forms';
+	import { enhance, type SubmitFunction } from '$app/forms';
+	import { page } from '$app/state';
 	import { GAMES, GAME_IDS, SETTINGS, SETTING_IDS, type Setting } from '#lib/activities.ts';
 	import type { Activity } from '#lib/server/activities.ts';
 	import { isRed, type PlayingCard } from '#lib/turnGames.ts';
@@ -16,6 +17,23 @@
 	const gameMode = $derived(!!a && a.started && a.joined && !minimised && !picking);
 	const builtIns = $derived(GAME_IDS.map((id) => GAMES[id]).filter((g) => g.setting === tab));
 	const outcomes = { done: 'pulled it off', bailed: 'bailed', caught: 'got caught' };
+	const me = $derived(page.data.user?.id);
+	const b = $derived(data.bets);
+	const openBets = $derived(b.bets.filter((x) => !x.outcome));
+	const settledBets = $derived(b.bets.filter((x) => x.outcome));
+	let betError = $state('');
+	// Shows a failed bet here in the section rather than at the top of the page.
+	const showBetError: ReturnType<SubmitFunction> = async ({ update, result }) => {
+		betError = result.type === 'failure' ? String(result.data?.error ?? 'Something went wrong.') : '';
+		if (result.type !== 'failure') await update();
+	};
+	const inBets: SubmitFunction = () => showBetError;
+	// enhance sends the form even when a submit handler prevents it, so the confirm cancels it here.
+	const confirmSettle: SubmitFunction = ({ formData, cancel }) => {
+		const outcome = String(formData.get('outcome'));
+		if (!confirm(outcome === 'off' ? 'Call it off and give everyone their coins back?' : `Settle it as ${outcome.toUpperCase()}? This pays out.`)) cancel();
+		return showBetError;
+	};
 	const closePicker = () => async ({ update }: { update: () => Promise<void> }) => {
 		picking = false;
 		minimised = false;
@@ -400,6 +418,95 @@
 			</div>
 		</section>
 	{/if}
+
+	<section class="card space-y-4" id="bets">
+		<div class="flex items-baseline justify-between gap-3">
+			<h2>Bets</h2>
+			{#if b.wallet !== null}<span class="text-[11px] font-extrabold tracking-widest text-zinc-500 uppercase">You’ve got <span class="text-lime">{b.wallet}</span> coins</span>{/if}
+		</div>
+		{#if betError}<p class="error" role="alert">{betError}</p>{/if}
+		{#each openBets as x (x.id)}
+			<div class="border border-zinc-200">
+				<div class="flex items-start justify-between gap-3 px-3 py-2.5">
+					<p class="min-w-0 break-words"><span class="block text-[11px] font-extrabold tracking-widest text-zinc-500 uppercase">{x.proposer_id === me ? 'Your' : `${x.proposer}’s`} bet</span>
+						<span class="text-lg leading-tight font-black">{x.text}</span></p>
+					<p class="shrink-0 text-right text-xs text-zinc-500 tabular-nums">Yes <strong class="text-zinc-900">{x.yes}</strong><br />No <strong class="text-zinc-900">{x.no}</strong></p>
+				</div>
+				{#if b.wallet !== null}
+					<form method="POST" action="?/stake" use:enhance={inBets} class="border-t border-zinc-200">
+						<input type="hidden" name="bet" value={x.id} />
+						<div class="grid grid-cols-[1fr_5rem_auto]">
+							<div class="strip border-0" role="radiogroup" aria-label="Your side">
+								<label class="has-focus-visible:outline-2 has-focus-visible:outline-hot"><input class="sr-only" type="radio" name="side" value="yes" checked={x.mine?.side !== 'no'} />Yes</label>
+								<label class="has-focus-visible:outline-2 has-focus-visible:outline-hot"><input class="sr-only" type="radio" name="side" value="no" checked={x.mine?.side === 'no'} />No</label>
+							</div>
+							<input class="input border-y-0 text-center" name="coins" type="number" min="1" step="1" required value={x.mine?.coins ?? 10} aria-label="Coins" />
+							<button class="btn border-0 px-3">{x.mine ? 'Change' : 'Bet'}</button>
+						</div>
+					</form>
+					{#if x.mine}
+						<form method="POST" action="?/stake" use:enhance={inBets} class="flex items-center justify-between gap-3 border-t border-zinc-200 px-3 py-2 text-xs">
+							<input type="hidden" name="bet" value={x.id} />
+							<input type="hidden" name="side" value={x.mine.side} />
+							<input type="hidden" name="coins" value="0" />
+							<span>You’ve got <strong class="text-lime">{x.mine.coins}</strong> on <strong class="uppercase">{x.mine.side}</strong></span>
+							<button class="font-extrabold tracking-widest text-zinc-500 uppercase hover:text-zinc-900">Take it back</button>
+						</form>
+					{/if}
+				{/if}
+				{#if x.canSettle}
+					<form method="POST" action="?/settleBet" use:enhance={confirmSettle} class="grid grid-cols-[auto_1fr] items-stretch border-t border-zinc-200">
+						<input type="hidden" name="bet" value={x.id} />
+						<span class="flex items-center px-3 text-[11px] font-extrabold tracking-widest text-zinc-500 uppercase">Settle</span>
+						<div class="strip border-y-0 border-r-0">
+							<button name="outcome" value="yes">Yes</button>
+							<button name="outcome" value="no">No</button>
+							<button name="outcome" value="off">It’s off</button>
+						</div>
+					</form>
+				{:else if x.canCancel}
+					<form method="POST" action="?/cancelBet" use:enhance={inBets} class="border-t border-zinc-200 px-3 py-2 text-right">
+						<input type="hidden" name="bet" value={x.id} />
+						<button class="text-[11px] font-extrabold tracking-widest text-zinc-500 uppercase hover:text-zinc-900" onclick={(e) => { if (!confirm('Call off this bet? Everyone gets their coins back.')) e.preventDefault(); }}>Call it off</button>
+					</form>
+				{/if}
+			</div>
+		{/each}
+		{#if b.canPropose}
+			<form method="POST" action="?/proposeBet" use:enhance={inBets} class="joined">
+				<input class="input" name="text" maxlength="100" required placeholder="Sam’s first home" aria-label="The bet" />
+				<button class="btn shrink-0">Make a bet</button>
+			</form>
+			<p class="text-xs text-zinc-500">Pretend coins only: everyone going gets 100 a night. Whoever makes a bet, or the host, settles it once the night’s started. Winners split the losers’ coins.</p>
+		{:else if !b.bets.length}
+			<p class="text-sm text-zinc-500">RSVP “going” to make bets with pretend coins.</p>
+		{/if}
+		{#if settledBets.length}
+			<ul class="divide-y divide-zinc-200 border border-zinc-200 text-sm">
+				{#each settledBets as x (x.id)}
+					<li class="grid grid-cols-[1fr_auto] items-center gap-3 px-3 py-2.5">
+						<p class="min-w-0 break-words">{x.text}
+							<span class="block text-xs text-zinc-500">{x.proposer}’s bet · {x.yes} on yes, {x.no} on no</span></p>
+						<p class="text-right"><span class="badge {x.outcome === 'off' ? 'text-zinc-500' : 'text-lime'}">{x.outcome === 'off' ? 'Off' : x.outcome}</span>
+							{#if x.mine?.result != null}<span class="block text-xs tabular-nums {x.mine.result > 0 ? 'text-lime' : x.mine.result < 0 ? 'text-hot' : 'text-zinc-500'}">{x.mine.result > 0 ? `+${x.mine.result}` : x.mine.result}</span>{/if}</p>
+					</li>
+				{/each}
+			</ul>
+		{/if}
+		{#if b.coins.length}
+			<div class="space-y-2">
+				<p class="label !mb-0">Coins tonight</p>
+				<ol class="divide-y divide-zinc-200 border border-zinc-200 text-sm">
+					{#each b.coins as c, i (c.id)}
+						<li class="flex items-center gap-3 px-3 py-2 {i === 0 && c.coins > 100 ? 'bg-lime text-ink' : ''}">
+							<span class="font-extrabold">{c.id === me ? 'You' : c.name}</span>
+							<span class="ml-auto font-black tabular-nums">{c.coins}</span>
+						</li>
+					{/each}
+				</ol>
+			</div>
+		{/if}
+	</section>
 
 	{#if data.scores.length}
 		<section class="card space-y-3">
