@@ -1,6 +1,7 @@
 import { randomBytes, scryptSync, timingSafeEqual, createHash } from 'node:crypto';
 import type { Cookies } from '@sveltejs/kit';
 import { db } from './db.ts';
+import { isBirthday } from '../birthdays.ts';
 
 export type User = { id: number; email: string; name: string };
 
@@ -70,14 +71,14 @@ export function logIn(email: string, password: string): User | null {
 	return { id: row.id, email: row.email, name: row.name };
 }
 
-export type Profile = User & { payment_link: string; payday: number | null };
+export type Profile = User & { payment_link: string; payday: number | null; birthday: string | null };
 
 export function getProfile(userId: number) {
-	return db.prepare('SELECT id, email, name, payment_link, payday FROM users WHERE id = ?').get(userId) as Profile;
+	return db.prepare('SELECT id, email, name, payment_link, payday, birthday FROM users WHERE id = ?').get(userId) as Profile;
 }
 
 /** Returns an error message, or null when saved. */
-export function updateProfile(userId: number, input: { name: string; paymentLink: string; payday: string }) {
+export function updateProfile(userId: number, input: { name: string; paymentLink: string; payday: string; birthday?: string }) {
 	const name = input.name.trim();
 	const paymentLink = input.paymentLink.trim();
 	const payday = input.payday ? Number(input.payday) : null;
@@ -87,7 +88,10 @@ export function updateProfile(userId: number, input: { name: string; paymentLink
 	if (payday !== null && !(Number.isInteger(payday) && payday >= 1 && payday <= 31)) {
 		return 'Payday must be a day of the month (1 to 31).';
 	}
-	db.prepare('UPDATE users SET name = ?, payment_link = ?, payday = ? WHERE id = ?').run(name, paymentLink, payday, userId);
+	// "MM-DD", or empty for none; left alone when not given.
+	const birthday = input.birthday === undefined ? getProfile(userId).birthday : input.birthday || null;
+	if (birthday !== null && !isBirthday(birthday)) return 'Pick both the day and month of your birthday, or neither.';
+	db.prepare('UPDATE users SET name = ?, payment_link = ?, payday = ?, birthday = ? WHERE id = ?').run(name, paymentLink, payday, birthday, userId);
 	return null;
 }
 

@@ -39,6 +39,24 @@
 	</div>
 	{#if form?.error}<p class="error" role="alert">{form.error}</p>{/if}
 
+	{#if data.birthdays.length}
+		<section class="space-y-3" id="birthdays">
+			<h2>Birthdays coming up</h2>
+			<ul class="divide-y divide-zinc-200 border border-zinc-200">
+				{#each data.birthdays as b (b.id)}
+					<li class="grid grid-cols-[3.5rem_1fr_auto] text-sm">
+						<span class="flex flex-col items-center justify-center border-r border-zinc-200 py-2 {b.days === 0 ? 'bg-lime text-ink' : ''}">
+							<span class="text-lg leading-none font-black tabular-nums">{dayPart(b.date, 'num')}</span><span class="text-[10px] font-extrabold tracking-widest uppercase">{dayPart(b.date, 'mon')}</span>
+						</span>
+						<p class="min-w-0 px-3 py-2.5 break-words"><span class="font-extrabold">{b.id === me ? 'You' : b.name}</span>
+							<span class="block text-xs text-zinc-500">{b.days === 0 ? 'Today' : b.days === 1 ? 'Tomorrow' : `${dayPart(b.date, 'dow')}, in ${b.days} days`}</span></p>
+						<a class="flex items-center border-l border-zinc-200 px-3 text-[11px] font-extrabold tracking-widest text-hot uppercase hover:bg-zinc-100" href={newEvent({ title: `${b.id === me ? 'My' : `${b.name}’s`} birthday`, date: `${b.date}T20:00` })} aria-label="Plan the night for {b.id === me ? 'your' : `${b.name}’s`} birthday">Plan the night</a>
+					</li>
+				{/each}
+			</ul>
+		</section>
+	{/if}
+
 	<section class="space-y-3">
 		<h2>Who’s out</h2>
 		{#if myAsk}

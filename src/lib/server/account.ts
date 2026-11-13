@@ -73,13 +73,14 @@ const PERSONAL: [table: string, column: string][] = [
 	['hangovers', 'user_id'],
 	['quotes', 'poster_id'],
 	['quotes', 'said_by'],
-	['quote_votes', 'user_id']
+	['quote_votes', 'user_id'],
+	['birthday_told', 'user_id']
 ];
 
 /** Everything stored about a user, as plain data for a JSON download. Passwords and session tokens are left out. */
 export function exportData(userId: number) {
 	const profile = db
-		.prepare('SELECT id, email, name, payment_link, payday, created_at, terms_accepted_at FROM users WHERE id = ?')
+		.prepare('SELECT id, email, name, payment_link, payday, birthday, created_at, terms_accepted_at FROM users WHERE id = ?')
 		.get(userId);
 	const hosted = db.prepare('SELECT id, title, details, location, mode, starts_at, created_at FROM events WHERE host_id = ?').all(userId);
 	const data: Record<string, unknown> = { exported_at: new Date().toISOString(), profile, events_hosted: hosted };
@@ -147,7 +148,7 @@ export function deleteAccount(userId: number) {
 			'sessions', 'password_resets', 'push_subscriptions', 'event_members', 'rsvps', 'votes', 'messages', 'notifications',
 			'moves', 'home_plans', 'home_safe', 'group_members', 'free_gaffs', 'pings', 'ping_answers',
 			'event_photos', 'challenge_results', 'game_players', 'round_group_members',
-			'missions', 'bingo_cards', 'buddies', 'ticket_holders', 'theme_votes', 'venue_votes', 'waitlist', 'drivers', 'drink_log', 'help_responders', 'help_requests', 'song_votes', 'drop_photos', 'move_ballots', 'heading_off', 'quiz_answers', 'lost_items', 'lost_replies', 'hangovers', 'quote_votes'
+			'missions', 'bingo_cards', 'buddies', 'ticket_holders', 'theme_votes', 'venue_votes', 'waitlist', 'drivers', 'drink_log', 'help_responders', 'help_requests', 'song_votes', 'drop_photos', 'move_ballots', 'heading_off', 'quiz_answers', 'lost_items', 'lost_replies', 'hangovers', 'quote_votes', 'birthday_told'
 		]) {
 			db.prepare(`DELETE FROM ${table} WHERE user_id = ?`).run(userId);
 		}
@@ -163,6 +164,7 @@ export function deleteAccount(userId: number) {
 		// Quiz questions and quotes they wrote, and ones about them or that they said, are about a person, so they go too.
 		db.prepare('DELETE FROM quiz_questions WHERE author_id = ? OR about_id = ?').run(userId, userId);
 		db.prepare('DELETE FROM quotes WHERE poster_id = ? OR said_by = ?').run(userId, userId);
+		db.prepare('DELETE FROM birthday_told WHERE about_id = ?').run(userId);
 		// Orders not yet placed go; placed ones stay, like the kitty costs they made, as "Deleted user",
 		// so everyone else's share of them still adds up.
 		db.prepare('DELETE FROM takeaway_items WHERE user_id = ? AND takeaway_id IN (SELECT id FROM takeaways WHERE ordered_at IS NULL)').run(userId);
@@ -179,7 +181,7 @@ export function deleteAccount(userId: number) {
 		// The row stays so shared money and bring-list records still add up, but nothing identifies the person.
 		db.prepare(
 			`UPDATE users SET email = ?, name = 'Deleted user', password_hash = '!', payment_link = '', payday = NULL,
-			 terms_accepted_at = NULL WHERE id = ?`
+			 birthday = NULL, terms_accepted_at = NULL WHERE id = ?`
 		).run(`deleted-${userId}@deleted.invalid`, userId);
 	});
 	removePhotoFiles(photos);

@@ -18,6 +18,7 @@ import { getProfile } from '#lib/server/auth.ts';
 import { reviewYears } from '#lib/server/yearReview.ts';
 import { questionsToAnswer } from '#lib/server/quiz.ts';
 import { topQuote } from '#lib/server/quotes.ts';
+import { upcomingBirthdays } from '#lib/server/birthdays.ts';
 import { nowLocal } from '#lib/time.ts';
 import type { Plan } from '#lib/plans.ts';
 import type { Actions, PageServerLoad, RequestEvent } from './$types';
@@ -44,6 +45,7 @@ export const load: PageServerLoad = ({ params, locals, url }) => {
 		seasonBoard: seasonLeaderboard(groupId, season),
 		quizLeft: questionsToAnswer(groupId, locals.user.id),
 		topQuote: topQuote(groupId),
+		birthdays: upcomingBirthdays(groupId),
 		payday: getProfile(locals.user.id).payday,
 		today: nowLocal().slice(0, 10)
 	};

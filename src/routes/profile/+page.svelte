@@ -2,6 +2,7 @@
 	import { enhance } from '$app/forms';
 	import HallOfFame from '../people/[id]/HallOfFame.svelte';
 	import PushToggle from '#lib/PushToggle.svelte';
+	import { MONTHS } from '#lib/birthdays.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -25,6 +26,20 @@
 			<input class="input w-32" id="payday" name="payday" type="number" min="1" max="31" placeholder="25" value={data.profile.payday ?? ''} />
 			<p class="mt-1 text-xs text-zinc-500">Dates just after payday get highlighted when you vote.</p>
 		</div>
+		<fieldset>
+			<legend class="label">Birthday <span class="font-normal text-zinc-500">(optional, no year)</span></legend>
+			<div class="joined w-64">
+				<select class="input" name="birth_day" aria-label="Birthday day" value={data.profile.birthday?.slice(3) ?? ''}>
+					<option value="">Day</option>
+					{#each Array.from({ length: 31 }, (_, i) => String(i + 1).padStart(2, '0')) as d (d)}<option value={d}>{Number(d)}</option>{/each}
+				</select>
+				<select class="input" name="birth_month" aria-label="Birthday month" value={data.profile.birthday?.slice(0, 2) ?? ''}>
+					<option value="">Month</option>
+					{#each MONTHS as m, i (m)}<option value={String(i + 1).padStart(2, '0')}>{m}</option>{/each}
+				</select>
+			</div>
+			<p class="mt-1 text-xs text-zinc-500">People in your groups see it and get a reminder a week before.</p>
+		</fieldset>
 		<div class="flex items-center gap-3">
 			<button class="btn">Save</button>
 			{#if form?.section === 'profile' && 'saved' in form}<span class="text-sm text-emerald-700">Saved.</span>{/if}
