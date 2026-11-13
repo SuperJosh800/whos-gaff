@@ -7,6 +7,14 @@ import { EventError, requireHost, requireMember, type Event } from './events.ts'
 export const MAX_THEMES = 12;
 const MAX_LABEL = 60;
 
+/** Tidies a label: drops invisible characters, squashes spaces, and needs at least one letter or digit. */
+function cleanLabel(label: string) {
+	label = label.replace(/\p{Cf}/gu, '').replace(/\s+/g, ' ').trim();
+	if (!/[\p{L}\p{N}]/u.test(label)) throw new EventError('Type a dress code or theme.');
+	if (label.length > MAX_LABEL) throw new EventError(`Keep it to ${MAX_LABEL} characters.`);
+	return label;
+}
+
 function requireOpen(event: Event) {
 	if (event.theme) throw new EventError('The host has locked in the dress code.');
 	return event;
@@ -48,9 +56,7 @@ export function listThemes(eventId: number, userId: number) {
 
 export function suggestTheme(eventId: number, userId: number, label: string) {
 	requireOpen(requireMember(eventId, userId));
-	label = label.trim().replace(/\s+/g, ' ');
-	if (!label) throw new EventError('Type a dress code or theme.');
-	if (label.length > MAX_LABEL) throw new EventError(`Keep it under ${MAX_LABEL} characters.`);
+	label = cleanLabel(label);
 	const { n } = db.prepare('SELECT COUNT(*) AS n FROM theme_options WHERE event_id = ?').get(eventId) as { n: number };
 	if (n >= MAX_THEMES) throw new EventError('That’s plenty of ideas. Vote for one.');
 	const taken = db.prepare('SELECT 1 FROM theme_options WHERE event_id = ? AND label = ? COLLATE NOCASE').get(eventId, label);
@@ -83,16 +89,22 @@ export function removeTheme(eventId: number, userId: number, optionId: number) {
 	publish(eventId);
 }
 
+/** The host reopens the vote after locking one in. Votes and suggestions are as they were. */
+export function reopenTheme(eventId: number, hostId: number) {
+	requireHost(eventId, hostId);
+	db.prepare(`UPDATE events SET theme = '' WHERE id = ?`).run(eventId);
+	publish(eventId);
+}
+
 /**
- * The host locks in a dress code: one from the list or their own. Everyone who might come hears about
- * it, but only when it's different from the last one they were told. An empty label reopens the poll.
+ * The host locks in one of the suggestions. Everyone who might come hears about it, but only when it's
+ * different from the last one they were told, so reopening and locking the same one again stays quiet.
  */
-export function lockTheme(eventId: number, hostId: number, label: string) {
-	const event = requireHost(eventId, hostId);
-	label = label.trim().replace(/\s+/g, ' ');
-	if (label.length > MAX_LABEL) throw new EventError(`Keep it under ${MAX_LABEL} characters.`);
+export function lockTheme(eventId: number, hostId: number, optionId: number) {
+	const event = requireOpen(requireHost(eventId, hostId));
+	const { label } = requireOption(eventId, optionId);
 	db.prepare('UPDATE events SET theme = ? WHERE id = ?').run(label, eventId);
-	if (label && label !== event.theme_told) {
+	if (label.toLowerCase() !== event.theme_told.toLowerCase()) {
 		db.prepare('UPDATE events SET theme_told = ? WHERE id = ?').run(label, eventId);
 		const people = db
 			.prepare(

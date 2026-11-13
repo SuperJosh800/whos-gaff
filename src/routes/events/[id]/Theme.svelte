@@ -26,8 +26,7 @@
 			<p class="text-2xl leading-tight font-black break-words">{t.theme}</p>
 		</div>
 		{#if data.isHost}
-			<form method="POST" action="?/lockTheme" use:enhance={submit}>
-				<input type="hidden" name="label" value="" />
+			<form method="POST" action="?/reopenTheme" use:enhance={submit}>
 				<button class="text-sm font-semibold text-zinc-500 underline underline-offset-4">Reopen the vote</button>
 			</form>
 		{/if}
@@ -44,21 +43,21 @@
 									<span class="block h-1.5 {o.mine ? 'bg-ink/15' : 'bg-zinc-100'}"><span class="block h-full {o.mine ? 'bg-ink' : 'bg-lime'}" style="width: {(o.votes / most) * 100}%"></span></span>
 									{#if o.voters}<span class="mt-1 block text-xs {o.mine ? 'text-ink/70' : 'text-zinc-500'}">{o.voters}</span>{/if}
 								</span>
-								<span class="text-xl font-black tabular-nums">{o.votes}</span>
+								<span class="text-xl font-black tabular-nums">{o.votes}<span class="sr-only"> {o.votes === 1 ? 'vote' : 'votes'}</span></span>
 							</button>
 						</form>
 						{#if data.isHost || o.canRemove}
-							<div class="flex gap-4 border-t border-zinc-200 px-3 py-1.5 text-[11px] font-extrabold tracking-widest [&_button]:uppercase">
+							<div class="flex border-t border-zinc-200 text-[11px] font-extrabold tracking-widest [&_button]:px-3 [&_button]:py-2.5 [&_button]:uppercase">
 								{#if data.isHost}
 									<form method="POST" action="?/lockTheme" use:enhance={submit}>
-										<input type="hidden" name="label" value={o.label} />
-										<button class="text-hot">Lock it in</button>
+										<input type="hidden" name="option" value={o.id} />
+										<button class="text-hot" aria-label="Lock in {o.label} and tell everyone">Lock it in</button>
 									</form>
 								{/if}
 								{#if o.canRemove}
 									<form method="POST" action="?/removeTheme" use:enhance={submit}>
 										<input type="hidden" name="option" value={o.id} />
-										<button class="text-zinc-500">Remove</button>
+										<button class="text-zinc-500" aria-label="Remove {o.label}">Remove</button>
 									</form>
 								{/if}
 							</div>

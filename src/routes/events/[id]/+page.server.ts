@@ -22,7 +22,7 @@ import { attachGaff, listGaffs } from '#lib/server/gaff.ts';
 import { eventInput } from '#lib/server/form.ts';
 import { getProfile } from '#lib/server/auth.ts';
 import { getTickets, nudgeTickets, setHaveTicket, setTickets } from '#lib/server/tickets.ts';
-import { listThemes, lockTheme, removeTheme, suggestTheme, voteTheme } from '#lib/server/themes.ts';
+import { listThemes, lockTheme, removeTheme, reopenTheme, suggestTheme, voteTheme } from '#lib/server/themes.ts';
 import type { Actions, PageServerLoad } from './$types';
 
 // The layout load has already checked that the user is logged in and invited.
@@ -110,7 +110,11 @@ export const actions: Actions = {
 	},
 	lockTheme: async (e) => {
 		const { userId, eventId, get } = await eventInput(e);
-		return asAction(() => lockTheme(eventId, userId, get('label')));
+		return asAction(() => lockTheme(eventId, userId, Number(get('option'))));
+	},
+	reopenTheme: async (e) => {
+		const { userId, eventId } = await eventInput(e);
+		return asAction(() => reopenTheme(eventId, userId));
 	},
 	settings: async (e) => {
 		const { userId, eventId, get } = await eventInput(e);
