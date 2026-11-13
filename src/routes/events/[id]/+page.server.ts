@@ -28,6 +28,7 @@ import { getTickets, nudgeTickets, setHaveTicket, setTickets } from '#lib/server
 import { repeatedInto, setRepeat } from '#lib/server/repeats.ts';
 import { listDrivers } from '#lib/server/money.ts';
 import { listVenues, lockVenue, removeVenue, reopenVenue, suggestVenue, voteVenue } from '#lib/server/venues.ts';
+import { listSongs, markSongAdded, removeSong, requestSong, voteSong } from '#lib/server/songs.ts';
 import { listThemes, lockTheme, removeTheme, reopenTheme, suggestTheme, voteTheme } from '#lib/server/themes.ts';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -51,7 +52,8 @@ export const load: PageServerLoad = async ({ params, locals, url, parent }) => {
 		payday: getProfile(userId).payday,
 		tickets: event.starts_at ? getTickets(event.id, userId) : null,
 		themes: listThemes(event.id, userId),
-		venues: listVenues(event.id, userId)
+		venues: listVenues(event.id, userId),
+		songs: listSongs(event.id, userId)
 	};
 };
 
@@ -143,6 +145,22 @@ export const actions: Actions = {
 	lockVenue: async (e) => {
 		const { userId, eventId, get } = await eventInput(e);
 		return asAction(() => lockVenue(eventId, userId, Number(get('option'))));
+	},
+	requestSong: async (e) => {
+		const { userId, eventId, get } = await eventInput(e);
+		return asAction(() => requestSong(eventId, userId, get('title'), get('artist')));
+	},
+	voteSong: async (e) => {
+		const { userId, eventId, get } = await eventInput(e);
+		return asAction(() => voteSong(eventId, userId, Number(get('song')), get('up') === '1'));
+	},
+	removeSong: async (e) => {
+		const { userId, eventId, get } = await eventInput(e);
+		return asAction(() => removeSong(eventId, userId, Number(get('song'))));
+	},
+	songAdded: async (e) => {
+		const { userId, eventId, get } = await eventInput(e);
+		return asAction(() => markSongAdded(eventId, userId, Number(get('song')), get('added') === '1'));
 	},
 	reopenVenue: async (e) => {
 		const { userId, eventId } = await eventInput(e);
