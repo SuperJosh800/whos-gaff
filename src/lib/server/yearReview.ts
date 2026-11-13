@@ -87,7 +87,7 @@ export function yearReview(groupId: number, viewerId: number, year: number, now 
 	}));
 	// The best-rated night, named only for people who were invited, like the list.
 	const best = bestRated(nights.map((n) => n.id));
-	const bestNight = best && shown.find((n) => n.id === best.event_id)!;
+	const bestNight = best && shown.find((n) => n.id === best.event_id);
 	const biggest = nights.length > 1 ? [...shown].sort((a, b) => b.people - a.people || a.starts_at.localeCompare(b.starts_at))[0] : null;
 
 	return {

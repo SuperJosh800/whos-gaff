@@ -37,7 +37,8 @@ export function getRating(eventId: number, userId: number, startsAt: string | nu
 		count: rows.length,
 		average: rows.length ? Math.round((rows.reduce((sum, r) => sum + r.stars, 0) / rows.length) * 10) / 10 : null,
 		mine: rows.find((r) => r.user_id === userId)?.stars ?? null,
-		canRate: ids.has(userId) && !!startsAt && !closed(startsAt, now)
+		canRate: ids.has(userId) && !!startsAt && !closed(startsAt, now),
+		closed: !!startsAt && closed(startsAt, now)
 	};
 }
 
@@ -51,6 +52,7 @@ export function bestRated(eventIds: number[]) {
 		(db
 			.prepare(
 				`SELECT r.event_id, AVG(r.stars) AS average, COUNT(*) AS count FROM night_ratings r JOIN events e ON e.id = r.event_id
+				 JOIN event_members m ON m.event_id = r.event_id AND m.user_id = r.user_id
 				 LEFT JOIN rsvps v ON v.event_id = r.event_id AND v.user_id = r.user_id
 				 WHERE r.event_id IN (SELECT value FROM json_each(?)) AND (v.response = 'yes' OR r.user_id = e.host_id)
 				 GROUP BY r.event_id HAVING COUNT(*) >= ? ORDER BY average DESC, count DESC, e.starts_at LIMIT 1`

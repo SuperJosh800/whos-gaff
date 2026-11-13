@@ -37,9 +37,9 @@ describe('rate the night', () => {
 		expect(() => rateNight(e, ben.id, 5, '2098-06-27T21:00')).toThrow('closed');
 		expect(() => rateNight(e, dan.id, 5, AFTER)).toThrow('Only people who went');
 		for (const bad of [0, 6, 3.5, NaN]) expect(() => rateNight(e, ana.id, bad, AFTER)).toThrow('1 to 5');
-		expect(getRating(e, ben.id, START, AFTER)).toEqual({ count: 1, average: 2, mine: 2, canRate: true });
+		expect(getRating(e, ben.id, START, AFTER)).toEqual({ count: 1, average: 2, mine: 2, canRate: true, closed: false });
 		expect(getRating(e, dan.id, START, AFTER).canRate).toBe(false);
-		expect(getRating(e, ben.id, START, '2098-06-27T21:00').canRate).toBe(false);
+		expect(getRating(e, ben.id, START, '2098-06-27T21:00')).toMatchObject({ canRate: false, closed: true, mine: 2 });
 	});
 
 	it('averages to one decimal place, only counting people still going', () => {
@@ -73,6 +73,10 @@ describe('rate the night', () => {
 		rateNight(summer, cat.id, 1, '2098-05-02T11:00');
 		expect(yearReview(id, ana.id, 2098, '2098-12-31T23:00').best).toMatchObject({ id: spring, average: 4, count: 2 });
 		expect(yearReview(id, ana.id, 2097, '2098-12-31T23:00').best).toBeNull();
+		// Someone who joined the group later wasn't invited, so they don't see which night it was.
+		const late = user('Late');
+		joinGroupByToken((db.prepare('SELECT invite_token FROM friend_groups WHERE id = ?').get(id) as { invite_token: string }).invite_token, late.id);
+		expect(yearReview(id, late.id, 2098, '2098-12-31T23:00').best).toMatchObject({ id: spring, title: null, average: 4 });
 	});
 
 	it('is removed with the account and in the export', () => {

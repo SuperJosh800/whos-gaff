@@ -125,7 +125,7 @@
 			{/if}
 			<p class="text-sm text-zinc-500">
 				{ratingText ? `${ratingText}.` : 'Nobody’s rated it yet.'}
-				{#if rt.canRate}{rt.mine ? ` You gave it ${rt.mine}. Change it for a week after the night.` : ' Open for a week after the night.'}{/if}
+				{#if rt.canRate}{rt.mine ? ` You gave it ${rt.mine}. Change it for a week after the night.` : ' Open for a week after the night.'}{:else if rt.closed}{rt.mine ? ` You gave it ${rt.mine}.` : ''} Rating’s closed.{/if}
 			</p>
 		</section>
 
