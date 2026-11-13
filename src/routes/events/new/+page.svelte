@@ -5,7 +5,7 @@
 	let { data, form }: PageProps = $props();
 
 	// svelte-ignore state_referenced_locally
-	const initial = form?.values ?? { title: data.prefill.title, startsAt: data.prefill.date, mode: undefined, details: '', location: '', options: [], voteDeadline: '', gaffId: null, groupId: Number(data.prefill.group) || null };
+	const initial = form?.values ?? { title: data.prefill.title, startsAt: data.prefill.date, mode: undefined, details: '', location: '', options: [], voteDeadline: '', gaffId: null, groupId: Number(data.prefill.group) || null, repeat: '' };
 	// svelte-ignore state_referenced_locally
 	const ping = data.prefill.ping;
 	let mode = $state<'fixed' | 'poll'>(initial?.mode ?? 'fixed');
@@ -71,6 +71,15 @@
 			<label class="label" for="starts_at">Date and time</label>
 			<input class="input" id="starts_at" name="starts_at" type="datetime-local" required value={initial?.startsAt ?? ''} />
 			<p class="mt-1 text-xs text-zinc-500">RSVPs open as soon as you create the event.</p>
+		</div>
+		<div>
+			<label class="label" for="repeat">Repeats</label>
+			<select class="input" id="repeat" name="repeat" value={initial?.repeat ?? ''}>
+				<option value="">Doesn’t repeat</option>
+				<option value="7">Every week</option>
+				<option value="14">Every fortnight</option>
+			</select>
+			<p class="mt-1 text-xs text-zinc-500">The next one is set up automatically when this one starts.</p>
 		</div>
 	{:else}
 		<div>

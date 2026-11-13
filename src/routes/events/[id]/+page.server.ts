@@ -22,6 +22,7 @@ import { attachGaff, listGaffs } from '#lib/server/gaff.ts';
 import { eventInput } from '#lib/server/form.ts';
 import { getProfile } from '#lib/server/auth.ts';
 import { getTickets, nudgeTickets, setHaveTicket, setTickets } from '#lib/server/tickets.ts';
+import { setRepeat, type RepeatDays } from '#lib/server/repeats.ts';
 import { listThemes, lockTheme, removeTheme, reopenTheme, suggestTheme, voteTheme } from '#lib/server/themes.ts';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -121,6 +122,7 @@ export const actions: Actions = {
 		return asAction(() => {
 			setPlaylist(eventId, userId, get('playlist_url'));
 			attachGaff(eventId, userId, Number(get('gaff')) || null);
+			setRepeat(eventId, userId, get('repeat') ? (Number(get('repeat')) as RepeatDays) : null);
 			return { saved: true };
 		});
 	}

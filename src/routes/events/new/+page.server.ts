@@ -1,5 +1,6 @@
 import { fail, redirect } from '@sveltejs/kit';
 import { createEvent, EventError } from '#lib/server/events.ts';
+import { setRepeat, type RepeatDays } from '#lib/server/repeats.ts';
 import { listGaffs } from '#lib/server/gaff.ts';
 import { linkPingToEvent, listGroups } from '#lib/server/groups.ts';
 import { getProfile } from '#lib/server/auth.ts';
@@ -31,12 +32,14 @@ export const actions: Actions = {
 			voteDeadline: String(form.get('vote_deadline') ?? ''),
 			gaffId: Number(form.get('gaff')) || null,
 			groupId: Number(form.get('group')) || null,
-			pingId: Number(form.get('ping')) || null
+			pingId: Number(form.get('ping')) || null,
+			repeat: String(form.get('repeat') ?? '')
 		};
 		let eventId: number;
 		try {
 			eventId = createEvent(locals.user.id, values);
 			if (values.groupId && values.pingId) linkPingToEvent(values.groupId, values.pingId, eventId);
+			if (values.mode === 'fixed' && values.repeat) setRepeat(eventId, locals.user.id, Number(values.repeat) as RepeatDays);
 		} catch (e) {
 			if (e instanceof EventError) return fail(400, { error: e.message, values });
 			throw e;
