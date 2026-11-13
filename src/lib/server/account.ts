@@ -1,5 +1,6 @@
 // Your data: download everything held about you, or delete your account (UK GDPR rights).
 import { db, tx } from './db.ts';
+import { nowLocal } from '../time.ts';
 import { removePhotoFiles } from './after.ts';
 
 /** Every table that holds rows about a person, and the column that names them. */
@@ -48,15 +49,24 @@ export function exportData(userId: number) {
 	const data: Record<string, unknown> = { exported_at: new Date().toISOString(), profile, events_hosted: hosted };
 	for (const [table, column] of PERSONAL) {
 		const key = column === 'user_id' || PERSONAL.filter(([t]) => t === table).length === 1 ? table : `${table} (${column})`;
-		// Award votes and predictions about you leave out who made them: before the night those are secret.
+		// Award votes and predictions about you leave out who made them.
 		// Push devices leave out the session they belong to and their encryption keys.
 		const columns =
-			(table === 'award_votes' || table === 'predictions') && column === 'nominee_id'
+			table === 'award_votes' && column === 'nominee_id'
 				? 'event_id, award'
 				: table === 'push_subscriptions'
 					? 'endpoint, created_at'
 					: '*';
-		data[key] = db.prepare(`SELECT ${columns} FROM ${table} WHERE ${column} = ?`).all(userId);
+		// Predictions about you are secret until the night starts, so only those from started nights.
+		data[key] =
+			table === 'predictions' && column === 'nominee_id'
+				? db
+						.prepare(
+							`SELECT p.event_id, p.award FROM predictions p JOIN events e ON e.id = p.event_id
+							 WHERE p.nominee_id = ? AND e.starts_at <= ?`
+						)
+						.all(userId, nowLocal())
+				: db.prepare(`SELECT ${columns} FROM ${table} WHERE ${column} = ?`).all(userId);
 	}
 	return data;
 }

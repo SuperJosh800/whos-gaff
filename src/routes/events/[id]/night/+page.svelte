@@ -77,7 +77,12 @@
 			{#if pr.count}<span class="text-xs text-zinc-500">{pr.count} {pr.count === 1 ? 'person has' : 'people have'} predicted</span>{/if}
 		</div>
 		{#if pr.locked}
-			<p class="text-sm text-zinc-600">Predictions locked when the night started. <a class="font-semibold text-hot underline underline-offset-4" href="/events/{data.event.id}/after#predictions">See who called it</a></p>
+			<p class="text-sm text-zinc-600">
+				Predictions locked when the night started.
+				{#if pr.count}<a class="font-semibold text-hot underline underline-offset-4" href="/events/{data.event.id}/after#predictions">See who called it</a>{/if}
+			</p>
+		{:else if !pr.open}
+			<p class="text-sm text-zinc-500">Predictions open once the date is set.</p>
 		{:else if !pr.canPredict}
 			<p class="text-sm text-zinc-500">RSVP “going” to make predictions.</p>
 		{:else}
@@ -97,7 +102,7 @@
 				{#if form && 'predicted' in form}<p class="text-sm text-lime" role="status">Saved. Nobody sees your picks until the night starts.</p>{/if}
 			</form>
 			<p class="text-xs text-zinc-500">
-				Who’ll win each award? Picks stay hidden until the night starts{data.event.starts_at ? ` (${formatWhen(data.event.starts_at)})` : ''}, then the award votes afterwards decide who called it.
+				Who’ll win each award? Picks stay hidden until the night starts ({formatWhen(data.event.starts_at!)}), then the award votes afterwards decide who called it.
 			</p>
 		{/if}
 	</section>

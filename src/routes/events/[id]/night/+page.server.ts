@@ -17,7 +17,7 @@ import {
 import { eventInput } from '#lib/server/form.ts';
 import { callOut, completeMission, getMissions, swapMission, takeMission } from '#lib/server/missions.ts';
 import { nowLocal } from '#lib/time.ts';
-import { AWARDS, getPredictions, predictAward } from '#lib/server/after.ts';
+import { AWARDS, getPredictions, savePredictions } from '#lib/server/after.ts';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ params, parent, locals }) => {
@@ -82,7 +82,7 @@ export const actions: Actions = {
 	predict: async (e) => {
 		const { userId, eventId, get } = await eventInput(e);
 		return asAction(() => {
-			for (const award of Object.keys(AWARDS)) if (get(award)) predictAward(eventId, userId, award, Number(get(award)));
+			savePredictions(eventId, userId, Object.fromEntries(Object.keys(AWARDS).map((a) => [a, get(a)])));
 			return { predicted: true };
 		});
 	},
