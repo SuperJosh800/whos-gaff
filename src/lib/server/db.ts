@@ -475,6 +475,10 @@ const migrations: string[] = [
 		user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
 		PRIMARY KEY (event_id, user_id)
 	);
+	`,
+	`
+	-- Share a taxi: the area each person is heading home to, so people going the same way are matched.
+	ALTER TABLE home_plans ADD COLUMN area TEXT NOT NULL DEFAULT '';
 	`
 ];
 

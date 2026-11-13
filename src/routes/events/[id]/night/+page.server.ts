@@ -12,7 +12,8 @@ import {
 	nudgeNoPlan,
 	postMove,
 	removeStage,
-	setHomePlan
+	setHomePlan,
+	taxiShares
 } from '#lib/server/night.ts';
 import { eventInput } from '#lib/server/form.ts';
 import { callOut, completeMission, getMissions, swapMission, takeMission } from '#lib/server/missions.ts';
@@ -25,11 +26,13 @@ import type { Actions, PageServerLoad } from './$types';
 export const load: PageServerLoad = async ({ params, parent, locals }) => {
 	const { address } = await parent();
 	const event = getEvent(Number(params.id))!;
+	const homePlans = listHomePlans(event.id);
 	return {
 		stages: listStages(event.id),
 		nextStageAt: nextStageTime(event.id),
 		moves: listMoves(event.id),
-		homePlans: listHomePlans(event.id),
+		homePlans,
+		taxiShares: taxiShares(homePlans),
 		homeKinds: HOME_KINDS,
 		checkIns: listCheckIns(event.id),
 		cutoff: event.starts_at ? homeSafeCutoff(event.starts_at) : null,
@@ -61,7 +64,7 @@ export const actions: Actions = {
 	},
 	homePlan: async (e) => {
 		const { userId, eventId, get } = await eventInput(e);
-		return asAction(() => setHomePlan(eventId, userId, get('kind'), get('details')));
+		return asAction(() => setHomePlan(eventId, userId, get('kind'), get('details'), get('area')));
 	},
 	nudge: async (e) => {
 		const { userId, eventId } = await eventInput(e);

@@ -3,6 +3,7 @@ import { publish } from './realtime.ts';
 import { buddiesOf } from './buddies.ts';
 import { notify } from './notifications.ts';
 import { EventError, requireHost, requireMember } from './events.ts';
+import { attempt } from './ratelimit.ts';
 import { isLocalDateTime, nowLocal, shiftLocal } from '../time.ts';
 
 // ---- Pres → pub → club timeline (WG-19) ----
@@ -91,13 +92,13 @@ export const HOME_KINDS = {
 } as const;
 export type HomeKind = keyof typeof HOME_KINDS;
 
-export type HomePlanRow = { user_id: number; name: string; kind: HomeKind | null; details: string | null };
+export type HomePlanRow = { user_id: number; name: string; kind: HomeKind | null; details: string | null; area: string | null };
 
 /** Everyone going (and the host), with their plan; kind is null when they have no way home yet. */
 export function listHomePlans(eventId: number) {
 	return db
 		.prepare(
-			`SELECT u.id AS user_id, u.name, p.kind, p.details FROM event_members m
+			`SELECT u.id AS user_id, u.name, p.kind, p.details, p.area FROM event_members m
 			 JOIN events e ON e.id = m.event_id
 			 JOIN users u ON u.id = m.user_id
 			 LEFT JOIN rsvps r ON r.event_id = m.event_id AND r.user_id = m.user_id
@@ -108,13 +109,56 @@ export function listHomePlans(eventId: number) {
 		.all(eventId) as HomePlanRow[];
 }
 
-export function setHomePlan(eventId: number, userId: number, kind: string, details: string) {
-	requireMember(eventId, userId);
+/** Areas match whatever the spelling: "The West End", "west end." and "Wést End" are the same way home. */
+export function areaKey(area: string) {
+	return area
+		.normalize('NFKD')
+		.replace(/\p{M}/gu, '')
+		.toLowerCase()
+		.replace(/[^\p{L}\p{N}]+/gu, ' ')
+		.trim()
+		.replace(/^the /, '');
+}
+
+export type TaxiShare = { area: string; people: { user_id: number; name: string }[] };
+
+/** Share a taxi: people going who are heading to the same area, two or more to a group, biggest first. */
+export function taxiShares(plans: HomePlanRow[]) {
+	const groups = new Map<string, TaxiShare>();
+	for (const p of plans) {
+		const key = p.kind && p.area ? areaKey(p.area) : '';
+		if (!key) continue;
+		const group = groups.get(key) ?? { area: p.area!, people: [] };
+		group.people.push({ user_id: p.user_id, name: p.name });
+		groups.set(key, group);
+	}
+	return [...groups.values()].filter((g) => g.people.length > 1).sort((a, b) => b.people.length - a.people.length);
+}
+
+export function setHomePlan(eventId: number, userId: number, kind: string, details: string, area = '') {
+	const event = requireMember(eventId, userId);
 	if (!(kind in HOME_KINDS)) throw new EventError('Choose how you’re getting home.');
+	area = area.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '').slice(0, 60);
+	const before = db.prepare('SELECT area FROM home_plans WHERE event_id = ? AND user_id = ?').get(eventId, userId) as
+		| { area: string }
+		| undefined;
 	db.prepare(
-		`INSERT INTO home_plans (event_id, user_id, kind, details) VALUES (?, ?, ?, ?)
-		 ON CONFLICT (event_id, user_id) DO UPDATE SET kind = excluded.kind, details = excluded.details`
-	).run(eventId, userId, kind, details.trim().slice(0, 200));
+		`INSERT INTO home_plans (event_id, user_id, kind, details, area) VALUES (?, ?, ?, ?, ?)
+		 ON CONFLICT (event_id, user_id) DO UPDATE SET kind = excluded.kind, details = excluded.details, area = excluded.area`
+	).run(eventId, userId, kind, details.trim().slice(0, 200), area);
+	// Only a change of area tells the people already heading that way; re-saving the same plan stays quiet,
+	// and flipping between areas tells them at most 3 times an hour (the plan still saves).
+	const key = areaKey(area);
+	if (key && key !== areaKey(before?.area ?? '') && attempt(`taxi:${eventId}:${userId}`, 3, 3_600_000).ok) {
+		const plans = listHomePlans(eventId);
+		const me = plans.find((p) => p.user_id === userId);
+		if (me) {
+			for (const p of plans) {
+				if (p.user_id !== userId && p.kind && areaKey(p.area ?? '') === key)
+					notify(p.user_id, eventId, `${me.name} is heading to ${p.area} too. Share a taxi? (${event.title})`, '/night');
+			}
+		}
+	}
 	publish(eventId);
 }
 
