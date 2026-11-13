@@ -65,7 +65,9 @@ const PERSONAL: [table: string, column: string][] = [
 	['heading_off', 'user_id'],
 	['quiz_questions', 'author_id'],
 	['quiz_questions', 'about_id'],
-	['quiz_answers', 'user_id']
+	['quiz_answers', 'user_id'],
+	['bets', 'proposer_id'],
+	['bet_stakes', 'user_id']
 ];
 
 /** Everything stored about a user, as plain data for a JSON download. Passwords and session tokens are left out. */
@@ -148,6 +150,10 @@ export function deleteAccount(userId: number) {
 		db.prepare('DELETE FROM predictions WHERE user_id = ? OR nominee_id = ?').run(userId, userId);
 		db.prepare('DELETE FROM taxi_told WHERE user_id = ? OR about_id = ?').run(userId, userId);
 		db.prepare('DELETE FROM move_votes WHERE started_by = ?').run(userId);
+		// Open bets they made go, giving everyone's coins back; settled ones stay, as "Deleted user",
+		// so everyone else's coins still add up. Their stakes on open bets go too.
+		db.prepare('DELETE FROM bets WHERE proposer_id = ? AND outcome IS NULL').run(userId);
+		db.prepare('DELETE FROM bet_stakes WHERE user_id = ? AND bet_id IN (SELECT id FROM bets WHERE outcome IS NULL)').run(userId);
 		// Quiz questions they wrote, and ones about them, are about a person, so they go too.
 		db.prepare('DELETE FROM quiz_questions WHERE author_id = ? OR about_id = ?').run(userId, userId);
 		// Orders not yet placed go; placed ones stay, like the kitty costs they made, as "Deleted user",
