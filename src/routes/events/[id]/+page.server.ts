@@ -21,6 +21,7 @@ import {
 import { attachGaff, listGaffs } from '#lib/server/gaff.ts';
 import { eventInput } from '#lib/server/form.ts';
 import { getProfile } from '#lib/server/auth.ts';
+import { getTickets, nudgeTickets, setHaveTicket, setTickets } from '#lib/server/tickets.ts';
 import type { Actions, PageServerLoad } from './$types';
 
 // The layout load has already checked that the user is logged in and invited.
@@ -37,7 +38,8 @@ export const load: PageServerLoad = async ({ params, locals, url, parent }) => {
 		messages: listMessages(event.id),
 		inviteLink: isHost ? `${url.origin}/invite/${event.invite_token}` : null,
 		myGaffs: isHost ? listGaffs(userId) : [],
-		payday: getProfile(userId).payday
+		payday: getProfile(userId).payday,
+		tickets: event.starts_at ? getTickets(event.id, userId) : null
 	};
 };
 
@@ -79,6 +81,18 @@ export const actions: Actions = {
 		return asAction(async () => ({
 			invited: await inviteByEmail(eventId, userId, get('emails'), e.url.origin)
 		}));
+	},
+	tickets: async (e) => {
+		const { userId, eventId, get } = await eventInput(e);
+		return asAction(() => setTickets(eventId, userId, { url: get('url'), price: get('price'), note: get('note') }));
+	},
+	ticket: async (e) => {
+		const { userId, eventId, get } = await eventInput(e);
+		return asAction(() => setHaveTicket(eventId, userId, get('have') === '1'));
+	},
+	nudgeTickets: async (e) => {
+		const { userId, eventId } = await eventInput(e);
+		return asAction(() => ({ nudged: nudgeTickets(eventId, userId) }));
 	},
 	settings: async (e) => {
 		const { userId, eventId, get } = await eventInput(e);

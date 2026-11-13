@@ -4,6 +4,7 @@
 	import Invite from './Invite.svelte';
 	import Chat from './Chat.svelte';
 	import HostSettings from './HostSettings.svelte';
+	import Tickets from './Tickets.svelte';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -14,6 +15,7 @@
 <div class="space-y-5">
 	{#if data.event.starts_at}
 		<Rsvps {data} />
+		<Tickets {data} nudged={form && 'nudged' in form ? form.nudged : undefined} />
 	{:else}
 		<Poll {data} />
 	{/if}
