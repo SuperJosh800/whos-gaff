@@ -4,7 +4,9 @@ import { signUp, type User } from './auth.ts';
 import { createEvent, getEvent, joinByToken, setPlaylist, setRsvp } from './events.ts';
 import { createGroup, joinGroupByToken } from './groups.ts';
 import { lockTheme, listThemes, suggestTheme } from './themes.ts';
-import { makeRepeats, nextDate, setRepeat } from './repeats.ts';
+import { saveGaff } from './gaff.ts';
+import { deleteAccount } from './account.ts';
+import { makeRepeats, nextDate, repeatedInto, setRepeat } from './repeats.ts';
 
 let n = 0;
 const user = (name: string) => signUp(`${name}${++n}@repeats.test`, name, 'correct-horse-9') as User;
@@ -25,7 +27,8 @@ const repeatOf = (id: number, now: string) => {
 function quiz() {
 	const host = user('Host');
 	const [a, out] = [user('A'), user('Out')];
-	const id = createEvent(host.id, { title: 'Pub quiz', details: 'Back room', location: 'The Ox', mode: 'fixed', startsAt: FRIDAY });
+	const gaffId = saveGaff(host.id, { name: 'Flat', address: '1 Road', house_rules: '', wifi: '', coats: '', parking: '', notes: '' });
+	const id = createEvent(host.id, { title: 'Pub quiz', details: 'Back room', location: 'The Ox', mode: 'fixed', startsAt: FRIDAY, gaffId });
 	for (const g of [a, out]) joinByToken(getEvent(id)!.invite_token, g.id);
 	setRsvp(id, a.id, 'yes');
 	setRsvp(id, out.id, 'no');
@@ -53,16 +56,18 @@ describe('repeat nights', () => {
 		const e = getEvent(next)!;
 		expect(e).toMatchObject({
 			title: 'Pub quiz', details: 'Back room', location: 'The Ox', mode: 'fixed', starts_at: '2098-10-31T20:00',
-			host_id: host.id, playlist_url: 'https://open.spotify.com/playlist/abc', theme: '', repeat_days: 7, repeated_from: id
+			host_id: host.id, playlist_url: 'https://open.spotify.com/playlist/abc', theme: '', repeat_days: 7, repeated_from: id,
+			gaff_id: getEvent(id)!.gaff_id
 		});
+		expect(e.gaff_id).not.toBeNull();
 		expect(e.invite_token).not.toBe(getEvent(id)!.invite_token);
 		expect(getEvent(id)!.repeat_days).toBeNull();
 		expect(members(next)).toEqual([host.id, a.id, out.id].sort((x, y) => x - y));
 		// Nobody's RSVP carries over: everyone is asked again.
 		expect(db.prepare('SELECT COUNT(*) AS n FROM rsvps WHERE event_id = ?').get(next)).toEqual({ n: 0 });
 		const told = 'Pub quiz is on again: Fri 31 Oct, 8pm. Are you coming?';
-		expect(notes(a).at(-1)).toBe(told);
-		expect(notes(out).at(-1)).toBe(told);
+		expect(notes(a).filter((m) => m.includes('on again'))).toEqual([told]);
+		expect(notes(out).filter((m) => m.includes('on again'))).toEqual([told]);
 		expect(notes(host).filter((m) => m.includes('on again'))).toEqual([]);
 	});
 
@@ -86,6 +91,30 @@ describe('repeat nights', () => {
 		setRepeat(next, host.id, null);
 		expect(repeatOf(next, '2098-11-14T20:00')).toEqual([]);
 		expect(nextDate('2098-03-27T23:30', 7, '2098-03-27T23:30')).toBe('2098-04-03T23:30');
+	});
+
+	it('won’t repeat a night again once it has been, so there’s only ever one run', () => {
+		const { id, host, a } = quiz();
+		setRepeat(id, host.id, 7);
+		const [next] = repeatOf(id, FRIDAY);
+		expect(repeatedInto(id)).toBe(next);
+		expect(() => setRepeat(id, host.id, 7)).toThrow('already been repeated');
+		setRepeat(id, host.id, null); // saving other settings on the old night still works
+		expect(repeatOf(id, '2098-10-31T20:00')).toEqual([next]);
+		expect(madeFrom(next)).toHaveLength(1);
+		// One notification per night (31 Oct, then 7 Nov), never two for the same night.
+		expect(notes(a).filter((m) => m.includes('on again'))).toEqual([
+			'Pub quiz is on again: Fri 31 Oct, 8pm. Are you coming?',
+			'Pub quiz is on again: Fri 7 Nov, 8pm. Are you coming?'
+		]);
+	});
+
+	it('stops when the host deletes their account and someone else takes the night over', () => {
+		const { id, host, a } = quiz();
+		setRepeat(id, host.id, 7);
+		deleteAccount(host.id);
+		expect(getEvent(id)).toMatchObject({ host_id: a.id, repeat_days: null });
+		expect(repeatOf(id, FRIDAY)).toEqual([]);
 	});
 
 	it('a group night invites whoever is in the group now', () => {

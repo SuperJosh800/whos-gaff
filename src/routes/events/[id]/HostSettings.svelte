@@ -19,7 +19,12 @@
 				<a class="font-semibold text-hot underline underline-offset-4" href="/gaffs">Manage gaff profiles</a>
 			</p>
 		</div>
-		{#if data.event.starts_at}
+		{#if data.repeatedInto}
+			<div>
+				<span class="label">Repeats</span>
+				<p class="text-sm text-zinc-600">This night has been repeated. <a class="font-semibold text-hot underline underline-offset-4" href="/events/{data.repeatedInto}">Go to the next one</a> to change or stop the repeat.</p>
+			</div>
+		{:else if data.event.starts_at}
 			<div>
 				<label class="label" for="repeat">Repeats</label>
 				<select class="input" id="repeat" name="repeat" value={String(data.event.repeat_days ?? '')}>

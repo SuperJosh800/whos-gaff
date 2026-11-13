@@ -22,7 +22,7 @@ import { attachGaff, listGaffs } from '#lib/server/gaff.ts';
 import { eventInput } from '#lib/server/form.ts';
 import { getProfile } from '#lib/server/auth.ts';
 import { getTickets, nudgeTickets, setHaveTicket, setTickets } from '#lib/server/tickets.ts';
-import { setRepeat, type RepeatDays } from '#lib/server/repeats.ts';
+import { repeatedInto, setRepeat } from '#lib/server/repeats.ts';
 import { listThemes, lockTheme, removeTheme, reopenTheme, suggestTheme, voteTheme } from '#lib/server/themes.ts';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -40,6 +40,7 @@ export const load: PageServerLoad = async ({ params, locals, url, parent }) => {
 		messages: listMessages(event.id),
 		inviteLink: isHost ? `${url.origin}/invite/${event.invite_token}` : null,
 		myGaffs: isHost ? listGaffs(userId) : [],
+		repeatedInto: isHost ? repeatedInto(event.id) : null,
 		payday: getProfile(userId).payday,
 		tickets: event.starts_at ? getTickets(event.id, userId) : null,
 		themes: listThemes(event.id, userId)
@@ -120,9 +121,10 @@ export const actions: Actions = {
 	settings: async (e) => {
 		const { userId, eventId, get } = await eventInput(e);
 		return asAction(() => {
+			// The repeat goes first: it's the one most likely to be refused, and nothing is saved if it is.
+			setRepeat(eventId, userId, get('repeat') ? Number(get('repeat')) : null);
 			setPlaylist(eventId, userId, get('playlist_url'));
 			attachGaff(eventId, userId, Number(get('gaff')) || null);
-			setRepeat(eventId, userId, get('repeat') ? (Number(get('repeat')) as RepeatDays) : null);
 			return { saved: true };
 		});
 	}

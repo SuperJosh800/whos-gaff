@@ -10,10 +10,20 @@ import { formatWhen, nowLocal, shiftLocal } from '../time.ts';
 export const REPEATS = { 7: 'Every week', 14: 'Every fortnight' } as const;
 export type RepeatDays = keyof typeof REPEATS;
 
-export function setRepeat(eventId: number, hostId: number, days: RepeatDays | null) {
+/** The night made from this one, if it has been repeated already. */
+export function repeatedInto(eventId: number) {
+	const row = db.prepare('SELECT id FROM events WHERE repeated_from = ? ORDER BY id LIMIT 1').get(eventId) as { id: number } | undefined;
+	return row?.id ?? null;
+}
+
+export const isRepeatDays = (value: unknown): value is RepeatDays => value === 7 || value === 14;
+
+export function setRepeat(eventId: number, hostId: number, days: number | null) {
 	const event = requireHost(eventId, hostId);
-	if (days !== null && !(days in REPEATS)) throw new EventError('Pick how often it repeats.');
+	if (days !== null && !isRepeatDays(days)) throw new EventError('Pick how often it repeats.');
 	if (days !== null && !event.starts_at) throw new EventError('Pick the date first, then set it to repeat.');
+	// Repeating an older night again would start a second run alongside the first.
+	if (days !== null && repeatedInto(eventId)) throw new EventError('This night has already been repeated. Change it on the next one.');
 	db.prepare('UPDATE events SET repeat_days = ? WHERE id = ?').run(days, eventId);
 	publish(eventId);
 }
@@ -30,7 +40,17 @@ export function makeRepeats(now = nowLocal()) {
 	const due = db
 		.prepare('SELECT id FROM events WHERE repeat_days IS NOT NULL AND starts_at IS NOT NULL AND starts_at <= ?')
 		.all(now) as { id: number }[];
-	return due.map(({ id }) => repeat(getEvent(id)!, now)).filter((id) => id !== null);
+	const made: number[] = [];
+	for (const { id } of due) {
+		// One night failing (such as the database being busy) mustn't hold up the others.
+		try {
+			const next = repeat(getEvent(id)!, now);
+			if (next !== null) made.push(next);
+		} catch (e) {
+			console.error(`[repeats] event ${id} failed`, e);
+		}
+	}
+	return made;
 }
 
 function repeat(event: Event, now: string) {

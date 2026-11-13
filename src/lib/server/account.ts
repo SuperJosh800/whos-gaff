@@ -95,7 +95,8 @@ export function deleteAccount(userId: number) {
 				.get(id, userId) as { user_id: number } | undefined;
 			if (heir) {
 				// The gaff profile belongs to the old host and is deleted with them, so detach it.
-				db.prepare('UPDATE events SET host_id = ?, gaff_id = NULL WHERE id = ?').run(heir.user_id, id);
+				// The repeat stops too: the new host didn't set it up, and may not be in the group it invites.
+				db.prepare('UPDATE events SET host_id = ?, gaff_id = NULL, repeat_days = NULL WHERE id = ?').run(heir.user_id, id);
 			} else {
 				photos.push(...(db.prepare('SELECT filename FROM event_photos WHERE event_id = ?').all(id) as { filename: string }[]).map((p) => p.filename));
 				db.prepare('DELETE FROM events WHERE id = ?').run(id);
