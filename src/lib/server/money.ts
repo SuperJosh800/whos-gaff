@@ -64,12 +64,20 @@ export function getRounds(eventId: number) {
 		lists.at(-1)!.people.push({ id: g.user_id, name: g.name });
 	}
 	const driving = new Set(listDrivers(eventId).map((d) => d.id));
-	return lists.filter((l) => l.id !== null || l.people.length).map(({ id, people }) => roundState(eventId, id, people, driving));
+	// People who've said "I'm off" (and not come back), or are home safe.
+	const gone = new Set(
+		(
+			db
+				.prepare('SELECT user_id FROM heading_off WHERE event_id = ? AND gone = 1 UNION SELECT user_id FROM home_safe WHERE event_id = ?')
+				.all(eventId, eventId) as { user_id: number }[]
+		).map((r) => r.user_id)
+	);
+	return lists.filter((l) => l.id !== null || l.people.length).map(({ id, people }) => roundState(eventId, id, people, driving, gone));
 }
 
 export type Round = ReturnType<typeof roundState>;
 
-function roundState(eventId: number, groupId: number | null, order: Person[], driving: Set<number>) {
+function roundState(eventId: number, groupId: number | null, order: Person[], driving: Set<number>, gone: Set<number>) {
 	const history = db
 		.prepare(
 			`SELECT r.id, r.user_id, u.name, r.skipped, r.created_at FROM rounds r
@@ -77,13 +85,14 @@ function roundState(eventId: number, groupId: number | null, order: Person[], dr
 		)
 		.all(eventId, groupId) as { id: number; user_id: number; name: string; skipped: number; created_at: string }[];
 	// Rounds go round in a fixed order; the next one is whoever follows the last person recorded,
-	// passing over anyone driving tonight.
+	// passing over anyone driving tonight or gone home.
 	const lastIndex = history.length ? order.findIndex((p) => p.id === history.at(-1)!.user_id) : -1;
 	const turns = order.map((_, i) => order[(lastIndex + 1 + i) % order.length]);
-	const next = turns.find((p) => !driving.has(p.id)) ?? null;
+	const next = turns.find((p) => !driving.has(p.id) && !gone.has(p.id)) ?? null;
 	const tally = order.map((p) => ({
 		...p,
 		driving: driving.has(p.id),
+		gone: gone.has(p.id),
 		bought: history.filter((h) => h.user_id === p.id && !h.skipped).length,
 		skipped: history.filter((h) => h.user_id === p.id && h.skipped).length
 	}));

@@ -184,20 +184,48 @@ export function homeSafeCutoff(startsAt: string) {
 	return cutoff.toISOString().slice(0, 16);
 }
 
-export type CheckIn = { user_id: number; name: string; at: string | null };
+/** `off` is when they said "I'm off", while they're still on their way. */
+export type CheckIn = { user_id: number; name: string; at: string | null; off: string | null };
 
 export function listCheckIns(eventId: number) {
 	return db
 		.prepare(
-			`SELECT u.id AS user_id, u.name, s.at FROM event_members m
+			`SELECT u.id AS user_id, u.name, s.at, CASE WHEN o.gone THEN o.at END AS off FROM event_members m
 			 JOIN events e ON e.id = m.event_id
 			 JOIN users u ON u.id = m.user_id
 			 LEFT JOIN rsvps r ON r.event_id = m.event_id AND r.user_id = m.user_id
 			 LEFT JOIN home_safe s ON s.event_id = m.event_id AND s.user_id = m.user_id
+			 LEFT JOIN heading_off o ON o.event_id = m.event_id AND o.user_id = m.user_id
 			 WHERE m.event_id = ? AND (r.response = 'yes' OR m.user_id = e.host_id)
-			 ORDER BY s.at IS NOT NULL, u.name`
+			 ORDER BY s.at IS NOT NULL, o.gone IS NOT NULL AND o.gone, u.name`
 		)
 		.all(eventId) as CheckIn[];
+}
+
+/**
+ * "I'm off": leave quietly once the night has started. Nobody gets a push except your buddies, the first
+ * time each night; everyone else sees it on the Night tab, and rounds pass you over.
+ */
+export function headOff(eventId: number, userId: number, now = nowLocal()) {
+	const event = requireMember(eventId, userId);
+	if (!canSeeAddress(event, userId)) throw new EventError('RSVP “going” first.');
+	if (!event.starts_at || now < event.starts_at) throw new EventError('You can head off once the night has started.');
+	if (db.prepare('SELECT 1 FROM home_safe WHERE event_id = ? AND user_id = ?').get(eventId, userId)) throw new EventError('You’re already home.');
+	const { changes } = db.prepare('INSERT OR IGNORE INTO heading_off (event_id, user_id, at) VALUES (?, ?, ?)').run(eventId, userId, now);
+	if (changes) {
+		const me = (db.prepare('SELECT name FROM users WHERE id = ?').get(userId) as { name: string }).name;
+		for (const b of buddiesOf(eventId, userId)) notify(b.user_id, eventId, `Your buddy ${me} has headed off. They’ll check in when they’re home.`, '/night');
+	} else {
+		db.prepare('UPDATE heading_off SET gone = 1, at = ? WHERE event_id = ? AND user_id = ? AND gone = 0').run(now, eventId, userId);
+	}
+	publish(eventId);
+}
+
+/** Changed your mind: you're back out. */
+export function comeBack(eventId: number, userId: number) {
+	requireMember(eventId, userId);
+	db.prepare('UPDATE heading_off SET gone = 0 WHERE event_id = ? AND user_id = ?').run(eventId, userId);
+	publish(eventId);
 }
 
 export function checkInHomeSafe(eventId: number, userId: number, now = nowLocal()) {

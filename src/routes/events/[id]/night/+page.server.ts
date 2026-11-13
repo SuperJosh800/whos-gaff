@@ -2,6 +2,8 @@ import { asAction, getEvent } from '#lib/server/events.ts';
 import {
 	addStage,
 	checkInHomeSafe,
+	comeBack,
+	headOff,
 	HOME_KINDS,
 	homeSafeCutoff,
 	listCheckIns,
@@ -127,6 +129,10 @@ export const actions: Actions = {
 	homeSafe: async (e) => {
 		const { userId, eventId } = await eventInput(e);
 		return asAction(() => checkInHomeSafe(eventId, userId));
+	},
+	headOff: async (e) => {
+		const { userId, eventId, get } = await eventInput(e);
+		return asAction(() => (get('back') ? comeBack(eventId, userId) : headOff(eventId, userId)));
 	},
 	takeMission: async (e) => {
 		const { userId, eventId } = await eventInput(e);

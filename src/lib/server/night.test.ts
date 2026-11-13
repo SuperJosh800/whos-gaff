@@ -1,7 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { signUp, type User } from './auth.ts';
 import { createEvent, getEvent, joinByToken, setRsvp } from './events.ts';
-import { listHomePlans, setHomePlan, taxiShares } from './night.ts';
+import { checkInHomeSafe, comeBack, headOff, listCheckIns, listHomePlans, setHomePlan, taxiShares } from './night.ts';
+import { pairUp } from './buddies.ts';
+import { getRounds, recordRound } from './money.ts';
+import { exportData } from './account.ts';
 import { listNotifications } from './notifications.ts';
 
 let n = 0;
@@ -131,5 +134,50 @@ describe('share a taxi', () => {
 		vi.setSystemTime(new Date('2099-06-02T00:01:00Z'));
 		joinPartick();
 		expect(taxiNotes(abe.id)).toHaveLength(5);
+	});
+});
+
+describe('I’m off', () => {
+	const offOf = (id: number, userId: number) => listCheckIns(id).find((c) => c.user_id === userId)!.off;
+	const nextRound = (id: number) => getRounds(id)[0].next?.name;
+	const offNotes = (userId: number) => listNotifications(userId, 50).filter((x) => /headed off/.test(x.message)).map((x) => x.message);
+
+	it('tells only your buddy, once, and the rounds pass you over until you’re back', () => {
+		const { id, host, people } = night('Abe');
+		const [abe] = people;
+		pairUp(id, host.id);
+		const cat = going(id, user('Cat'));
+		const maybe = user('Maybe');
+		joinByToken(getEvent(id)!.invite_token, maybe.id);
+		expect(() => headOff(id, abe.id, '2099-06-20T20:59')).toThrow('once the night has started');
+		expect(() => headOff(id, maybe.id, '2099-06-20T23:00')).toThrow('RSVP “going”');
+		expect(nextRound(id)).toBe('Host');
+		recordRound(id, host.id, null, host.id, false);
+		expect(nextRound(id)).toBe('Abe');
+
+		headOff(id, abe.id, '2099-06-20T23:30');
+		expect(offNotes(host.id)).toEqual(['Your buddy Abe has headed off. They’ll check in when they’re home.']);
+		expect(offNotes(cat.id)).toEqual([]);
+		expect(offOf(id, abe.id)).toBe('2099-06-20T23:30');
+		expect(nextRound(id)).toBe('Cat');
+		expect(getRounds(id)[0].tally.find((t) => t.id === abe.id)!.gone).toBe(true);
+
+		comeBack(id, abe.id);
+		expect(offOf(id, abe.id)).toBeNull();
+		expect(nextRound(id)).toBe('Abe');
+		headOff(id, abe.id, '2099-06-20T23:45');
+		headOff(id, abe.id, '2099-06-20T23:50');
+		expect(offNotes(host.id)).toHaveLength(1);
+		expect(offOf(id, abe.id)).toBe('2099-06-20T23:45');
+		expect(exportData(abe.id).heading_off).toMatchObject([{ event_id: id, at: '2099-06-20T23:45' }]);
+	});
+
+	it('passes over people home safe, and doesn’t let them head off again', () => {
+		const { id, host, people } = night('Abe', 'Cat');
+		const [abe] = people;
+		recordRound(id, host.id, null, host.id, false);
+		checkInHomeSafe(id, abe.id, '2099-06-21T00:30');
+		expect(nextRound(id)).toBe('Cat');
+		expect(() => headOff(id, abe.id, '2099-06-21T00:40')).toThrow('already home');
 	});
 });
