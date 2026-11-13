@@ -25,14 +25,16 @@ const repeats = () => {
 repeats();
 setInterval(repeats, 10 * 60 * 1000).unref?.();
 
-// Tell everyone when a photo drop goes off. Checked every 30 seconds, as they only have 2 minutes.
-setInterval(() => {
+// Tell everyone when a photo drop goes off. Checked every 5 seconds, as they only have 2 minutes.
+const drops = () => {
 	try {
 		fireDueDrops();
 	} catch (e) {
 		console.error('[photo drops] failed', e);
 	}
-}, 30 * 1000).unref?.();
+};
+drops();
+setInterval(drops, 5 * 1000).unref?.();
 
 // The Content-Security-Policy is set by SvelteKit (kit.csp in vite.config.ts) so it can hash its own inline scripts.
 const SECURITY_HEADERS: Record<string, string> = {

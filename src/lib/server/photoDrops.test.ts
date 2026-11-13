@@ -3,7 +3,7 @@ import { signUp, type User } from './auth.ts';
 import { createEvent, getEvent, joinByToken, setRsvp } from './events.ts';
 import { armDrop, cancelDrop, DROP_MS, fireDueDrops, getDrops, MAX_DROPS, sendDropPhoto } from './photoDrops.ts';
 import { listNotifications } from './notifications.ts';
-import { listPhotos } from './after.ts';
+import { DROP_REVEAL_MS, listPhotos, readPhoto } from './after.ts';
 import { deleteAccount } from './account.ts';
 
 let n = 0;
@@ -44,6 +44,33 @@ describe('photo drop', () => {
 		expect(getDrops(b.id, b.sam.id, START + 150 * MIN).live).not.toBeNull();
 	});
 
+	it('allows for the clocks changing between setting it and the night', () => {
+		const autumn = night();
+		const host = autumn.host;
+		const oct = createEvent(host.id, { title: 'Halloween', mode: 'fixed', startsAt: '2099-10-31T21:00' });
+		armDrop(oct, host.id, 'random', Date.parse('2099-10-20T12:00:00Z'), () => 0);
+		const octStart = Date.parse('2099-10-31T21:00:00Z'); // GMT by then
+		expect(getDrops(oct, host.id, octStart + 15 * MIN - 1).live).toBeNull();
+		expect(getDrops(oct, host.id, octStart + 15 * MIN).live).not.toBeNull();
+		const apr = createEvent(host.id, { title: 'Easter', mode: 'fixed', startsAt: '2099-04-04T21:00' });
+		armDrop(apr, host.id, 'random', Date.parse('2099-03-20T12:00:00Z'), () => 1);
+		const aprStart = Date.parse('2099-04-04T20:00:00Z'); // BST by then
+		expect(getDrops(apr, host.id, aprStart + 120 * MIN - 1).live).toBeNull();
+		expect(getDrops(apr, host.id, aprStart + 120 * MIN).live).not.toBeNull();
+	});
+
+	it('never goes off after the night’s over, and the host can’t set one then', () => {
+		const { id, host } = night();
+		armDrop(id, host.id, 'random', START + 11 * 60 * MIN + 59 * MIN, () => 1);
+		const end = START + 12 * 60 * MIN;
+		expect(getDrops(id, host.id, end - DROP_MS - 1).waiting).toBe(true);
+		expect(getDrops(id, host.id, end - DROP_MS).live).not.toBeNull();
+		expect(getDrops(id, host.id, end + DROP_REVEAL_MS).canArm).toBe(false);
+		const fresh = night();
+		expect(getDrops(fresh.id, fresh.host.id, end - 1).canArm).toBe(true);
+		expect(getDrops(fresh.id, fresh.host.id, end).canArm).toBe(false);
+	});
+
 	it('is only for the host, once there’s a date, until 12 hours after the start', () => {
 		const { id, host, sam } = night();
 		expect(() => armDrop(id, sam.id, 'now', START)).toThrow('Only the host');
@@ -63,10 +90,16 @@ describe('photo drop', () => {
 		fireDueDrops(at + 10_000);
 		for (const p of [host, sam, alex]) expect(notes(p.id)).toEqual(['Photo drop! Take a photo in the next 2 minutes. (Night)']);
 		expect(notes(maybe.id)).toEqual([]);
-		const missed = night();
-		armDrop(missed.id, missed.host.id, 'random', START, () => 0);
-		fireDueDrops(at + DROP_MS);
-		expect(notes(missed.sam.id)).toEqual([]);
+		// With under a minute left by the time it's noticed (say after a restart), nobody is notified.
+		const late = night();
+		armDrop(late.id, late.host.id, 'random', START, () => 0);
+		fireDueDrops(at + 60_001);
+		expect(notes(late.sam.id)).toEqual([]);
+		expect(getDrops(late.id, late.sam.id, at + 60_001).live).not.toBeNull();
+		const justInTime = night();
+		armDrop(justInTime.id, justInTime.host.id, 'random', START, () => 0);
+		fireDueDrops(at + 60_000);
+		expect(notes(justInTime.sam.id)).toHaveLength(1);
 	});
 
 	it('takes one photo each from people going, only during the 2 minutes (plus 30 seconds to upload)', async () => {
@@ -80,8 +113,8 @@ describe('photo drop', () => {
 		await expect(sendDropPhoto(id, maybe.id, drop, png(), at + 2000)).rejects.toThrow('RSVP “going”');
 		await expect(sendDropPhoto(id, user('Stranger').id, drop, png(), at + 2000)).rejects.toThrow('not invited');
 		await expect(sendDropPhoto(id, alex.id, drop, null, at + 2000)).rejects.toThrow('Take a photo');
-		await sendDropPhoto(id, alex.id, drop, png(), at + DROP_MS + 30_000);
-		await expect(sendDropPhoto(id, host.id, drop, png(), at + DROP_MS + 30_001)).rejects.toThrow('Too late');
+		await sendDropPhoto(id, alex.id, drop, png(), at + DROP_REVEAL_MS - 1);
+		await expect(sendDropPhoto(id, host.id, drop, png(), at + DROP_REVEAL_MS)).rejects.toThrow('Too late');
 		const other = night();
 		await expect(sendDropPhoto(other.id, other.sam.id, drop, png(), at + 1000)).rejects.toThrow('hasn’t started');
 	});
@@ -94,11 +127,31 @@ describe('photo drop', () => {
 		await sendDropPhoto(id, sam.id, drop, png(), at + 1000);
 		expect(getDrops(id, alex.id, at + 2000)).toMatchObject({ live: { sent: 1, mine: false }, done: [] });
 		expect(getDrops(id, sam.id, at + 2000).live!.mine).toBe(true);
-		const after = getDrops(id, alex.id, at + DROP_MS);
+		// Not in the recap or the photo link either, except for Sam's own.
+		expect(listPhotos(id, at + 2000)).toEqual([]);
+		const photo = listPhotos(id, at + DROP_REVEAL_MS)[0].id;
+		expect(readPhoto(id, photo, alex.id, at + DROP_REVEAL_MS - 1)).toBeNull();
+		expect(readPhoto(id, photo, sam.id, at + 2000)).not.toBeNull();
+		// The 2 minutes are up, but uploads that started in time can still arrive before the reveal.
+		expect(getDrops(id, alex.id, at + DROP_MS)).toMatchObject({ live: { id: drop, endsAt: at + DROP_MS, revealAt: at + DROP_REVEAL_MS }, done: [] });
+		const after = getDrops(id, alex.id, at + DROP_REVEAL_MS);
 		expect(after.live).toBeNull();
-		expect(after.done).toEqual([{ id: drop, at: '2099-06-20T22:00', photos: [{ id: expect.any(Number), name: 'Sam' }] }]);
-		expect(listPhotos(id).map((p) => p.name)).toEqual(['Sam']);
+		expect(after.done).toEqual([{ id: drop, at: '2099-06-20T22:00', photos: [{ id: photo, name: 'Sam' }] }]);
+		expect(listPhotos(id, at + DROP_REVEAL_MS).map((p) => p.name)).toEqual(['Sam']);
+		expect(readPhoto(id, photo, alex.id, at + DROP_REVEAL_MS)).not.toBeNull();
+		// Whoever set it off right now isn't notified about their own drop.
 		expect(notes(sam.id)).toHaveLength(1);
+		expect(notes(host.id)).toEqual([]);
+	});
+
+	it('keeps only the first photo from a double tap', async () => {
+		const { id, host, sam } = night();
+		armDrop(id, host.id, 'now', START);
+		const drop = liveId(id, sam.id, START);
+		const results = await Promise.allSettled([sendDropPhoto(id, sam.id, drop, png(), START), sendDropPhoto(id, sam.id, drop, png(), START)]);
+		expect(results.map((r) => r.status).sort()).toEqual(['fulfilled', 'fulfilled']);
+		expect(listPhotos(id, START + DROP_REVEAL_MS).map((p) => p.name)).toEqual(['Sam']);
+		expect(getDrops(id, host.id, START + DROP_REVEAL_MS).done[0].photos).toHaveLength(1);
 	});
 
 	it(`runs one at a time, up to ${MAX_DROPS} a night, and the host can call off one that hasn’t gone off`, () => {
@@ -111,10 +164,10 @@ describe('photo drop', () => {
 		let at = START;
 		for (let i = 0; i < MAX_DROPS; i++) {
 			armDrop(id, host.id, 'now', at);
-			expect(() => armDrop(id, host.id, 'now', at + DROP_MS - 1)).toThrow('already a photo drop');
-			cancelDrop(id, host.id, at + 1); // too late to call off a drop that's running
-			expect(getDrops(id, sam.id, at + 1).live).not.toBeNull();
-			at += DROP_MS;
+			expect(() => armDrop(id, host.id, 'now', at + DROP_REVEAL_MS - 1)).toThrow('already a photo drop');
+			cancelDrop(id, host.id, at); // too late to call off a drop that's gone off
+			expect(getDrops(id, sam.id, at).live).not.toBeNull();
+			at += DROP_REVEAL_MS;
 		}
 		expect(getDrops(id, host.id, at).canArm).toBe(false);
 		expect(() => armDrop(id, host.id, 'now', at)).toThrow(`${MAX_DROPS} photo drops`);
@@ -127,6 +180,6 @@ describe('photo drop', () => {
 		await sendDropPhoto(id, sam.id, drop, png(), START);
 		await sendDropPhoto(id, host.id, drop, png(), START);
 		deleteAccount(sam.id);
-		expect(getDrops(id, host.id, START + DROP_MS).done[0].photos.map((p) => p.name)).toEqual(['Host']);
+		expect(getDrops(id, host.id, START + DROP_REVEAL_MS).done[0].photos.map((p) => p.name)).toEqual(['Host']);
 	});
 });

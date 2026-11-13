@@ -166,7 +166,7 @@ function imageType(bytes: Uint8Array) {
 	return null;
 }
 
-export async function addPhoto(eventId: number, userId: number, file: File) {
+export async function addPhoto(eventId: number, userId: number, file: File, live = true) {
 	requireMember(eventId, userId);
 	if (!(file instanceof File) || file.size === 0) throw new EventError('Choose a photo to upload.');
 	if (file.size > MAX_PHOTO_BYTES) throw new EventError('Photos must be under 8 MB.');
@@ -179,22 +179,29 @@ export async function addPhoto(eventId: number, userId: number, file: File) {
 	const { lastInsertRowid } = db
 		.prepare('INSERT INTO event_photos (event_id, user_id, filename, mime) VALUES (?, ?, ?, ?)')
 		.run(eventId, userId, filename, type.mime);
-	publish(eventId);
+	// Callers that save more alongside the photo update open pages themselves, once.
+	if (live) publish(eventId);
 	return Number(lastInsertRowid);
 }
 
-export function listPhotos(eventId: number) {
+/** Photos from a photo drop stay hidden until its uploads close: the 2 minutes plus 30 seconds' grace. */
+export const DROP_REVEAL_MS = 150_000;
+const inRunningDrop = `p.id IN (SELECT dp.photo_id FROM drop_photos dp JOIN photo_drops d ON d.id = dp.drop_id WHERE d.fire_at + ${DROP_REVEAL_MS} > ?)`;
+
+export function listPhotos(eventId: number, nowMs = Date.now()) {
 	return db
 		.prepare(
-			`SELECT p.id, u.name FROM event_photos p JOIN users u ON u.id = p.user_id WHERE p.event_id = ? ORDER BY p.id`
+			`SELECT p.id, u.name FROM event_photos p JOIN users u ON u.id = p.user_id
+			 WHERE p.event_id = ? AND NOT ${inRunningDrop} ORDER BY p.id`
 		)
-		.all(eventId) as { id: number; name: string }[];
+		.all(eventId, nowMs) as { id: number; name: string }[];
 }
 
-export function readPhoto(eventId: number, photoId: number) {
+/** A photo, unless it's someone else's in a photo drop that hasn't been revealed yet. */
+export function readPhoto(eventId: number, photoId: number, viewerId: number, nowMs = Date.now()) {
 	const photo = db
-		.prepare('SELECT filename, mime FROM event_photos WHERE id = ? AND event_id = ?')
-		.get(photoId, eventId) as { filename: string; mime: string } | undefined;
+		.prepare(`SELECT filename, mime FROM event_photos p WHERE p.id = ? AND p.event_id = ? AND (p.user_id = ? OR NOT ${inRunningDrop})`)
+		.get(photoId, eventId, viewerId, nowMs) as { filename: string; mime: string } | undefined;
 	if (!photo) return null;
 	const path = join(UPLOADS, photo.filename);
 	if (!existsSync(path)) return null;

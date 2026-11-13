@@ -29,15 +29,22 @@
 	const offset = $derived(data.nowMs - Date.now());
 	let tick = $state(Date.now());
 	$effect(() => {
+		if (!drops.live) return;
 		const timer = setInterval(() => (tick = Date.now()), 1000);
 		return () => clearInterval(timer);
 	});
 	const dropLeft = $derived(drops.live ? Math.max(0, drops.live.endsAt - (tick + offset)) : 0);
 	const countdown = $derived(`${Math.floor(dropLeft / 60_000)}:${String(Math.floor((dropLeft % 60_000) / 1000)).padStart(2, '0')}`);
-	// Reveal everyone's photos as soon as the time is up.
+	// Reveal everyone's photos once uploads close.
 	$effect(() => {
-		if (drops.live && dropLeft === 0) invalidateAll();
+		if (drops.live && tick + offset >= drops.live.revealAt) invalidateAll();
 	});
+	let dropError = $state('');
+	// Shows a failed photo here in the section rather than at the top of the page.
+	const sendDrop: SubmitFunction = () => async ({ update, result }) => {
+		dropError = result.type === 'failure' ? String(result.data?.error ?? 'Something went wrong.') : '';
+		if (result.type !== 'failure') await update();
+	};
 	const myHelp = $derived(data.help.find((h) => h.mine));
 	const others = $derived(data.help.filter((h) => !h.mine));
 	// Checked against the clock, so the button appears on a page left open from before the window.
@@ -135,16 +142,19 @@
 
 	<section class="card space-y-3" id="drop">
 		<h2>Photo drop</h2>
+		{#if dropError}<p class="error" role="alert">{dropError}</p>{/if}
 		{#if drops.live}
 			<div class="border border-hot">
 				<div class="flex items-center justify-between gap-3 bg-hot px-3 py-2.5 text-ink">
-					<span class="text-sm font-extrabold tracking-wider uppercase">Take a photo now</span>
-					<span class="text-2xl font-black tabular-nums" aria-label="{Math.ceil(dropLeft / 1000)} seconds left">{countdown}</span>
+					<span class="text-sm font-extrabold tracking-wider uppercase" role="alert">{dropLeft ? 'Take a photo now' : 'Time’s up'}</span>
+					<span class="text-2xl font-black tabular-nums" role="timer" aria-label="Time left">{countdown}</span>
 				</div>
 				{#if drops.live.mine}
 					<p class="px-3 py-2.5 text-sm" role="status">Sent. Everyone’s photos show when the time’s up.</p>
+				{:else if !dropLeft}
+					<p class="px-3 py-2.5 text-sm" role="status">Everyone’s photos are on their way.</p>
 				{:else if going}
-					<form method="POST" action="?/dropPhoto" enctype="multipart/form-data" use:enhance class="joined">
+					<form method="POST" action="?/dropPhoto" enctype="multipart/form-data" use:enhance={sendDrop} class="joined">
 						<input type="hidden" name="drop" value={drops.live.id} />
 						<input class="input border-0 file:mr-2 file:border-0 file:bg-zinc-100 file:px-2 file:py-1 file:text-xs file:font-extrabold file:uppercase" type="file" name="photo" accept="image/jpeg,image/png,image/gif,image/webp" capture="environment" required aria-label="Photo" />
 						<button class="btn shrink-0">Send</button>
@@ -155,11 +165,11 @@
 				<p class="border-t border-hot px-3 py-2 text-xs text-zinc-500">{drops.live.sent} sent so far</p>
 			</div>
 		{:else if drops.waiting}
-			<p class="border border-lime px-3 py-2.5 text-sm"><span class="badge text-lime">Coming up</span> A photo drop is set for some time tonight. When it goes off, everyone has 2 minutes to take a photo.</p>
+			<p class="border border-lime px-3 py-2.5 text-sm"><span class="badge text-lime">Coming up</span> A photo drop is set for a random moment on the night. When it goes off, everyone going has 2 minutes to take a photo.</p>
 			{#if data.isHost}
 				<form method="POST" action="?/cancelDrop" use:enhance><button class="text-[11px] font-extrabold tracking-widest text-zinc-500 uppercase underline underline-offset-4">Call it off</button></form>
 			{/if}
-		{:else if data.isHost && drops.canArm && data.event.starts_at}
+		{:else if data.isHost && drops.canArm}
 			<form method="POST" action="?/armDrop" use:enhance class="joined [&>*]:flex-1">
 				<button class="btn" name="when" value="random">At a random moment</button>
 				<button class="btn-secondary" name="when" value="now" disabled={!started}>Right now</button>
@@ -172,7 +182,7 @@
 			<div>
 				<p class="mb-2 text-[11px] font-extrabold tracking-widest text-zinc-500 uppercase">Drop at {formatTime(d.at)} · {d.photos.length} {d.photos.length === 1 ? 'photo' : 'photos'}</p>
 				{#if d.photos.length}
-					<ul class="grid grid-cols-3 gap-px border border-zinc-200 bg-zinc-200">
+					<ul class="grid grid-cols-3 gap-1">
 						{#each d.photos as p (p.id)}
 							<li class="relative bg-zinc-50">
 								<img src="/events/{data.event.id}/photos/{p.id}" alt="Photo drop from {p.name}" class="aspect-square w-full object-cover" loading="lazy" />

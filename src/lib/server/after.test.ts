@@ -54,8 +54,8 @@ describe('photos', () => {
 		await expect(addPhoto(id, a.id, new File(['<script>'], 'evil.png', { type: 'image/png' }))).rejects.toThrow('JPEG, PNG');
 		const [photo] = listPhotos(id);
 		expect(listPhotos(id)).toHaveLength(1);
-		expect(readPhoto(id, photo.id)).toMatchObject({ mime: 'image/png' });
-		expect(readPhoto(id + 1, photo.id)).toBeNull();
+		expect(readPhoto(id, photo.id, a.id)).toMatchObject({ mime: 'image/png' });
+		expect(readPhoto(id + 1, photo.id, a.id)).toBeNull();
 	});
 });
 
