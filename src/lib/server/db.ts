@@ -608,6 +608,26 @@ const migrations: string[] = [
 		told TEXT NOT NULL DEFAULT '[]',
 		PRIMARY KEY (event_id, user_id)
 	);
+	`,
+	// Group quiz: multiple-choice questions members write about each other. wrong is a JSON list of 1-3 answers.
+	`
+	CREATE TABLE quiz_questions (
+		id INTEGER PRIMARY KEY,
+		group_id INTEGER NOT NULL REFERENCES friend_groups(id) ON DELETE CASCADE,
+		author_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		about_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		question TEXT NOT NULL,
+		answer TEXT NOT NULL,
+		wrong TEXT NOT NULL,
+		created_at TEXT NOT NULL DEFAULT (datetime('now'))
+	);
+	CREATE INDEX quiz_questions_group ON quiz_questions (group_id, id);
+	CREATE TABLE quiz_answers (
+		question_id INTEGER NOT NULL REFERENCES quiz_questions(id) ON DELETE CASCADE,
+		user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		correct INTEGER NOT NULL,
+		PRIMARY KEY (question_id, user_id)
+	);
 	`
 ];
 
