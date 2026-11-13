@@ -1,5 +1,6 @@
 // Your data: download everything held about you, or delete your account (UK GDPR rights).
 import { db, tx } from './db.ts';
+import { nowLocal } from '../time.ts';
 import { removePhotoFiles } from './after.ts';
 
 /** Every table that holds rows about a person, and the column that names them. */
@@ -34,7 +35,9 @@ const PERSONAL: [table: string, column: string][] = [
 	['missions', 'user_id'],
 	['mission_guesses', 'user_id'],
 	['custom_games', 'owner_id'],
-	['push_subscriptions', 'user_id']
+	['push_subscriptions', 'user_id'],
+	['predictions', 'user_id'],
+	['predictions', 'nominee_id']
 ];
 
 /** Everything stored about a user, as plain data for a JSON download. Passwords and session tokens are left out. */
@@ -46,7 +49,7 @@ export function exportData(userId: number) {
 	const data: Record<string, unknown> = { exported_at: new Date().toISOString(), profile, events_hosted: hosted };
 	for (const [table, column] of PERSONAL) {
 		const key = column === 'user_id' || PERSONAL.filter(([t]) => t === table).length === 1 ? table : `${table} (${column})`;
-		// Award votes for you leave out who cast them: the app itself only ever shows the counts.
+		// Award votes and predictions about you leave out who made them.
 		// Push devices leave out the session they belong to and their encryption keys.
 		const columns =
 			table === 'award_votes' && column === 'nominee_id'
@@ -54,7 +57,16 @@ export function exportData(userId: number) {
 				: table === 'push_subscriptions'
 					? 'endpoint, created_at'
 					: '*';
-		data[key] = db.prepare(`SELECT ${columns} FROM ${table} WHERE ${column} = ?`).all(userId);
+		// Predictions about you are secret until the night starts, so only those from started nights.
+		data[key] =
+			table === 'predictions' && column === 'nominee_id'
+				? db
+						.prepare(
+							`SELECT p.event_id, p.award FROM predictions p JOIN events e ON e.id = p.event_id
+							 WHERE p.nominee_id = ? AND e.starts_at <= ?`
+						)
+						.all(userId, nowLocal())
+				: db.prepare(`SELECT ${columns} FROM ${table} WHERE ${column} = ?`).all(userId);
 	}
 	return data;
 }
@@ -95,6 +107,7 @@ export function deleteAccount(userId: number) {
 		}
 		db.prepare('DELETE FROM gaffs WHERE owner_id = ?').run(userId);
 		db.prepare('DELETE FROM award_votes WHERE voter_id = ? OR nominee_id = ?').run(userId, userId);
+		db.prepare('DELETE FROM predictions WHERE user_id = ? OR nominee_id = ?').run(userId, userId);
 		db.prepare('DELETE FROM mission_guesses WHERE user_id = ? OR suspect_id = ?').run(userId, userId);
 		db.prepare('UPDATE bring_items SET claimed_by = NULL WHERE claimed_by = ?').run(userId);
 		db.prepare('DELETE FROM custom_games WHERE owner_id = ?').run(userId);

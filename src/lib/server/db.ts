@@ -353,6 +353,16 @@ const migrations: string[] = [
 	CREATE INDEX push_subscriptions_user ON push_subscriptions(user_id);
 	-- Values the server makes for itself once, such as the push signing keys.
 	CREATE TABLE app_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+	`,
+	`
+	-- Before the night, who people think will win each award; the award votes afterwards say who called it.
+	CREATE TABLE predictions (
+		event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+		user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		award TEXT NOT NULL,
+		nominee_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		PRIMARY KEY (event_id, user_id, award)
+	);
 	`
 ];
 

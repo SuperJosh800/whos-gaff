@@ -15,6 +15,7 @@
 	const m = $derived(data.missions);
 	const going = $derived(data.homePlans.some((p) => p.user_id === me));
 	const suspects = $derived(data.homePlans.filter((p) => p.user_id !== me));
+	const pr = $derived(data.predictions);
 	let preview = $state<string | null>(null);
 	const moveTime = (utc: string) =>
 		new Date(utc.replace(' ', 'T') + 'Z').toLocaleTimeString('en-GB', { hour: 'numeric', minute: '2-digit' });
@@ -68,6 +69,42 @@
 				</ul>
 			{/if}
 		</div>
+	</section>
+
+	<section class="card space-y-3" id="predictions">
+		<div class="flex flex-wrap items-baseline justify-between gap-2">
+			<h2>Predictions</h2>
+			{#if pr.count}<span class="text-xs text-zinc-500">{pr.count} {pr.count === 1 ? 'person has' : 'people have'} predicted</span>{/if}
+		</div>
+		{#if pr.locked}
+			<p class="text-sm text-zinc-600">
+				Predictions locked when the night started.
+				{#if pr.count}<a class="font-semibold text-hot underline underline-offset-4" href="/events/{data.event.id}/after#predictions">See who called it</a>{/if}
+			</p>
+		{:else if !pr.open}
+			<p class="text-sm text-zinc-500">Predictions open once the date is set.</p>
+		{:else if !pr.canPredict}
+			<p class="text-sm text-zinc-500">RSVP “going” to make predictions.</p>
+		{:else}
+			<form method="POST" action="?/predict" use:enhance={() => async ({ update }) => update({ reset: false })} class="space-y-3">
+				<div class="divide-y divide-zinc-200 border border-zinc-200">
+					{#each Object.entries(data.awards) as [key, label] (key)}
+						<label class="grid grid-cols-[11rem_1fr] items-stretch">
+							<span class="flex items-center border-r border-zinc-200 px-3 text-[11px] font-extrabold tracking-widest uppercase">{label}</span>
+							<select class="input border-0" name={key} value={pr.mine[key as keyof typeof pr.mine] ?? ''}>
+								<option value="">Pick someone</option>
+								{#each pr.people as p (p.id)}<option value={p.id}>{p.id === me ? `${p.name} (you)` : p.name}</option>{/each}
+							</select>
+						</label>
+					{/each}
+				</div>
+				<button class="btn w-full">{Object.keys(pr.mine).length ? 'Update predictions' : 'Save predictions'}</button>
+				{#if form && 'predicted' in form}<p class="text-sm text-lime" role="status">Saved. Nobody sees your picks until the night starts.</p>{/if}
+			</form>
+			<p class="text-xs text-zinc-500">
+				Who’ll win each award? Picks stay hidden until the night starts ({formatWhen(data.event.starts_at!)}), then the award votes afterwards decide who called it.
+			</p>
+		{/if}
 	</section>
 
 	<section class="card space-y-4" id="missions">
