@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import HallOfFame from '../people/[id]/HallOfFame.svelte';
+	import PushToggle from '#lib/PushToggle.svelte';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -29,6 +30,7 @@
 			{#if form?.section === 'profile' && 'saved' in form}<span class="text-sm text-emerald-700">Saved.</span>{/if}
 		</div>
 	</form>
+	<PushToggle publicKey={data.pushKey} />
 	<HallOfFame entries={data.hallOfFame} />
 
 	<section class="card space-y-4" aria-labelledby="security">

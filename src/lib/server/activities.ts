@@ -247,7 +247,7 @@ export function openGame(eventId: number, userId: number, gameId: string, soft: 
 	if (isNew) {
 		const opener = gamePlayers(eventId)[0]?.name ?? 'Someone';
 		for (const p of goingPeople(eventId)) {
-			if (p.id !== userId) notify(p.id, eventId, `${opener} wants to play ${meta.name} at ${event.title}. Join in!`);
+			if (p.id !== userId) notify(p.id, eventId, `${opener} wants to play ${meta.name} at ${event.title}. Join in!`, '/games');
 		}
 	}
 	publish(eventId);

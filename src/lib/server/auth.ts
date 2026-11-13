@@ -22,7 +22,7 @@ function verifyPassword(password: string, stored: string) {
 }
 
 // Only a hash of the session token is stored, so a leaked database cannot be used to log in.
-const hashToken = (token: string) => createHash('sha256').update(token).digest('hex');
+export const hashToken = (token: string) => createHash('sha256').update(token).digest('hex');
 
 export const MIN_PASSWORD = 8;
 const MAX_PASSWORD = 200;
