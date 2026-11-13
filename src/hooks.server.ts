@@ -5,6 +5,7 @@ import { purgeDrinks } from '#lib/server/drinks.ts';
 import { purgeHelp } from '#lib/server/help.ts';
 import { fireDueDrops } from '#lib/server/photoDrops.ts';
 import { closeDueVotes } from '#lib/server/moveVotes.ts';
+import { nudgeHangovers } from '#lib/server/hangover.ts';
 
 // Clear out expired sessions and reset links, and week-old drink taps and Come get me requests, once an hour.
 const purge = () => {
@@ -15,16 +16,19 @@ const purge = () => {
 purge();
 setInterval(purge, 60 * 60 * 1000).unref?.();
 
-// Make the next night for repeating events once they've started. Checked every 10 minutes.
-const repeats = () => {
-	try {
-		makeRepeats();
-	} catch (e) {
-		console.error('[repeats] failed', e);
+// Make the next night for repeating events once they've started, and send the morning-after "How's the
+// head?" nudges. Checked every 10 minutes.
+const slow = () => {
+	for (const job of [makeRepeats, nudgeHangovers]) {
+		try {
+			job();
+		} catch (e) {
+			console.error(`[${job.name}] failed`, e);
+		}
 	}
 };
-repeats();
-setInterval(repeats, 10 * 60 * 1000).unref?.();
+slow();
+setInterval(slow, 10 * 60 * 1000).unref?.();
 
 // Tell everyone when a photo drop goes off and when a stay-or-move-on vote closes. Checked every
 // 5 seconds, as they only last a minute or two.

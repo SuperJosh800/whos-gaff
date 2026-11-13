@@ -672,6 +672,17 @@ const migrations: string[] = [
 		undone INTEGER NOT NULL DEFAULT 0,
 		PRIMARY KEY (item_id, user_id)
 	);
+	`,
+	// The morning-after hangover check-in: how bad each person's head is, from 0 (fresh) to 5 (dying), and
+	// which nights have had their one "How's the head?" nudge.
+	`
+	CREATE TABLE hangovers (
+		event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+		user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		head INTEGER NOT NULL CHECK (head BETWEEN 0 AND 5),
+		PRIMARY KEY (event_id, user_id)
+	);
+	CREATE TABLE hangover_nudges (event_id INTEGER PRIMARY KEY REFERENCES events(id) ON DELETE CASCADE);
 	`
 ];
 

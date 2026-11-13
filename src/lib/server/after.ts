@@ -18,7 +18,7 @@ export type Award = keyof typeof AWARDS;
 export const isOver = (event: Event, now = nowLocal()) => !!event.starts_at && event.starts_at <= now;
 
 /** The people who can vote and be voted for: the host and everyone who RSVP'd going. */
-function attendees(eventId: number) {
+export function attendees(eventId: number) {
 	return db
 		.prepare(
 			`SELECT u.id, u.name FROM event_members m JOIN events e ON e.id = m.event_id JOIN users u ON u.id = m.user_id
