@@ -228,6 +228,15 @@
 		{#if data.quizLeft}<span class="flex flex-col justify-center self-stretch border-l border-zinc-200 bg-lime px-3 py-3 text-center text-ink"><span class="block text-xl leading-none font-black tabular-nums">{data.quizLeft}</span><span class="text-[10px] font-extrabold tracking-widest uppercase">to answer</span></span>{/if}
 	</a>
 
+	<a class="block border border-zinc-200 px-3 py-3 hover:bg-zinc-100" href="/groups/{data.group.id}/quotes">
+		<span class="block text-[11px] font-extrabold tracking-widest text-hot uppercase">Quotes wall</span>
+		{#if data.topQuote}
+			<span class="block font-black break-words">“{data.topQuote.text}”</span><span class="text-xs text-zinc-500">{data.topQuote.said_by_name}{data.topQuote.votes ? ` · ${data.topQuote.votes} ${data.topQuote.votes === 1 ? 'vote' : 'votes'}` : ''}</span>
+		{:else}
+			<span class="text-sm text-zinc-600">The things people said, voted on by everyone.</span>
+		{/if}
+	</a>
+
 	<a class="block border border-lime px-3 py-3 hover:bg-zinc-100" href="/groups/{data.group.id}/year">
 		<span><span class="block text-[11px] font-extrabold tracking-widest text-lime uppercase">Year in review</span><span class="text-sm text-zinc-600">Nights out, crowns and who came out the most.</span></span>
 	</a>

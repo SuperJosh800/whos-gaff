@@ -683,6 +683,26 @@ const migrations: string[] = [
 		PRIMARY KEY (event_id, user_id)
 	);
 	CREATE TABLE hangover_nudges (event_id INTEGER PRIMARY KEY REFERENCES events(id) ON DELETE CASCADE);
+	`,
+	// A group's quotes wall: things people said, optionally from one of the group's nights, with one vote
+	// each. Taken-down quotes are kept (removed) so they still count towards the hourly limit.
+	`
+	CREATE TABLE quotes (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		group_id INTEGER NOT NULL REFERENCES friend_groups(id) ON DELETE CASCADE,
+		poster_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		said_by INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		event_id INTEGER REFERENCES events(id) ON DELETE SET NULL,
+		text TEXT NOT NULL,
+		posted_at INTEGER NOT NULL,
+		removed INTEGER NOT NULL DEFAULT 0
+	);
+	CREATE INDEX quotes_group ON quotes (group_id);
+	CREATE TABLE quote_votes (
+		quote_id INTEGER NOT NULL REFERENCES quotes(id) ON DELETE CASCADE,
+		user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		PRIMARY KEY (quote_id, user_id)
+	);
 	`
 ];
 

@@ -70,7 +70,10 @@ const PERSONAL: [table: string, column: string][] = [
 	['bet_stakes', 'user_id'],
 	['lost_items', 'user_id'],
 	['lost_replies', 'user_id'],
-	['hangovers', 'user_id']
+	['hangovers', 'user_id'],
+	['quotes', 'poster_id'],
+	['quotes', 'said_by'],
+	['quote_votes', 'user_id']
 ];
 
 /** Everything stored about a user, as plain data for a JSON download. Passwords and session tokens are left out. */
@@ -144,7 +147,7 @@ export function deleteAccount(userId: number) {
 			'sessions', 'password_resets', 'push_subscriptions', 'event_members', 'rsvps', 'votes', 'messages', 'notifications',
 			'moves', 'home_plans', 'home_safe', 'group_members', 'free_gaffs', 'pings', 'ping_answers',
 			'event_photos', 'challenge_results', 'game_players', 'round_group_members',
-			'missions', 'bingo_cards', 'buddies', 'ticket_holders', 'theme_votes', 'venue_votes', 'waitlist', 'drivers', 'drink_log', 'help_responders', 'help_requests', 'song_votes', 'drop_photos', 'move_ballots', 'heading_off', 'quiz_answers', 'lost_items', 'lost_replies', 'hangovers'
+			'missions', 'bingo_cards', 'buddies', 'ticket_holders', 'theme_votes', 'venue_votes', 'waitlist', 'drivers', 'drink_log', 'help_responders', 'help_requests', 'song_votes', 'drop_photos', 'move_ballots', 'heading_off', 'quiz_answers', 'lost_items', 'lost_replies', 'hangovers', 'quote_votes'
 		]) {
 			db.prepare(`DELETE FROM ${table} WHERE user_id = ?`).run(userId);
 		}
@@ -157,8 +160,9 @@ export function deleteAccount(userId: number) {
 		// so everyone else's coins still add up. Their stakes on open bets go too.
 		db.prepare('DELETE FROM bets WHERE proposer_id = ? AND outcome IS NULL').run(userId);
 		db.prepare('DELETE FROM bet_stakes WHERE user_id = ? AND bet_id IN (SELECT id FROM bets WHERE outcome IS NULL)').run(userId);
-		// Quiz questions they wrote, and ones about them, are about a person, so they go too.
+		// Quiz questions and quotes they wrote, and ones about them or that they said, are about a person, so they go too.
 		db.prepare('DELETE FROM quiz_questions WHERE author_id = ? OR about_id = ?').run(userId, userId);
+		db.prepare('DELETE FROM quotes WHERE poster_id = ? OR said_by = ?').run(userId, userId);
 		// Orders not yet placed go; placed ones stay, like the kitty costs they made, as "Deleted user",
 		// so everyone else's share of them still adds up.
 		db.prepare('DELETE FROM takeaway_items WHERE user_id = ? AND takeaway_id IN (SELECT id FROM takeaways WHERE ordered_at IS NULL)').run(userId);
