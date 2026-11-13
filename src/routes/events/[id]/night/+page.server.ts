@@ -18,7 +18,7 @@ import { eventInput } from '#lib/server/form.ts';
 import { callOut, completeMission, getMissions, swapMission, takeMission } from '#lib/server/missions.ts';
 import { nowLocal } from '#lib/time.ts';
 import { AWARDS, getPredictions, savePredictions } from '#lib/server/after.ts';
-import { dealCard, getBingo, toggleMoment } from '#lib/server/bingo.ts';
+import { dealCard, getBingo, setMoment } from '#lib/server/bingo.ts';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ params, parent, locals }) => {
@@ -94,7 +94,7 @@ export const actions: Actions = {
 	},
 	bingoMark: async (e) => {
 		const { userId, eventId, get } = await eventInput(e);
-		return asAction(() => toggleMoment(eventId, userId, get('moment')));
+		return asAction(() => setMoment(eventId, userId, get('moment'), get('mark') === '1'));
 	},
 	callOut: async (e) => {
 		const { userId, eventId, get } = await eventInput(e);
