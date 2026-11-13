@@ -437,6 +437,26 @@ const migrations: string[] = [
 	-- night each one was repeated from.
 	ALTER TABLE events ADD COLUMN repeat_days INTEGER CHECK (repeat_days IN (7, 14));
 	ALTER TABLE events ADD COLUMN repeated_from INTEGER REFERENCES events(id) ON DELETE SET NULL;
+	`,
+	`
+	-- Venue vote: pubs or clubs anyone can suggest, ticked by everyone who'd go, and the one the host
+	-- locks in. venue_told is the last one everyone was told about.
+	CREATE TABLE venue_options (
+		id INTEGER PRIMARY KEY,
+		event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+		name TEXT NOT NULL,
+		link TEXT NOT NULL DEFAULT '',
+		suggested_by INTEGER NOT NULL REFERENCES users(id),
+		UNIQUE (event_id, name COLLATE NOCASE)
+	);
+	CREATE TABLE venue_votes (
+		option_id INTEGER NOT NULL REFERENCES venue_options(id) ON DELETE CASCADE,
+		user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		PRIMARY KEY (option_id, user_id)
+	);
+	ALTER TABLE events ADD COLUMN venue TEXT NOT NULL DEFAULT '';
+	ALTER TABLE events ADD COLUMN venue_link TEXT NOT NULL DEFAULT '';
+	ALTER TABLE events ADD COLUMN venue_told TEXT NOT NULL DEFAULT '';
 	`
 ];
 

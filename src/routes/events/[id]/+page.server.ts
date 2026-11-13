@@ -23,6 +23,7 @@ import { eventInput } from '#lib/server/form.ts';
 import { getProfile } from '#lib/server/auth.ts';
 import { getTickets, nudgeTickets, setHaveTicket, setTickets } from '#lib/server/tickets.ts';
 import { repeatedInto, setRepeat } from '#lib/server/repeats.ts';
+import { listVenues, lockVenue, removeVenue, reopenVenue, suggestVenue, voteVenue } from '#lib/server/venues.ts';
 import { listThemes, lockTheme, removeTheme, reopenTheme, suggestTheme, voteTheme } from '#lib/server/themes.ts';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -43,7 +44,8 @@ export const load: PageServerLoad = async ({ params, locals, url, parent }) => {
 		repeatedInto: isHost ? repeatedInto(event.id) : null,
 		payday: getProfile(userId).payday,
 		tickets: event.starts_at ? getTickets(event.id, userId) : null,
-		themes: listThemes(event.id, userId)
+		themes: listThemes(event.id, userId),
+		venues: listVenues(event.id, userId)
 	};
 };
 
@@ -117,6 +119,26 @@ export const actions: Actions = {
 	reopenTheme: async (e) => {
 		const { userId, eventId } = await eventInput(e);
 		return asAction(() => reopenTheme(eventId, userId));
+	},
+	suggestVenue: async (e) => {
+		const { userId, eventId, get } = await eventInput(e);
+		return asAction(() => suggestVenue(eventId, userId, get('name'), get('link')));
+	},
+	voteVenue: async (e) => {
+		const { userId, eventId, get } = await eventInput(e);
+		return asAction(() => voteVenue(eventId, userId, Number(get('option')), get('up') === '1'));
+	},
+	removeVenue: async (e) => {
+		const { userId, eventId, get } = await eventInput(e);
+		return asAction(() => removeVenue(eventId, userId, Number(get('option'))));
+	},
+	lockVenue: async (e) => {
+		const { userId, eventId, get } = await eventInput(e);
+		return asAction(() => lockVenue(eventId, userId, Number(get('option'))));
+	},
+	reopenVenue: async (e) => {
+		const { userId, eventId } = await eventInput(e);
+		return asAction(() => reopenVenue(eventId, userId));
 	},
 	settings: async (e) => {
 		const { userId, eventId, get } = await eventInput(e);

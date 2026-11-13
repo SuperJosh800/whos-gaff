@@ -8,11 +8,24 @@ export const MAX_THEMES = 12;
 const MAX_LABEL = 60;
 
 /** Tidies a label: drops invisible characters, squashes spaces, and needs at least one letter or digit. */
-function cleanLabel(label: string) {
+export function cleanLabel(label: string, empty: string) {
 	label = label.replace(/\p{Cf}/gu, '').replace(/\s+/g, ' ').trim();
-	if (!/[\p{L}\p{N}]/u.test(label)) throw new EventError('Type a dress code or theme.');
+	if (!/[\p{L}\p{N}]/u.test(label)) throw new EventError(empty);
 	if (label.length > MAX_LABEL) throw new EventError(`Keep it to ${MAX_LABEL} characters.`);
 	return label;
+}
+
+/** Everyone invited who might come: all but `exceptId` and anyone who said they can't. */
+export function peopleNotOut(eventId: number, exceptId: number) {
+	return (
+		db
+			.prepare(
+				`SELECT m.user_id FROM event_members m
+				 LEFT JOIN rsvps r ON r.event_id = m.event_id AND r.user_id = m.user_id
+				 WHERE m.event_id = ? AND m.user_id != ? AND (r.response IS NULL OR r.response != 'no')`
+			)
+			.all(eventId, exceptId) as { user_id: number }[]
+	).map((r) => r.user_id);
 }
 
 function requireOpen(event: Event) {
@@ -56,7 +69,7 @@ export function listThemes(eventId: number, userId: number) {
 
 export function suggestTheme(eventId: number, userId: number, label: string) {
 	requireOpen(requireMember(eventId, userId));
-	label = cleanLabel(label);
+	label = cleanLabel(label, 'Type a dress code or theme.');
 	const { n } = db.prepare('SELECT COUNT(*) AS n FROM theme_options WHERE event_id = ?').get(eventId) as { n: number };
 	if (n >= MAX_THEMES) throw new EventError('That’s plenty of ideas. Vote for one.');
 	const taken = db.prepare('SELECT 1 FROM theme_options WHERE event_id = ? AND label = ? COLLATE NOCASE').get(eventId, label);
@@ -106,14 +119,7 @@ export function lockTheme(eventId: number, hostId: number, optionId: number) {
 	db.prepare('UPDATE events SET theme = ? WHERE id = ?').run(label, eventId);
 	if (label.toLowerCase() !== event.theme_told.toLowerCase()) {
 		db.prepare('UPDATE events SET theme_told = ? WHERE id = ?').run(label, eventId);
-		const people = db
-			.prepare(
-				`SELECT m.user_id FROM event_members m
-				 LEFT JOIN rsvps r ON r.event_id = m.event_id AND r.user_id = m.user_id
-				 WHERE m.event_id = ? AND m.user_id != ? AND (r.response IS NULL OR r.response != 'no')`
-			)
-			.all(eventId, hostId) as { user_id: number }[];
-		for (const p of people) notify(p.user_id, eventId, `Dress code for ${event.title}: ${label}`);
+		for (const id of peopleNotOut(eventId, hostId)) notify(id, eventId, `Dress code for ${event.title}: ${label}`);
 	}
 	publish(eventId);
 }
