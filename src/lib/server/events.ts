@@ -19,10 +19,14 @@ export type Event = {
 	invite_token: string;
 	created_at: string;
 	gaff_id: number | null;
+	group_id: number | null;
 	playlist_url: string;
 	/** The dress code or theme the host locked in, or '' while it's still a poll. */
 	theme: string;
 	theme_told: string;
+	/** 7 or 14 when the next night is made automatically once this one starts. */
+	repeat_days: number | null;
+	repeated_from: number | null;
 };
 
 export type DateOption = {

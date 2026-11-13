@@ -431,6 +431,12 @@ const migrations: string[] = [
 	);
 	ALTER TABLE events ADD COLUMN theme TEXT NOT NULL DEFAULT '';
 	ALTER TABLE events ADD COLUMN theme_told TEXT NOT NULL DEFAULT '';
+	`,
+	`
+	-- Repeat nights: how many days until the next one (only the latest night in a run has it), and the
+	-- night each one was repeated from.
+	ALTER TABLE events ADD COLUMN repeat_days INTEGER CHECK (repeat_days IN (7, 14));
+	ALTER TABLE events ADD COLUMN repeated_from INTEGER REFERENCES events(id) ON DELETE SET NULL;
 	`
 ];
 

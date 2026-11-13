@@ -66,6 +66,9 @@
 			{/if}
 			<button type="button" class="border-l border-zinc-200 px-3 text-[11px] font-extrabold tracking-widest uppercase hover:bg-zinc-100" onclick={openChat}>Message</button>
 		</div>
+		{#if event.repeat_days}
+			<p class="text-sm text-zinc-600">Repeats {event.repeat_days === 7 ? 'every week' : 'every fortnight'}. The next one is set up when this one starts.</p>
+		{/if}
 		{#if data.address || data.addressLocked}
 			<p class="text-sm {data.address ? 'text-zinc-700' : 'text-zinc-500'}">
 				{data.address ?? 'The address shows once you RSVP “going”.'}

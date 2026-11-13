@@ -19,6 +19,22 @@
 				<a class="font-semibold text-hot underline underline-offset-4" href="/gaffs">Manage gaff profiles</a>
 			</p>
 		</div>
+		{#if data.repeatedInto}
+			<div>
+				<span class="label">Repeats</span>
+				<p class="text-sm text-zinc-600">This night has been repeated. <a class="font-semibold text-hot underline underline-offset-4" href="/events/{data.repeatedInto}">Go to the next one</a> to change or stop the repeat.</p>
+			</div>
+		{:else if data.event.starts_at}
+			<div>
+				<label class="label" for="repeat">Repeats</label>
+				<select class="input" id="repeat" name="repeat" value={String(data.event.repeat_days ?? '')}>
+					<option value="">Doesn’t repeat</option>
+					<option value="7">Every week</option>
+					<option value="14">Every fortnight</option>
+				</select>
+				<p class="mt-1 text-xs text-zinc-500">When this night starts, the next one is set up for the same time with the same people, and they’re asked if they’re coming.</p>
+			</div>
+		{/if}
 		<div>
 			<label class="label" for="playlist_url">Spotify playlist link</label>
 			<input class="input" id="playlist_url" name="playlist_url" type="url" placeholder="https://open.spotify.com/playlist/…" value={data.event.playlist_url} />

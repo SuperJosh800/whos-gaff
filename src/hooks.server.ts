@@ -1,9 +1,21 @@
 import type { Handle } from '@sveltejs/kit/hooks';
 import { getSessionUser, hashToken, purgeExpired, SESSION_COOKIE } from '#lib/server/auth.ts';
+import { makeRepeats } from '#lib/server/repeats.ts';
 
 // Clear out expired sessions and reset links once an hour.
 purgeExpired();
 setInterval(() => purgeExpired(), 60 * 60 * 1000).unref?.();
+
+// Make the next night for repeating events once they've started. Checked every 10 minutes.
+const repeats = () => {
+	try {
+		makeRepeats();
+	} catch (e) {
+		console.error('[repeats] failed', e);
+	}
+};
+repeats();
+setInterval(repeats, 10 * 60 * 1000).unref?.();
 
 // The Content-Security-Policy is set by SvelteKit (kit.csp in vite.config.ts) so it can hash its own inline scripts.
 const SECURITY_HEADERS: Record<string, string> = {
