@@ -1,5 +1,5 @@
 import { asAction } from '#lib/server/events.ts';
-import { beginGame, challengeScores, drawCard, endGame, finishChallenge, getActivity, joinGame, leaveGame, nextCard, openGame } from '#lib/server/activities.ts';
+import { beginGame, challengeScores, drawCard, endGame, finishChallenge, getActivity, joinGame, leaveGame, makeMove, nextCard, openGame } from '#lib/server/activities.ts';
 import { listGamesForEvent } from '#lib/server/customGames.ts';
 import { eventInput } from '#lib/server/form.ts';
 import type { Actions, PageServerLoad } from './$types';
@@ -44,6 +44,19 @@ export const actions: Actions = {
 	draw: async (e) => {
 		const { userId, eventId, get } = await eventInput(e);
 		return asAction(() => drawCard(eventId, userId, Number(get('seen'))));
+	},
+	move: async (e) => {
+		const { userId, eventId, get } = await eventInput(e);
+		const seen = Number(get('seen'));
+		const type = get('type');
+		return asAction(() =>
+			makeMove(
+				eventId,
+				userId,
+				seen,
+				type === 'pass' ? { type } : type === 'answer' ? { type, who: Number(get('who')) } : type === 'reveal' ? { type, drink: get('drink') === '1' } : { type: 'guess', guess: get('guess') }
+			)
+		);
 	},
 	next: async (e) => {
 		const { userId, eventId, get } = await eventInput(e);

@@ -392,6 +392,10 @@ const migrations: string[] = [
 		pinged_at INTEGER,
 		PRIMARY KEY (event_id, user_id)
 	);
+	`,
+	`
+	-- Games with their own moves (Higher or lower, Ride the bus, Paranoia) keep their state here as JSON.
+	ALTER TABLE event_activity ADD COLUMN play TEXT;
 	`
 ];
 

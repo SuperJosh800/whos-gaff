@@ -12,6 +12,7 @@ import {
 	getActivity,
 	joinGame,
 	leaveGame,
+	makeMove,
 	nextCard,
 	openGame
 } from './activities.ts';
@@ -232,6 +233,77 @@ describe('ring of fire', () => {
 		expect(getActivity(id, host.id)!.turn!.up!.id).toBe(up);
 		nextCard(id, others[1], 0);
 		expect(getActivity(id, host.id)!.turn).toMatchObject({ drewIt: { id: up }, left: 51 });
+	});
+});
+
+describe('games with their own moves', () => {
+	/** A started game whose players joined in this order. */
+	function table(game: string, guests = 2) {
+		const { id, host, people } = party(guests);
+		const [a, ...rest] = people;
+		openGame(id, a.id, game, false);
+		for (const p of [host, ...rest]) joinGame(id, p.id);
+		beginGame(id, host.id);
+		return { id, order: [a, host, ...rest] };
+	}
+
+	it('Higher or lower: only whoever’s turn it is can guess, and a double tap counts once', () => {
+		const { id, order } = table('higher-lower');
+		const [a, host] = order;
+		const view = getActivity(id, host.id)!;
+		expect(view.card).toBe('');
+		expect(view.play).toMatchObject({ kind: 'hilo', up: { id: a.id }, yours: false, streak: 0 });
+		expect(() => makeMove(id, host.id, 0, { type: 'guess', guess: 'higher' })).toThrow('not your turn');
+		makeMove(id, a.id, 0, { type: 'guess', guess: 'higher' });
+		makeMove(id, a.id, 0, { type: 'guess', guess: 'lower' }); // stale: ignored
+		const after = getActivity(id, host.id)!;
+		expect(after.position).toBe(1);
+		expect(after.play!.last).toMatchObject({ by: a.id, text: expect.stringContaining('said higher') });
+	});
+
+	it('Paranoia: the question never reaches anyone but the asker unless the person named drinks', () => {
+		const { id, order } = table('paranoia', 3);
+		const [a, host, b, c] = order;
+		const question = (viewer: number) => {
+			const v = getActivity(id, viewer)!;
+			return v.play && 'question' in v.play ? v.play.question : undefined;
+		};
+		const asked = question(a.id);
+		expect(asked).toMatch(/\?$/);
+		for (const p of [host, b, c]) {
+			expect(question(p.id)).toBeNull();
+			expect(JSON.stringify(getActivity(id, p.id))).not.toContain(asked!);
+		}
+		makeMove(id, a.id, 0, { type: 'answer', who: b.id });
+		expect(() => makeMove(id, host.id, 1, { type: 'reveal', drink: true })).toThrow('not you they named');
+		for (const p of [host, b, c]) expect(JSON.stringify(getActivity(id, p.id))).not.toContain(asked!);
+		makeMove(id, b.id, 1, { type: 'reveal', drink: true });
+		const last = getActivity(id, c.id)!.play!.last;
+		expect(last).toEqual({ asker: a.name, answer: b.name, question: asked });
+		// The host asks next: their question reaches nobody else.
+		const next = question(host.id)!;
+		expect(next).toMatch(/\?$/);
+		for (const p of [a, b, c]) expect(JSON.stringify(getActivity(id, p.id))).not.toContain(next);
+	});
+
+	it('lets half the players skip whoever the game is waiting on', () => {
+		const { id, order } = table('ride-the-bus', 3); // 4 players: 2 votes skip
+		const [a, host, b] = order;
+		nextCard(id, host.id, 0);
+		expect(getActivity(id, host.id)!.play!.up!.id).toBe(a.id);
+		nextCard(id, b.id, 0);
+		expect(getActivity(id, host.id)!.play!.up!.id).toBe(host.id);
+	});
+
+	it('starts fresh when the game is changed', () => {
+		const { id, order } = table('higher-lower');
+		const [a] = order;
+		makeMove(id, a.id, 0, { type: 'guess', guess: 'higher' });
+		openGame(id, a.id, 'ride-the-bus', false);
+		expect(getActivity(id, a.id)!.play).toMatchObject({ kind: 'bus', step: 1, up: { id: a.id }, last: null });
+		openGame(id, a.id, 'never', false);
+		expect(getActivity(id, a.id)!.play).toBeNull();
+		expect(() => makeMove(id, a.id, 0, { type: 'pass' })).toThrow('doesn’t have moves');
 	});
 });
 
