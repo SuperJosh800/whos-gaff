@@ -396,6 +396,22 @@ const migrations: string[] = [
 	`
 	-- Games with their own moves (Higher or lower, Ride the bus, Paranoia) keep their state here as JSON.
 	ALTER TABLE event_activity ADD COLUMN play TEXT;
+	`,
+	`
+	-- Tickets and entry: where to buy and the price, and who's got theirs.
+	CREATE TABLE tickets (
+		event_id INTEGER PRIMARY KEY REFERENCES events(id) ON DELETE CASCADE,
+		url TEXT NOT NULL DEFAULT '',
+		price_pence INTEGER CHECK (price_pence > 0),
+		note TEXT NOT NULL DEFAULT '',
+		nudged_at INTEGER
+	);
+	CREATE TABLE ticket_holders (
+		event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+		user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		at TEXT NOT NULL DEFAULT (datetime('now')),
+		PRIMARY KEY (event_id, user_id)
+	);
 	`
 ];
 
