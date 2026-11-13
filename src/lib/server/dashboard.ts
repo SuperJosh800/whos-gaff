@@ -15,7 +15,7 @@ type Row = Event & {
 };
 
 // The address and invite link stay on the server: the dashboard goes to everyone invited, going or not.
-export type DashboardEvent = Omit<Row, 'location' | 'invite_token' | 'theme_told'> & {
+export type DashboardEvent = Omit<Row, 'location' | 'invite_token' | 'theme_told' | 'venue_told'> & {
 	status: 'voting' | 'voting-closed' | 'locked' | 'past';
 	/** What the user needs to do, if anything. */
 	todo: 'vote' | 'rsvp' | 'pick' | null;
@@ -58,7 +58,7 @@ export function listDashboardEvents(userId: number, now = nowLocal()) {
 					: status === 'voting-closed' && e.is_host
 						? 'pick'
 						: null;
-		const { location: _, invite_token: __, theme_told: ___, ...shown } = e;
+		const { location: _, invite_token: __, theme_told: ___, venue_told: ____, ...shown } = e;
 		return { ...shown, status, todo };
 	});
 

@@ -27,6 +27,10 @@ export type Event = {
 	/** 7 or 14 when the next night is made automatically once this one starts. */
 	repeat_days: number | null;
 	repeated_from: number | null;
+	/** The pub or club the host locked in from the venue vote, or '' while it's open. */
+	venue: string;
+	venue_link: string;
+	venue_told: string;
 };
 
 export type DateOption = {
