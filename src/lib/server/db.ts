@@ -382,6 +382,16 @@ const migrations: string[] = [
 		marked_at TEXT NOT NULL DEFAULT (datetime('now')),
 		UNIQUE (event_id, moment)
 	);
+	`,
+	`
+	-- Buddy system: people in the same grp look out for each other. pinged_at (ms) limits "where are you?".
+	CREATE TABLE buddies (
+		event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+		user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		grp INTEGER NOT NULL,
+		pinged_at INTEGER,
+		PRIMARY KEY (event_id, user_id)
+	);
 	`
 ];
 

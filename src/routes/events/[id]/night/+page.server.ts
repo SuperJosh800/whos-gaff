@@ -19,6 +19,7 @@ import { callOut, completeMission, getMissions, swapMission, takeMission } from 
 import { nowLocal } from '#lib/time.ts';
 import { AWARDS, getPredictions, savePredictions } from '#lib/server/after.ts';
 import { dealCard, getBingo, setMoment } from '#lib/server/bingo.ts';
+import { getBuddies, pairUp, pingBuddy } from '#lib/server/buddies.ts';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ params, parent, locals }) => {
@@ -37,6 +38,7 @@ export const load: PageServerLoad = async ({ params, parent, locals }) => {
 		predictions: getPredictions(event.id, locals.user!.id),
 		awards: AWARDS,
 		bingo: getBingo(event.id, locals.user!.id),
+		buddies: getBuddies(event.id, locals.user!.id),
 		// No transport API yet: link out to journey planning from the venue (WG-17).
 		transitLink: address
 			? `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(address)}&travelmode=transit`
@@ -87,6 +89,14 @@ export const actions: Actions = {
 			savePredictions(eventId, userId, Object.fromEntries(Object.keys(AWARDS).map((a) => [a, get(a)])));
 			return { predicted: true };
 		});
+	},
+	pairUp: async (e) => {
+		const { userId, eventId, get } = await eventInput(e);
+		return asAction(() => pairUp(eventId, userId, get('reshuffle') === '1'));
+	},
+	pingBuddy: async (e) => {
+		const { userId, eventId } = await eventInput(e);
+		return asAction(() => ({ pinged: pingBuddy(eventId, userId) }));
 	},
 	bingoCard: async (e) => {
 		const { userId, eventId } = await eventInput(e);
