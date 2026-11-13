@@ -12,10 +12,20 @@
 	const ta = $derived(data.takeaway.order);
 	const myItem = $derived(ta?.items.find((i) => i.user_id === me));
 	let takeawayError = $state('');
+	// An error about the order goes once the order changes under it.
+	$effect(() => {
+		void data.takeaway;
+		takeawayError = '';
+	});
+	let busy = $state(false);
 	// Shows a failed takeaway action here in the section rather than at the top of the page.
-	const inTakeaway: SubmitFunction = () => async ({ update, result }) => {
-		takeawayError = result.type === 'failure' ? String(result.data?.error ?? 'Something went wrong.') : '';
-		if (result.type !== 'failure') await update({ reset: false });
+	const inTakeaway: SubmitFunction = () => {
+		busy = true;
+		return async ({ update, result }) => {
+			busy = false;
+			if (result.type !== 'failure') await update({ reset: false });
+			takeawayError = result.type === 'failure' ? String(result.data?.error ?? 'Something went wrong.') : '';
+		};
 	};
 </script>
 
@@ -164,8 +174,15 @@
 					</div>
 					<div class="flex items-center gap-4">
 						<button class="btn">{myItem ? 'Change it' : 'Add mine'}</button>
-						{#if myItem}<button class="text-[11px] font-extrabold tracking-widest text-zinc-500 uppercase hover:text-zinc-900" name="remove" value="1" formnovalidate>Take mine out</button>{/if}
+						<!-- Not name="remove": that would hide the form's own remove(), which Svelte calls when the form goes. -->
+						{#if myItem}<button class="text-[11px] font-extrabold tracking-widest text-zinc-500 uppercase hover:text-zinc-900" name="takeOut" value="1" formnovalidate>Take mine out</button>{/if}
 					</div>
+				</form>
+			{:else if myItem}
+				<form method="POST" action="?/takeawayItem" use:enhance={inTakeaway} class="flex items-center justify-between gap-3">
+					<input type="hidden" name="takeaway" value={ta.id} />
+					<p class="text-sm text-zinc-500">You’re not going any more, but your order’s still in.</p>
+					<button class="btn-secondary btn-small shrink-0" name="takeOut" value="1">Take mine out</button>
 				</form>
 			{/if}
 
@@ -175,7 +192,7 @@
 					<p class="label !mb-0">You’re ordering. Once it’s done, what did you pay?</p>
 					<div class="joined">
 						<input class="input" name="total" inputmode="decimal" required placeholder="£0.00" aria-label="What you paid in total" />
-						<button class="btn shrink-0">Ordered it</button>
+						<button class="btn shrink-0" disabled={busy}>Ordered it</button>
 					</div>
 					<p class="text-xs text-zinc-500">Priced items go in the kitty for whoever ordered them. The rest, like delivery, is split between everyone in the order.</p>
 				</form>

@@ -79,7 +79,9 @@ export function removeItem(eventId: number, userId: number, takeawayId: number) 
 
 /** Says you'll do the ordering, or that you won't after all. */
 export function setOrderer(eventId: number, userId: number, takeawayId: number, ordering: boolean) {
-	requireGoing(eventId, userId);
+	// Anyone can back out, even if they've stopped going.
+	if (ordering) requireGoing(eventId, userId);
+	else requireMember(eventId, userId);
 	const t = requireOpen(eventId, takeawayId);
 	if (ordering) {
 		if (t.orderer_id && t.orderer_id !== userId) throw new EventError('Someone else is already ordering it.');
@@ -95,7 +97,7 @@ export function setOrderer(eventId: number, userId: number, takeawayId: number, 
  * rest (delivery, items without a price) is split evenly between everyone who ordered, with the spare
  * pennies going to the lowest user ids, as the kitty does.
  */
-export function shares(list: Pick<Item, 'user_id' | 'price_pence'>[], total: number) {
+function shares(list: Pick<Item, 'user_id' | 'price_pence'>[], total: number) {
 	const priced = list.reduce((sum, i) => sum + (i.price_pence ?? 0), 0);
 	const rest = total - priced;
 	const people = list.map((i) => i.user_id).sort((a, b) => a - b);
@@ -119,6 +121,7 @@ export function placeOrder(eventId: number, userId: number, takeawayId: number, 
 	if (!pence) throw new EventError('Enter what you paid, like 32.50.');
 	const split = shares(list, pence);
 	if (split.rest < 0) throw new EventError(`That’s less than the prices people put in (${formatPounds(split.priced)}).`);
+	if (split.rest === 0 && list.some((i) => !i.price_pence)) throw new EventError('That only covers the priced items. Put in the whole bill, with the rest and delivery.');
 	tx(() => {
 		const cost = db.prepare('INSERT INTO expenses (event_id, paid_by, description, amount_pence) VALUES (?, ?, ?, ?)');
 		const share = db.prepare('INSERT INTO expense_shares (expense_id, user_id) VALUES (?, ?)');
@@ -146,6 +149,10 @@ export function cancelTakeaway(eventId: number, userId: number, takeawayId: numb
 	const event = requireMember(eventId, userId);
 	const t = requireOpen(eventId, takeawayId);
 	if (t.started_by !== userId && event.host_id !== userId) throw new EventError('Only whoever started it or the host can call it off.');
+	const name = (db.prepare('SELECT name FROM users WHERE id = ?').get(userId) as { name: string }).name;
+	for (const i of items(takeawayId)) {
+		if (i.user_id !== userId) notify(i.user_id, eventId, `${name} called off the takeaway from ${t.place}. (${event.title})`, '/money#takeaway');
+	}
 	db.prepare('UPDATE takeaways SET cancelled = 1 WHERE id = ?').run(takeawayId);
 	db.prepare('DELETE FROM takeaway_items WHERE takeaway_id = ?').run(takeawayId);
 	publish(eventId);

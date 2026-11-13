@@ -52,7 +52,7 @@ export const actions: Actions = {
 	takeawayItem: async (e) => {
 		const { userId, eventId, get } = await eventInput(e);
 		const id = Number(get('takeaway'));
-		return asAction(() => (get('remove') ? removeItem(eventId, userId, id) : setItem(eventId, userId, id, get('item'), get('price'))));
+		return asAction(() => (get('takeOut') ? removeItem(eventId, userId, id) : setItem(eventId, userId, id, get('item'), get('price'))));
 	},
 	takeawayOrderer: async (e) => {
 		const { userId, eventId, get } = await eventInput(e);

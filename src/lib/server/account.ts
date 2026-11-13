@@ -135,7 +135,7 @@ export function deleteAccount(userId: number) {
 			'sessions', 'password_resets', 'push_subscriptions', 'event_members', 'rsvps', 'votes', 'messages', 'notifications',
 			'moves', 'home_plans', 'home_safe', 'group_members', 'free_gaffs', 'pings', 'ping_answers',
 			'event_photos', 'challenge_results', 'game_players', 'round_group_members',
-			'missions', 'bingo_cards', 'buddies', 'ticket_holders', 'theme_votes', 'venue_votes', 'waitlist', 'drivers', 'drink_log', 'help_responders', 'help_requests', 'song_votes', 'drop_photos', 'move_ballots', 'takeaway_items'
+			'missions', 'bingo_cards', 'buddies', 'ticket_holders', 'theme_votes', 'venue_votes', 'waitlist', 'drivers', 'drink_log', 'help_responders', 'help_requests', 'song_votes', 'drop_photos', 'move_ballots'
 		]) {
 			db.prepare(`DELETE FROM ${table} WHERE user_id = ?`).run(userId);
 		}
@@ -144,7 +144,9 @@ export function deleteAccount(userId: number) {
 		db.prepare('DELETE FROM predictions WHERE user_id = ? OR nominee_id = ?').run(userId, userId);
 		db.prepare('DELETE FROM taxi_told WHERE user_id = ? OR about_id = ?').run(userId, userId);
 		db.prepare('DELETE FROM move_votes WHERE started_by = ?').run(userId);
-		// Orders not yet placed go; placed ones stay, like the kitty costs they made, as "Deleted user".
+		// Orders not yet placed go; placed ones stay, like the kitty costs they made, as "Deleted user",
+		// so everyone else's share of them still adds up.
+		db.prepare('DELETE FROM takeaway_items WHERE user_id = ? AND takeaway_id IN (SELECT id FROM takeaways WHERE ordered_at IS NULL)').run(userId);
 		db.prepare('DELETE FROM takeaways WHERE started_by = ? AND ordered_at IS NULL').run(userId);
 		db.prepare('UPDATE takeaways SET orderer_id = NULL WHERE orderer_id = ? AND ordered_at IS NULL').run(userId);
 		// Squares that happened stay marked for everyone else, without the name.

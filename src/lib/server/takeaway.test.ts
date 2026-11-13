@@ -91,6 +91,39 @@ describe('takeaway order', () => {
 		expect(notes(host.id, /ordered/)).toEqual(['Sam ordered from Chippy. Your share, £10.01, is in the kitty. (Night)']);
 	});
 
+	it('gives spare pennies to the lowest user ids whatever order people added in, and wants the whole bill', () => {
+		const { id, host, sam, alex } = night();
+		startTakeaway(id, alex.id, 'Curry', AT);
+		const t = orderId(id, alex.id);
+		setItem(id, alex.id, t, 'Korma', '');
+		setItem(id, sam.id, t, 'Rice', '2');
+		setItem(id, host.id, t, 'Naan', '');
+		setOrderer(id, alex.id, t, true);
+		expect(() => placeOrder(id, alex.id, t, '2', AT)).toThrow('only covers the priced items');
+		// £2 of rice, so £10.02 split 3 ways: 334p each, no spare. £10.03: 335p, 334p, 334p.
+		placeOrder(id, alex.id, t, '12.03', AT);
+		expect(getTakeaway(id, host.id).order!.items.map((i) => [i.name, i.share])).toEqual([
+			['Alex', 334],
+			['Sam', 200 + 334],
+			['Host', 335]
+		]);
+		expect(owes(id)).toEqual({ Host: -335, Sam: -534, Alex: 869 });
+	});
+
+	it('lets people who stop going take their order out, and the orderer back out', () => {
+		const { id, host, sam, alex } = night();
+		startTakeaway(id, host.id, 'Chippy', AT);
+		const t = orderId(id, host.id);
+		setItem(id, sam.id, t, 'Chips', '');
+		setOrderer(id, alex.id, t, true);
+		setRsvp(id, sam.id, 'no');
+		setRsvp(id, alex.id, 'no');
+		removeItem(id, sam.id, t);
+		setOrderer(id, alex.id, t, false);
+		expect(getTakeaway(id, host.id).order).toMatchObject({ items: [], orderer: null });
+		expect(() => setOrderer(id, alex.id, t, true)).toThrow('RSVP “going”');
+	});
+
 	it('runs one at a time, lets people take orders out and change who orders, and can be called off', () => {
 		const { id, host, sam, alex, maybe } = night();
 		expect(() => startTakeaway(id, maybe.id, 'Chippy', AT)).toThrow('RSVP “going”');
@@ -112,7 +145,11 @@ describe('takeaway order', () => {
 		expect(() => cancelTakeaway(id, alex.id, t)).toThrow('Only whoever started it');
 		expect(getTakeaway(id, alex.id).order!.canCancel).toBe(false);
 		expect(getTakeaway(id, host.id).order!.canCancel).toBe(true);
+		setItem(id, sam.id, t, 'Chips', '');
+		setItem(id, host.id, t, 'Fish', '');
 		cancelTakeaway(id, host.id, t);
+		expect(notes(sam.id, /called off/)).toEqual(['Host called off the takeaway from Chippy. (Night)']);
+		expect(notes(host.id, /called off/)).toEqual([]);
 		expect(getTakeaway(id, sam.id)).toEqual({ order: null, canStart: true });
 		expect(() => setItem(id, sam.id, t, 'Chips', '')).toThrow('called off');
 		const other = night();
@@ -146,6 +183,10 @@ describe('takeaway order', () => {
 		setOrderer(id, alex.id, k, true);
 		deleteAccount(alex.id);
 		expect(getTakeaway(id, host.id)).toMatchObject({ order: { place: 'Chippy', orderer: 'Deleted user', total_pence: 1000 }, canStart: true });
+		expect(getTakeaway(id, host.id).order!.items.map((i) => [i.name, i.share])).toEqual([
+			['Host', 700],
+			['Deleted user', 300]
+		]);
 		expect(getKitty(id).expenses).toMatchObject([
 			{ description: 'Chippy: Fish', amount_pence: 700, payer: 'Deleted user' },
 			{ description: 'Chippy: Chips', amount_pence: 300, payer: 'Deleted user' }
