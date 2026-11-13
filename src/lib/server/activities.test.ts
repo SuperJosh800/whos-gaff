@@ -12,6 +12,7 @@ import {
 	getActivity,
 	joinGame,
 	leaveGame,
+	makeMove,
 	nextCard,
 	openGame
 } from './activities.ts';
@@ -232,6 +233,137 @@ describe('ring of fire', () => {
 		expect(getActivity(id, host.id)!.turn!.up!.id).toBe(up);
 		nextCard(id, others[1], 0);
 		expect(getActivity(id, host.id)!.turn).toMatchObject({ drewIt: { id: up }, left: 51 });
+	});
+});
+
+describe('games with their own moves', () => {
+	/** A started game whose players joined in this order. */
+	function table(game: string, guests = 2) {
+		const { id, host, people } = party(guests);
+		const [a, ...rest] = people;
+		openGame(id, a.id, game, false);
+		for (const p of [host, ...rest]) joinGame(id, p.id);
+		beginGame(id, host.id);
+		return { id, order: [a, host, ...rest] };
+	}
+
+	it('Higher or lower: only whoever’s turn it is can guess, and a double tap counts once', () => {
+		const { id, order } = table('higher-lower');
+		const [a, host] = order;
+		const view = getActivity(id, host.id)!;
+		expect(view.card).toBe('');
+		expect(view.play).toMatchObject({ kind: 'hilo', up: { id: a.id }, yours: false, streak: 0 });
+		expect(() => makeMove(id, host.id, 0, { type: 'guess', guess: 'higher' })).toThrow('not your turn');
+		makeMove(id, a.id, 0, { type: 'guess', guess: 'higher' });
+		makeMove(id, a.id, 0, { type: 'guess', guess: 'lower' }); // stale: ignored
+		const after = getActivity(id, host.id)!;
+		expect(after.position).toBe(1);
+		expect(after.play!.last).toMatchObject({ by: a.id, text: expect.stringContaining('said higher') });
+	});
+
+	it('Paranoia: the question never reaches anyone but the asker unless the person named drinks', () => {
+		const { id, order } = table('paranoia', 3);
+		const [a, host, b, c] = order;
+		const question = (viewer: number) => {
+			const v = getActivity(id, viewer)!;
+			return v.play && 'question' in v.play ? v.play.question : undefined;
+		};
+		const asked = question(a.id);
+		expect(asked).toMatch(/\?$/);
+		for (const p of [host, b, c]) {
+			expect(question(p.id)).toBeNull();
+			expect(JSON.stringify(getActivity(id, p.id))).not.toContain(asked!);
+		}
+		makeMove(id, a.id, 0, { type: 'answer', who: b.id });
+		expect(() => makeMove(id, host.id, 1, { type: 'reveal', drink: true })).toThrow('not you they named');
+		for (const p of [host, b, c]) expect(JSON.stringify(getActivity(id, p.id))).not.toContain(asked!);
+		makeMove(id, b.id, 1, { type: 'reveal', drink: true });
+		const last = getActivity(id, c.id)!.play!.last;
+		expect(last).toEqual({ asker: a.name, answer: b.name, question: asked });
+		// The host asks next: their question reaches nobody else.
+		const next = question(host.id)!;
+		expect(next).toMatch(/\?$/);
+		for (const p of [a, b, c]) expect(JSON.stringify(getActivity(id, p.id))).not.toContain(next);
+	});
+
+	it('lets half the players skip whoever the game is waiting on', () => {
+		const { id, order } = table('ride-the-bus', 3); // 4 players: 2 votes skip
+		const [a, host, b] = order;
+		nextCard(id, host.id, 0);
+		expect(getActivity(id, host.id)!.play!.up!.id).toBe(a.id);
+		nextCard(id, b.id, 0);
+		expect(getActivity(id, host.id)!.play!.up!.id).toBe(host.id);
+	});
+
+	it('Paranoia: a join or leave never hands the question to someone else', () => {
+		const { id, order } = table('paranoia', 2);
+		const [a, host, g] = order;
+		const question = (viewer: number) => {
+			const v = getActivity(id, viewer)!.play!;
+			return 'question' in v ? v.question : undefined;
+		};
+		const asked = question(a.id)!;
+		const late = user('Late');
+		joinByToken(getEvent(id)!.invite_token, late.id);
+		setRsvp(id, late.id, 'yes');
+		joinGame(id, late.id);
+		expect(question(a.id)).toBe(asked);
+		for (const p of [host, g, late]) expect(JSON.stringify(getActivity(id, p.id))).not.toContain(asked);
+		makeMove(id, a.id, getActivity(id, a.id)!.position, { type: 'answer', who: g.id });
+		leaveGame(id, a.id);
+		for (const p of [host, g, late]) expect(JSON.stringify(getActivity(id, p.id))).not.toContain(asked);
+		expect(getActivity(id, host.id)!.play).toMatchObject({ up: { id: host.id }, answer: null });
+	});
+
+	it('Paranoia: someone named leaving with a skip vote pending doesn’t lock the game', () => {
+		const { id, order } = table('paranoia', 3);
+		const [a, host, g1, g2] = order;
+		makeMove(id, a.id, 0, { type: 'answer', who: g2.id });
+		nextCard(id, host.id, 1); // a vote to skip g2, who then leaves
+		leaveGame(id, g2.id);
+		const v = getActivity(id, host.id)!;
+		expect(v.play).toMatchObject({ up: { id: host.id }, answer: null });
+		expect(v.votes.count).toBe(0);
+		// The game carries on, and anyone can still leave.
+		nextCard(id, g1.id, v.position);
+		leaveGame(id, g1.id);
+		expect(getActivity(id, a.id)!.players.map((p) => p.id)).toEqual([a.id, host.id]);
+	});
+
+	it('Higher or lower: a join doesn’t hand someone else the run, and the player up leaving passes the turn on', () => {
+		const { id, order } = table('higher-lower', 2);
+		const [a, host, g] = order;
+		// Play Ann's turn until she has a run going (or the turn passes, then try with whoever's up).
+		let up = a.id;
+		for (let i = 0; i < 20; i++) {
+			const v = getActivity(id, up)!.play!;
+			if ('streak' in v && v.streak > 0) break;
+			makeMove(id, up, getActivity(id, up)!.position, { type: 'guess', guess: 'higher' });
+			up = getActivity(id, up)!.play!.up!.id;
+		}
+		const before = getActivity(id, up)!.play!;
+		expect('streak' in before && before.streak).toBeGreaterThan(0);
+		const late = user('Late');
+		joinByToken(getEvent(id)!.invite_token, late.id);
+		setRsvp(id, late.id, 'yes');
+		joinGame(id, late.id);
+		expect(getActivity(id, late.id)!.play).toMatchObject({ up: { id: up }, streak: (before as { streak: number }).streak });
+		leaveGame(id, up);
+		const after = getActivity(id, late.id)!.play!;
+		expect(after).toMatchObject({ streak: 0 });
+		expect(after.up!.id).not.toBe(up);
+		expect([a.id, host.id, g.id, late.id]).toContain(after.up!.id);
+	});
+
+	it('starts fresh when the game is changed', () => {
+		const { id, order } = table('higher-lower');
+		const [a] = order;
+		makeMove(id, a.id, 0, { type: 'guess', guess: 'higher' });
+		openGame(id, a.id, 'ride-the-bus', false);
+		expect(getActivity(id, a.id)!.play).toMatchObject({ kind: 'bus', step: 1, up: { id: a.id }, last: null });
+		openGame(id, a.id, 'never', false);
+		expect(getActivity(id, a.id)!.play).toBeNull();
+		expect(() => makeMove(id, a.id, 0, { type: 'pass' })).toThrow('doesn’t have moves');
 	});
 });
 

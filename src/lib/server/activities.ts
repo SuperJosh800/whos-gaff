@@ -10,9 +10,10 @@ import { EventError, requireMember } from './events.ts';
 import { notify } from './notifications.ts';
 import { DEFAULT_COVER, fillNames, GAMES, namesNeeded, SOFT_NOTE, type Card } from '../activities.ts';
 import { customGameForEvent } from './customGames.ts';
+import { MoveError, newPlay, playMove, settle, skip, viewPlay, type Kind, type Move, type Play } from '../turnGames.ts';
 
 /** What a running game needs, copied when it starts so later edits to a custom game can't break it. */
-type Meta = { name: string; emoji: string; rules: string; softRules: string; scored: boolean; custom: boolean; turns?: boolean };
+type Meta = { name: string; emoji: string; rules: string; softRules: string; scored: boolean; custom: boolean; turns?: boolean; kind?: Kind };
 type Row = {
 	game: string;
 	meta: string;
@@ -24,6 +25,7 @@ type Row = {
 	soft: number;
 	started: number;
 	next_votes: string;
+	play: string | null;
 };
 type Reveal = { name: string; mission: string; outcome: 'done' | 'bailed' | 'caught' };
 type Person = { id: number; name: string };
@@ -73,7 +75,7 @@ function pickPeople(eventId: number, card: Card, previousFirst: number | null, s
 
 function loadRow(eventId: number) {
 	return db
-		.prepare('SELECT game, meta, cards, deck, position, picks, reveal, soft, started, next_votes FROM event_activity WHERE event_id = ?')
+		.prepare('SELECT game, meta, cards, deck, position, picks, reveal, soft, started, next_votes, play FROM event_activity WHERE event_id = ?')
 		.get(eventId) as Row | undefined;
 }
 
@@ -105,6 +107,40 @@ function drawNext(eventId: number, row: Row) {
 		`UPDATE event_activity SET position = position + 1, deck = ?, next_votes = '[]', updated_at = datetime('now') WHERE event_id = ?`
 	).run(JSON.stringify(newDeck), eventId);
 	return true;
+}
+
+/** Players in turn order: the order they joined, or everyone going for a game from before lobbies. */
+function turnOrder(eventId: number) {
+	const players = gamePlayers(eventId);
+	return players.length ? players : goingPeople(eventId);
+}
+
+function savePlay(eventId: number, play: Play) {
+	db.prepare(
+		`UPDATE event_activity SET play = ?, position = position + 1, next_votes = '[]', updated_at = datetime('now') WHERE event_id = ?`
+	).run(JSON.stringify(play), eventId);
+	return true;
+}
+
+/**
+ * A move in Higher or lower, Ride the bus or Paranoia. `seen` stops a double tap or a stale screen
+ * playing a move twice.
+ */
+export function makeMove(eventId: number, userId: number, seen: number, move: Move) {
+	requireMember(eventId, userId);
+	const changed = tx(() => {
+		const row = requirePlaying(eventId, userId);
+		const meta = JSON.parse(row.meta) as Meta;
+		if (!meta.kind || !row.play) throw new EventError('This game doesn’t have moves.');
+		if (row.position !== seen) return false;
+		try {
+			return savePlay(eventId, playMove(JSON.parse(row.play) as Play, turnOrder(eventId), userId, move, shuffle));
+		} catch (e) {
+			if (e instanceof MoveError) throw new EventError(e.message);
+			throw e;
+		}
+	});
+	if (changed) publish(eventId);
 }
 
 /** Votes needed to move to the next card: half the players, rounded up. */
@@ -140,10 +176,15 @@ export function getActivity(eventId: number, viewerId: number) {
 	const player = pickIds.length ? { id: pickIds[0], name: picked[0] } : null;
 	const secret = !!card.secret;
 	const mine = !!player && player.id === viewerId;
-	const text = secret && !mine ? (card.cover ?? DEFAULT_COVER) : card.text;
+	// Games with their own moves show their state instead of a card; Paranoia's questions stay hidden.
+	const text = meta.kind ? '' : secret && !mine ? (card.cover ?? DEFAULT_COVER) : card.text;
 	const joined = gamePlayers(eventId);
 	const votes = JSON.parse(row.next_votes) as number[];
 	const turn = meta.turns ? turnState(eventId, row, cards, deck, joined, viewerId) : null;
+	const play =
+		meta.kind && row.play
+			? viewPlay(JSON.parse(row.play) as Play, joined.length ? joined : goingPeople(eventId), viewerId, cards.map((c) => c.text))
+			: null;
 	return {
 		game: row.game,
 		/** False while the game is in its lobby, waiting for people to join. */
@@ -168,6 +209,8 @@ export function getActivity(eventId: number, viewerId: number) {
 		player,
 		/** Turn-based games: whose turn it is, the card they drew, and the deck on the table. */
 		turn,
+		/** Higher or lower, Ride the bus and Paranoia: the game as this person sees it. */
+		play,
 		/** "Next card" needs half the players: how many have tapped it, how many it needs, and whether you have. */
 		votes: { count: votes.length, needed: votesNeeded(eventId), mine: votes.includes(viewerId) },
 		soft: !!row.soft,
@@ -217,7 +260,8 @@ export function openGame(eventId: number, userId: number, gameId: string, soft: 
 			softRules: builtIn.softRules ?? `${builtIn.rules} ${SOFT_NOTE}`,
 			scored: !!builtIn.scored,
 			custom: false,
-			turns: !!builtIn.turns
+			turns: !!builtIn.turns,
+			kind: builtIn.kind
 		};
 		cards = builtIn.cards;
 	} else {
@@ -234,14 +278,16 @@ export function openGame(eventId: number, userId: number, gameId: string, soft: 
 		const deck = shuffle(cards.length);
 		const started = existing?.started ?? 0;
 		const picks = started ? pickPeople(eventId, cards[deck[0]], null, meta.scored) : [];
+		const play = meta.kind ? JSON.stringify(newPlay(meta.kind, cards.length, shuffle, [])) : null;
 		db.prepare(
-			`INSERT INTO event_activity (event_id, game, meta, cards, deck, position, picks, reveal, soft, started, updated_at)
-			 VALUES (?, ?, ?, ?, ?, 0, ?, NULL, ?, 0, datetime('now'))
+			`INSERT INTO event_activity (event_id, game, meta, cards, deck, position, picks, reveal, soft, started, play, updated_at)
+			 VALUES (?, ?, ?, ?, ?, 0, ?, NULL, ?, 0, ?, datetime('now'))
 			 ON CONFLICT (event_id) DO UPDATE SET game = excluded.game, meta = excluded.meta, cards = excluded.cards,
 			 deck = excluded.deck, position = 0, picks = excluded.picks, reveal = NULL, soft = excluded.soft,
-			 next_votes = '[]', updated_at = excluded.updated_at`
-		).run(eventId, gameId, JSON.stringify(meta), JSON.stringify(cards), JSON.stringify(deck), JSON.stringify(picks), soft ? 1 : 0);
+			 play = excluded.play, next_votes = '[]', updated_at = excluded.updated_at`
+		).run(eventId, gameId, JSON.stringify(meta), JSON.stringify(cards), JSON.stringify(deck), JSON.stringify(picks), soft ? 1 : 0, play);
 		db.prepare('INSERT OR IGNORE INTO game_players (event_id, user_id) VALUES (?, ?)').run(eventId, userId);
+		resettle(eventId);
 		return !existing;
 	});
 	if (isNew) {
@@ -264,9 +310,28 @@ function requirePlayer(eventId: number, userId: number) {
 
 export function joinGame(eventId: number, userId: number) {
 	requireMember(eventId, userId);
-	requireRow(eventId);
-	db.prepare('INSERT OR IGNORE INTO game_players (event_id, user_id) VALUES (?, ?)').run(eventId, userId);
+	tx(() => {
+		requireRow(eventId);
+		db.prepare('INSERT OR IGNORE INTO game_players (event_id, user_id) VALUES (?, ?)').run(eventId, userId);
+		resettle(eventId);
+	});
 	publish(eventId);
+}
+
+/**
+ * After people join or leave, keeps a game with moves pointing at someone still playing (see settle).
+ * A change of turn also counts as a new card, so taps and skip votes from before it are ignored.
+ */
+function resettle(eventId: number) {
+	const row = loadRow(eventId);
+	if (!row?.play) return;
+	const before = JSON.parse(row.play) as Play;
+	const after = settle(before, turnOrder(eventId), shuffle);
+	if (JSON.stringify(after) !== row.play) {
+		const moved = before.up !== null && (after.up !== before.up || (after.kind === 'paranoia' && before.kind === 'paranoia' && after.answer !== before.answer));
+		if (moved) savePlay(eventId, after);
+		else db.prepare('UPDATE event_activity SET play = ? WHERE event_id = ?').run(JSON.stringify(after), eventId);
+	}
 }
 
 /**
@@ -281,6 +346,9 @@ export function leaveGame(eventId: number, userId: number) {
 			db.prepare('DELETE FROM event_activity WHERE event_id = ?').run(eventId);
 			return;
 		}
+		// If they were up, the turn moves on and votes to skip them are cleared; otherwise fewer players
+		// may make the votes already in enough.
+		resettle(eventId);
 		const row = loadRow(eventId);
 		if (row?.started) countVotes(eventId, row, (JSON.parse(row.next_votes) as number[]).filter((id) => id !== userId));
 	});
@@ -334,7 +402,12 @@ function advance(eventId: number, row: Row, seen: number, reveal: Reveal | null)
  */
 function countVotes(eventId: number, row: Row, votes: number[]) {
 	if (votes.length >= votesNeeded(eventId)) {
-		return (JSON.parse(row.meta) as Meta).turns ? drawNext(eventId, row) : advance(eventId, row, row.position, null);
+		const meta = JSON.parse(row.meta) as Meta;
+		if (meta.kind && row.play) {
+			const players = turnOrder(eventId);
+			return savePlay(eventId, skip(settle(JSON.parse(row.play) as Play, players, shuffle), players, shuffle));
+		}
+		return meta.turns ? drawNext(eventId, row) : advance(eventId, row, row.position, null);
 	}
 	db.prepare('UPDATE event_activity SET next_votes = ? WHERE event_id = ?').run(JSON.stringify(votes), eventId);
 	return true;

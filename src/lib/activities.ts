@@ -5,6 +5,8 @@
 // so "{1} buys {2} a drink" becomes "Sam buys Jo a drink".
 // Every game has a soft mode where drinks become sips of water or soft drinks, so nobody has to drink to play.
 
+import { PLAYING_CARDS, type Kind } from './turnGames.ts';
+
 export type Setting = 'pub' | 'club' | 'gaff' | 'any';
 
 export const SETTINGS: Record<Setting, { label: string; emoji: string; blurb: string }> = {
@@ -38,6 +40,8 @@ export type Game = {
 	scored?: boolean;
 	/** Turn-based card games: players draw in turn from a deck shown on screen; only whoever's turn it is can draw. */
 	turns?: boolean;
+	/** Turn-based games with their own moves (see turnGames.ts). */
+	kind?: Kind;
 	cards: Card[];
 };
 
@@ -159,6 +163,40 @@ const RANKS: [string, string][] = [
 	['K', 'King’s cup: pour a splash of your drink into the cup in the middle. Whoever draws the fourth king drinks it.']
 ];
 const RING_OF_FIRE: Card[] = SUITS.flatMap((suit) => RANKS.map(([rank, rule]) => ({ text: rule, rank, suit })));
+const PLAYING: Card[] = PLAYING_CARDS.map((c) => ({ text: `${c.rank}${c.suit}`, ...c }));
+
+const PARANOIA = deck([
+	'Who here would survive longest on a desert island?',
+	'Who’s most likely to text their ex tonight?',
+	'Who here is the worst driver?',
+	'Who would you call to help you move house at 2am?',
+	'Who has the worst taste in music?',
+	'Who’s most likely to get kicked out tonight?',
+	'Who here would you trust with your phone unlocked?',
+	'Who’s the biggest flirt here?',
+	'Who’s most likely to cry tonight?',
+	'Who here has the best laugh?',
+	'Who would win in a fight?',
+	'Who here is secretly the most competitive?',
+	'Who’s most likely to be famous one day?',
+	'Who here gives the worst advice?',
+	'Who’s most likely to forget your birthday?',
+	'Who here would be the worst flatmate?',
+	'Who’s the best dancer here?',
+	'Who’s most likely to fall asleep first tonight?',
+	'Who here would you want on your pub quiz team?',
+	'Who’s most likely to start an argument tonight?',
+	'Who here spends the most on takeaways?',
+	'Who has the most chaotic phone?',
+	'Who here would last longest without their phone?',
+	'Who’s most likely to turn up late to their own wedding?',
+	'Who here is the best cook?',
+	'Who would you swap lives with for a day?',
+	'Who’s most likely to have a secret TikTok?',
+	'Who here would make the best parent?',
+	'Who would be first out on a reality show?',
+	'Who here would you least want to share a tent with?'
+]);
 
 const TABLE_STAKES = deck([
 	'{1} has 10 seconds to name 5 cheeses. Fail, and the whole table takes a shot.',
@@ -400,6 +438,37 @@ const GAME_LIST: Game[] = [
 		rules: 'Take turns drawing from the deck. Do what the card says. Put a cup in the middle for the kings.',
 		turns: true,
 		cards: RING_OF_FIRE
+	},
+	{
+		id: 'higher-lower',
+		name: 'Higher or lower',
+		emoji: '🃏',
+		setting: 'gaff',
+		blurb: 'Guess if the next card is higher or lower. Keep going, or pass it on before your luck runs out.',
+		rules: 'On your turn, guess higher or lower. Right and you go again, or pass it on. Wrong (or the same) and you drink a sip for every card in your run. Aces are high.',
+		kind: 'hilo',
+		cards: PLAYING
+	},
+	{
+		id: 'ride-the-bus',
+		name: 'Ride the bus',
+		emoji: '🚌',
+		setting: 'gaff',
+		blurb: 'Four guesses in a row: red or black, higher or lower, inside or outside, then the suit.',
+		rules: 'On your turn, get all four guesses right to get off the bus and hand out 4 sips. Wrong at a step and you drink that many sips, and the turn passes. Matching a card counts as wrong. Aces are high.',
+		kind: 'bus',
+		cards: PLAYING
+	},
+	{
+		id: 'paranoia',
+		name: 'Paranoia',
+		emoji: '🤫',
+		setting: 'gaff',
+		blurb: 'You get a secret question and answer it with someone’s name. They can drink to find out what it was.',
+		rules: 'On your turn, only you see the question: pick who it’s about. The person you pick can take a drink to find out the question, or live with not knowing.',
+		softRules: 'On your turn, only you see the question: pick who it’s about. The person you pick can do a forfeit to find out the question, or live with not knowing.',
+		kind: 'paranoia',
+		cards: PARANOIA
 	},
 	{
 		id: 'table-stakes',

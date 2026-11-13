@@ -2,6 +2,7 @@
 	import { enhance } from '$app/forms';
 	import { GAMES, GAME_IDS, SETTINGS, SETTING_IDS, type Setting } from '#lib/activities.ts';
 	import type { Activity } from '#lib/server/activities.ts';
+	import { isRed, type PlayingCard } from '#lib/turnGames.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -72,6 +73,102 @@
 	</div>
 {/snippet}
 
+{#snippet face(c: PlayingCard | null, small = false)}
+	<div class="relative aspect-[5/7] border-2 {c ? 'border-zinc-900 bg-zinc-900' : 'border-dashed border-zinc-300'} {small ? 'w-16' : ''}">
+		{#if c}
+			<span class="absolute top-1.5 left-2 text-left leading-none font-black {small ? 'text-sm' : 'text-2xl'} {isRed(c) ? 'text-hot' : 'text-ink'}">{c.rank}<br />{c.suit}</span>
+			<span class="absolute inset-0 flex items-center justify-center font-black {small ? 'text-3xl' : 'text-7xl'} {isRed(c) ? 'text-hot' : 'text-ink'}">{c.suit}</span>
+		{/if}
+	</div>
+{/snippet}
+
+{#snippet move(a: Activity, fields: Record<string, string | number>, label: string, cls = 'btn')}
+	<form method="POST" action="?/move" use:enhance class="flex [&>button]:h-full">
+		<input type="hidden" name="seen" value={a.position} />
+		{#each Object.entries(fields) as [k, v] (k)}<input type="hidden" name={k} value={v} />{/each}
+		<button class="{cls} w-full">{label}</button>
+	</form>
+{/snippet}
+
+{#snippet play(a: Activity, p: NonNullable<Activity['play']>)}
+	<div class="space-y-4" aria-live="polite">
+		<p class="text-center text-sm font-extrabold tracking-widest uppercase {p.yours ? 'text-hot' : 'text-zinc-500'}">
+			{#if p.kind === 'paranoia' && p.answer}
+				{p.yours ? `${p.asker?.name} picked you` : `${p.asker?.name} picked ${p.answer.name}`}
+			{:else}
+				{p.yours ? 'Your turn' : `${p.up?.name ?? 'Someone'}’s turn`}
+			{/if}
+		</p>
+		{#if p.kind === 'hilo'}
+			<div class="mx-auto w-1/2">{@render face(p.table)}</div>
+			{#if p.streak}<p class="text-center text-xs font-extrabold tracking-widest text-lime uppercase">{p.streak} right in a row</p>{/if}
+			{#if p.yours}
+				<div class="joined [&>form]:flex-1">
+					{@render move(a, { type: 'guess', guess: 'higher' }, 'Higher')}
+					{@render move(a, { type: 'guess', guess: 'lower' }, 'Lower')}
+				</div>
+				{#if p.streak}{@render move(a, { type: 'pass' }, `Pass it on (${p.streak} right)`, 'btn-secondary')}{/if}
+			{/if}
+		{:else if p.kind === 'bus'}
+			<div class="flex justify-center gap-2">
+				{#each [0, 1, 2, 3] as i (i)}{@render face(p.hand[i] ?? null, true)}{/each}
+			</div>
+			<p class="text-center text-lg font-black">Step {p.step} of 4: {p.prompt}</p>
+			{#if p.yours}
+				<div class="joined [&>form]:flex-1">
+					{#each p.options as o (o)}{@render move(a, { type: 'guess', guess: o }, o)}{/each}
+				</div>
+			{/if}
+		{:else if p.kind === 'paranoia'}
+			{#if p.alone}
+				<p class="border border-zinc-200 p-4 text-center text-zinc-600">Paranoia needs at least two players. Wait for someone to join.</p>
+			{:else if !p.answer}
+				{#if p.question}
+					<p class="border border-hot p-4 text-2xl leading-snug font-black">
+						<span class="block text-[11px] font-extrabold tracking-widest text-hot uppercase">Only you can see this</span>
+						{p.question}
+					</p>
+					<p class="label">Pick who it’s about</p>
+					<div class="grid grid-cols-2 border-t border-l border-zinc-200 [&>form]:border-r [&>form]:border-b [&>form]:border-zinc-200">
+						{#each a.players.filter((x) => x.id !== p.asker?.id) as x (x.id)}
+							{@render move(a, { type: 'answer', who: x.id }, x.name, 'px-3 py-3 text-sm font-extrabold uppercase hover:bg-zinc-100')}
+						{/each}
+					</div>
+				{:else}
+					<p class="border border-zinc-200 p-4 text-center text-zinc-600">{p.asker?.name ?? 'Someone'} is reading a secret question…</p>
+				{/if}
+			{:else if p.yours}
+				<p class="border border-lime p-4 text-xl leading-snug font-black">{p.asker?.name} answered a secret question with your name. {a.soft ? 'Do a forfeit' : 'Drink'} to find out what it was?</p>
+				<div class="joined [&>form]:flex-1">
+					{@render move(a, { type: 'reveal', drink: 1 }, a.soft ? 'Forfeit and see' : 'Drink and see')}
+					{@render move(a, { type: 'reveal', drink: 0 }, 'Don’t want to know', 'btn-secondary')}
+				</div>
+			{:else}
+				<p class="border border-zinc-200 p-4 text-center text-zinc-600">Waiting for {p.answer.name} to decide whether to find out.</p>
+			{/if}
+		{/if}
+		{#if p.last}
+			<p class="border border-zinc-200 px-3 py-2 text-sm" role="status">
+				{#if p.kind === 'paranoia' && 'asker' in p.last}
+					{p.last.asker} picked {p.last.answer}.
+					{#if p.last.question}<span class="text-lime">The question was “{p.last.question}”</span>{:else}<span class="text-zinc-500">They didn’t find out the question.</span>{/if}
+				{:else if 'text' in p.last}
+					{p.last.text}{#if p.last.sips}. <span class="font-bold text-hot">{p.last.sips} {p.last.sips === 1 ? 'sip' : 'sips'}</span>{:else if p.last.right}. <span class="text-lime">Right</span>{/if}
+				{/if}
+			</p>
+		{/if}
+		{#if !p.yours && p.up}
+			<form method="POST" action="?/next" use:enhance class="text-right">
+				<input type="hidden" name="seen" value={a.position} />
+				<button class="text-xs font-extrabold tracking-widest uppercase {a.votes.mine ? 'text-lime' : 'text-zinc-500 hover:text-zinc-900'}" aria-pressed={a.votes.mine}>
+					{a.votes.mine ? 'Voted to skip' : `Skip ${p.up.name}`} {a.votes.count}/{a.votes.needed}
+				</button>
+			</form>
+		{/if}
+		<p class="text-sm text-zinc-600">{a.rules}</p>
+	</div>
+{/snippet}
+
 {#snippet card(a: Activity)}
 	<div class="space-y-4" aria-live="polite">
 		{#if a.secret && a.mine}
@@ -138,7 +235,7 @@
 {#snippet roster(a: Activity)}
 	<ul class="flex flex-wrap border-t border-l border-zinc-200 text-xs font-extrabold tracking-widest uppercase [&>li]:border-r [&>li]:border-b [&>li]:border-zinc-200 [&>li]:px-3 [&>li]:py-2">
 		{#each a.players as p (p.id)}
-			<li class={a.started && (a.turn ? a.turn.up?.id === p.id : a.player?.id === p.id) ? 'bg-lime text-ink' : ''}>{p.name}</li>
+			<li class={a.started && (a.play ? a.play.up?.id === p.id : a.turn ? a.turn.up?.id === p.id : a.player?.id === p.id) ? 'bg-lime text-ink' : ''}>{p.name}</li>
 		{/each}
 	</ul>
 {/snippet}
@@ -149,14 +246,17 @@
 	<!-- Game mode: the whole screen is the game, over the app's header and tab bar. -->
 	<div class="fixed inset-0 z-40 flex h-dvh flex-col overflow-y-auto bg-ink pb-[env(safe-area-inset-bottom)]" role="dialog" aria-modal="true" aria-label="{a.name}, game mode">
 		<div class="grid grid-cols-[1fr_auto_auto] border-b border-zinc-200 text-[11px] font-extrabold tracking-widest uppercase [&_button]:uppercase">
-			<p class="min-w-0 truncate px-4 py-3 text-lime">{a.name}{a.soft ? ' · soft' : ''} {#if !a.turn}<span class="text-zinc-500">· {a.number}/{a.total}</span>{/if}</p>
+			<p class="min-w-0 truncate px-4 py-3 text-lime">{a.name}{a.soft ? ' · soft' : ''} {#if !a.turn && !a.play}<span class="text-zinc-500">· {a.number}/{a.total}</span>{/if}</p>
 			<button type="button" class="border-l border-zinc-200 px-4 text-zinc-500 hover:text-zinc-900" onclick={() => (minimised = true)}>Minimise</button>
 			<form method="POST" action="?/leave" use:enhance class="flex border-l border-zinc-200">
 				<button class="px-4 text-zinc-500 hover:text-zinc-900">Leave</button>
 			</form>
 		</div>
 		<div class="mx-auto flex w-full max-w-2xl flex-1 flex-col justify-center gap-6 px-4 py-6">
-			{#if a.turn}
+			{#if form?.error}<p class="error" role="alert">{form.error}</p>{/if}
+			{#if a.play}
+				{@render play(a, a.play)}
+			{:else if a.turn}
 				{@render table(a, a.turn)}
 			{:else}
 				{@render card(a)}
@@ -209,9 +309,15 @@
 			<div class="flex flex-wrap items-center gap-2">
 				<h2>{a.name}</h2>
 				{#if a.soft}<span class="badge text-lime">Soft mode</span>{/if}
-				<span class="ml-auto text-xs text-zinc-500">Card {a.number} of {a.total}</span>
+				{#if !a.play}<span class="ml-auto text-xs text-zinc-500">Card {a.number} of {a.total}</span>{/if}
 			</div>
-			{#if a.joined && a.turn}
+			{#if a.joined && a.play}
+				{@render play(a, a.play)}
+				<div class="flex flex-wrap gap-5 text-[11px] font-extrabold tracking-widest text-zinc-500 uppercase [&_button]:uppercase">
+					<button type="button" class="text-lime" onclick={() => ((minimised = false), (picking = false))}>Back to game mode</button>
+					<button type="button" class="hover:text-zinc-900" onclick={() => (picking = !picking)}>{picking ? 'Keep playing' : 'Change game'}</button>
+				</div>
+			{:else if a.joined && a.turn}
 				{@render table(a, a.turn)}
 				<div class="flex flex-wrap gap-5 text-[11px] font-extrabold tracking-widest text-zinc-500 uppercase [&_button]:uppercase">
 					<button type="button" class="text-lime" onclick={() => ((minimised = false), (picking = false))}>Back to game mode</button>
