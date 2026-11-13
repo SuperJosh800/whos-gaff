@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { enhance } from '$app/forms';
+	import { enhance, type SubmitFunction } from '$app/forms';
 	import { page } from '$app/state';
 	import type { PageProps } from './$types';
 
@@ -9,6 +9,14 @@
 	const names = $derived(new Map(data.kitty.people.map((p) => [p.id, p.name])));
 	const amGoing = $derived(data.going.some((p) => p.id === me));
 	const amDriving = $derived(data.drivers.some((d) => d.id === me));
+	const ta = $derived(data.takeaway.order);
+	const myItem = $derived(ta?.items.find((i) => i.user_id === me));
+	let takeawayError = $state('');
+	// Shows a failed takeaway action here in the section rather than at the top of the page.
+	const inTakeaway: SubmitFunction = () => async ({ update, result }) => {
+		takeawayError = result.type === 'failure' ? String(result.data?.error ?? 'Something went wrong.') : '';
+		if (result.type !== 'failure') await update({ reset: false });
+	};
 </script>
 
 {#if form?.error}<p class="error mb-5" role="alert">{form.error}</p>{/if}
@@ -113,6 +121,99 @@
 					<button class="btn">Start this round</button>
 				</form>
 			</details>
+		{/if}
+	</section>
+
+	<section class="card space-y-4" id="takeaway">
+		<h2>Takeaway</h2>
+		{#if takeawayError}<p class="error" role="alert">{takeawayError}</p>{/if}
+		{#if ta && !ta.ordered_at}
+			<div class="border border-zinc-200">
+				<div class="flex items-baseline justify-between gap-3 px-3 py-2.5">
+					<p class="min-w-0"><span class="block text-[11px] font-extrabold tracking-widest text-zinc-500 uppercase">{ta.started_by === me ? 'You' : ta.by} started an order from</span>
+						<span class="text-2xl leading-tight font-black uppercase">{ta.place}</span></p>
+					{#if ta.canCancel}
+						<form method="POST" action="?/cancelTakeaway" use:enhance={inTakeaway} onsubmit={(e) => { if (!confirm('Call off the takeaway?')) e.preventDefault(); }}>
+							<input type="hidden" name="takeaway" value={ta.id} />
+							<button class="text-[11px] font-extrabold tracking-widest text-zinc-500 uppercase hover:text-zinc-900">Call it off</button>
+						</form>
+					{/if}
+				</div>
+				{#if ta.items.length}
+					<ul class="divide-y divide-zinc-200 border-t border-zinc-200 text-sm">
+						{#each ta.items as i (i.user_id)}
+							<li class="flex justify-between gap-3 px-3 py-2">
+								<span class="min-w-0 break-words"><strong class={i.user_id === me ? 'text-lime' : ''}>{i.user_id === me ? 'You' : i.name}</strong> · {i.item}</span>
+								<span class="shrink-0 tabular-nums {i.price_pence ? '' : 'text-zinc-500'}">{i.price_pence ? pounds(i.price_pence) : 'No price'}</span>
+							</li>
+						{/each}
+					</ul>
+					<p class="border-t border-zinc-200 px-3 py-2 text-xs text-zinc-500">{ta.items.length} {ta.items.length === 1 ? 'order' : 'orders'}{ta.priced ? ` · ${pounds(ta.priced)} priced so far` : ''}</p>
+				{:else}
+					<p class="border-t border-zinc-200 px-3 py-2 text-sm text-zinc-500">Nobody’s added anything yet.</p>
+				{/if}
+			</div>
+
+			{#if amGoing}
+				<form method="POST" action="?/takeawayItem" use:enhance={inTakeaway} class="space-y-2">
+					<input type="hidden" name="takeaway" value={ta.id} />
+					<p class="label !mb-0">{myItem ? 'Your order' : 'What do you want?'}</p>
+					<div class="grid grid-cols-[2fr_1fr] [&>*+*]:border-l-0">
+						<input class="input" name="item" maxlength="100" required value={myItem?.item ?? ''} placeholder="Chicken burger, chips" aria-label="Your order" />
+						<input class="input" name="price" inputmode="decimal" value={myItem?.price_pence ? (myItem.price_pence / 100).toFixed(2) : ''} placeholder="£ if known" aria-label="Price (optional)" />
+					</div>
+					<div class="flex items-center gap-4">
+						<button class="btn">{myItem ? 'Change it' : 'Add mine'}</button>
+						{#if myItem}<button class="text-[11px] font-extrabold tracking-widest text-zinc-500 uppercase hover:text-zinc-900" name="remove" value="1" formnovalidate>Take mine out</button>{/if}
+					</div>
+				</form>
+			{/if}
+
+			{#if ta.orderer_id === me}
+				<form method="POST" action="?/placeOrder" use:enhance={inTakeaway} class="space-y-2 border-t border-zinc-200 pt-4">
+					<input type="hidden" name="takeaway" value={ta.id} />
+					<p class="label !mb-0">You’re ordering. Once it’s done, what did you pay?</p>
+					<div class="joined">
+						<input class="input" name="total" inputmode="decimal" required placeholder="£0.00" aria-label="What you paid in total" />
+						<button class="btn shrink-0">Ordered it</button>
+					</div>
+					<p class="text-xs text-zinc-500">Priced items go in the kitty for whoever ordered them. The rest, like delivery, is split between everyone in the order.</p>
+				</form>
+				<form method="POST" action="?/takeawayOrderer" use:enhance={inTakeaway}>
+					<input type="hidden" name="takeaway" value={ta.id} />
+					<input type="hidden" name="ordering" value="0" />
+					<button class="text-[11px] font-extrabold tracking-widest text-zinc-500 uppercase hover:text-zinc-900">I can’t order it after all</button>
+				</form>
+			{:else if ta.orderer_id}
+				<p class="text-sm"><strong class="text-lime">{ta.orderer}</strong> is ordering it.</p>
+			{:else if amGoing}
+				<form method="POST" action="?/takeawayOrderer" use:enhance={inTakeaway} class="flex items-center justify-between gap-3 border-t border-zinc-200 pt-4">
+					<input type="hidden" name="takeaway" value={ta.id} />
+					<input type="hidden" name="ordering" value="1" />
+					<p class="text-sm text-zinc-500">Nobody’s ordering yet.</p>
+					<button class="btn shrink-0">I’ll order</button>
+				</form>
+			{:else}
+				<p class="text-sm text-zinc-500">Nobody’s ordering yet.</p>
+			{/if}
+		{:else}
+			{#if ta}
+				<div class="grid grid-cols-[1fr_auto] items-center border border-zinc-200">
+					<p class="min-w-0 px-3 py-2.5 text-sm"><span class="block text-[11px] font-extrabold tracking-widest text-zinc-500 uppercase">Last takeaway · in the kitty</span>
+						<strong>{ta.orderer_id === me ? 'You' : (ta.orderer ?? 'Someone')}</strong> ordered from {ta.place}</p>
+					<span class="border-l border-zinc-200 px-3 py-2.5 text-right text-sm font-semibold tabular-nums">{pounds(ta.total_pence ?? 0)}
+						{#if myItem?.share != null}<span class="block text-xs font-normal text-zinc-500">yours {pounds(myItem.share)}</span>{/if}</span>
+				</div>
+			{/if}
+			{#if data.takeaway.canStart}
+				<form method="POST" action="?/startTakeaway" use:enhance={inTakeaway} class="joined">
+					<input class="input" name="place" maxlength="60" required placeholder="Where from?" aria-label="Where the takeaway’s from" />
+					<button class="btn shrink-0">Start an order</button>
+				</form>
+				<p class="text-xs text-zinc-500">Everyone going adds what they want, one of you orders, and the cost goes in the kitty.</p>
+			{:else}
+				<p class="text-sm text-zinc-500">RSVP “going” to start a takeaway order.</p>
+			{/if}
 		{/if}
 	</section>
 
