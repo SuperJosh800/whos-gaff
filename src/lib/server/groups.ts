@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { db } from './db.ts';
 import { notify } from './notifications.ts';
 import { EventError } from './events.ts';
+import { MISSION_POINTS } from './missions.ts';
 import { nowLocal } from '../time.ts';
 import { PLANS, type Plan } from '../plans.ts';
 
@@ -201,6 +202,39 @@ export function hostingLeaderboard(groupId: number) {
 			 ORDER BY hosted DESC, u.name`
 		)
 		.all(groupId) as { id: number; name: string; hosted: number }[];
+}
+
+// ---- Season leaderboard ----
+
+/**
+ * Points from scored games and Night-tab secret missions across the group's nights in a year (a season),
+ * for everyone in the group, most first. Missions score as on the Night tab (MISSION_POINTS). Ties share a place.
+ */
+export function seasonLeaderboard(groupId: number, year: number, now = nowLocal()) {
+	const nights = JSON.stringify(
+		(
+			db
+				.prepare('SELECT id FROM events WHERE group_id = ? AND starts_at >= ? AND starts_at < ? AND starts_at <= ?')
+				.all(groupId, `${year}-01-01T00:00`, `${year + 1}-01-01T00:00`, now) as { id: number }[]
+		).map((e) => e.id)
+	);
+	const inSeason = 'IN (SELECT value FROM json_each(?))';
+	const rows = db
+		.prepare(
+			`SELECT u.id, u.name, COALESCE(g.points, 0) AS games, COALESCE(x.points, 0) AS missions, COALESCE(n.count, 0) AS nights
+			 FROM group_members m JOIN users u ON u.id = m.user_id
+			 LEFT JOIN (SELECT user_id, SUM(points) AS points FROM challenge_results WHERE event_id ${inSeason} GROUP BY user_id) g ON g.user_id = u.id
+			 LEFT JOIN (SELECT user_id, SUM(points) AS points FROM (${MISSION_POINTS}) WHERE event_id ${inSeason} GROUP BY user_id) x ON x.user_id = u.id
+			 LEFT JOIN (
+				SELECT em.user_id, COUNT(*) AS count FROM event_members em JOIN events e ON e.id = em.event_id
+				LEFT JOIN rsvps r ON r.event_id = em.event_id AND r.user_id = em.user_id
+				WHERE em.event_id ${inSeason} AND (r.response = 'yes' OR e.host_id = em.user_id) GROUP BY em.user_id
+			 ) n ON n.user_id = u.id
+			 WHERE m.group_id = ?`
+		)
+		.all(nights, nights, nights, groupId) as { id: number; name: string; games: number; missions: number; nights: number }[];
+	const ranked = rows.map((r) => ({ ...r, points: r.games + r.missions })).sort((a, b) => b.points - a.points || a.name.localeCompare(b.name));
+	return ranked.map((r) => ({ ...r, place: ranked.findIndex((o) => o.points === r.points) + 1 }));
 }
 
 export function nudgeToHost(groupId: number, userId: number, targetId: number) {
