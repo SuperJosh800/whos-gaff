@@ -137,7 +137,6 @@ export function deleteAccount(userId: number) {
 		db.prepare('DELETE FROM award_votes WHERE voter_id = ? OR nominee_id = ?').run(userId, userId);
 		db.prepare('DELETE FROM predictions WHERE user_id = ? OR nominee_id = ?').run(userId, userId);
 		db.prepare('DELETE FROM taxi_told WHERE user_id = ? OR about_id = ?').run(userId, userId);
-		db.prepare('DELETE FROM song_requests WHERE suggested_by = ?').run(userId);
 		// Squares that happened stay marked for everyone else, without the name.
 		db.prepare('UPDATE bingo_marks SET marked_by = NULL WHERE marked_by = ?').run(userId);
 		db.prepare('DELETE FROM mission_guesses WHERE user_id = ? OR suspect_id = ?').run(userId, userId);

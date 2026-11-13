@@ -47,7 +47,21 @@ describe('song requests', () => {
 		requestSong(id, sam.id, 'Hallelujah', 'Jeff Buckley');
 		requestSong(id, sam.id, 'Eple', 'Röyksopp');
 		expect(() => requestSong(id, alex.id, 'EPLE', 'Royksopp')).toThrow('already on the list');
-		expect(listSongs(id, sam.id)).toHaveLength(4);
+		requestSong(id, sam.id, 'Don’t Stop Me Now', 'Queen');
+		expect(() => requestSong(id, alex.id, 'Dont stop me now', 'queen')).toThrow('already on the list');
+		// Marks that make a different word in other scripts are kept.
+		requestSong(id, alex.id, 'ガンダム', '');
+		requestSong(id, alex.id, 'カンタム', '');
+		expect(listSongs(id, sam.id)).toHaveLength(7);
+	});
+
+	it('treats a song with no artist as the same as that title by anyone', () => {
+		const { id, sam, alex } = night();
+		requestSong(id, sam.id, 'Mr Brightside', '');
+		expect(() => requestSong(id, alex.id, 'Mr Brightside', 'The Killers')).toThrow('already on the list');
+		requestSong(id, sam.id, 'Wonderwall', 'Oasis');
+		expect(() => requestSong(id, alex.id, 'wonderwall', '')).toThrow('already on the list');
+		expect(listSongs(id, sam.id)).toHaveLength(2);
 	});
 
 	it('checks the song and artist', () => {
@@ -76,6 +90,11 @@ describe('song requests', () => {
 		}
 		expect(listSongs(id, host.id)).toHaveLength(MAX_SONGS);
 		expect(() => requestSong(id, host.id, 'Too many', '')).toThrow('list is full');
+		// Songs already in the playlist are dealt with, so they free up room on both caps.
+		markSongAdded(id, host.id, songId(id, host.id, 'Song 9'), true);
+		requestSong(id, host.id, 'Room again', '');
+		for (const s of listSongs(id, sam.id).filter((s) => /^Sam|One more/.test(s.title))) markSongAdded(id, host.id, s.id, true);
+		requestSong(id, sam.id, 'Sam six', '');
 	});
 
 	it('lets only whoever added a song, or the host, remove it', () => {
@@ -84,6 +103,7 @@ describe('song requests', () => {
 		requestSong(id, sam.id, 'B', '');
 		expect(() => removeSong(id, alex.id, songId(id, sam.id, 'A'))).toThrow('Only whoever added it');
 		expect(listSongs(id, alex.id).map((s) => s.canRemove)).toEqual([false, false]);
+		expect(listSongs(id, host.id).map((s) => s.canRemove)).toEqual([true, true]);
 		removeSong(id, sam.id, songId(id, sam.id, 'A'));
 		removeSong(id, host.id, songId(id, sam.id, 'B'));
 		expect(listSongs(id, sam.id)).toEqual([]);
@@ -120,7 +140,7 @@ describe('song requests', () => {
 		expect(ranked(id, host.id)).toEqual(['Mine:1']);
 	});
 
-	it('is in your data download and goes when you delete your account', () => {
+	it('is in your data download, and your songs stay for everyone else when you delete your account', () => {
 		const { id, host, sam } = night();
 		requestSong(id, sam.id, 'Mine', '');
 		requestSong(id, host.id, 'Theirs', '');
@@ -129,6 +149,6 @@ describe('song requests', () => {
 		expect((data.song_requests as { title: string }[]).map((s) => s.title)).toEqual(['Mine']);
 		expect(data.song_votes as unknown[]).toHaveLength(2);
 		deleteAccount(sam.id);
-		expect(ranked(id, host.id)).toEqual(['Theirs:1']);
+		expect(ranked(id, host.id)).toEqual(['Theirs:1', 'Mine:0']);
 	});
 });

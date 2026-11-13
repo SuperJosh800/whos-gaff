@@ -10,16 +10,19 @@ export const MAX_SONGS = 50;
 /** So one person can't fill the list. */
 export const MAX_EACH = 5;
 
-/** Spelling, case, accents and punctuation don't make a different song. */
-function songKey(title: string, artist: string) {
-	const tidy = (s: string) =>
-		s
-			.normalize('NFKD')
-			.replace(/\p{M}/gu, '')
-			.toLowerCase()
-			.replace(/[^\p{L}\p{N}]+/gu, ' ')
-			.trim();
-	return `${tidy(title)}|${tidy(artist)}`;
+/**
+ * Case, Latin accents and punctuation don't make a different song, and "Don't" is "Dont".
+ * Only Latin accents go, so marks that change a word in other scripts (such as Japanese) stay.
+ */
+function tidy(s: string) {
+	return s
+		.normalize('NFKD')
+		.replace(/[\u0300-\u036f]/g, '')
+		.normalize('NFC')
+		.toLowerCase()
+		.replace(/['’‘`]/g, '')
+		.replace(/[^\p{L}\p{M}\p{N}]+/gu, ' ')
+		.trim();
 }
 
 function requireSong(eventId: number, songId: number) {
@@ -70,15 +73,19 @@ export function requestSong(eventId: number, userId: number, title: string, arti
 	requireMember(eventId, userId);
 	title = cleanLabel(title, 'Type the name of the song.');
 	artist = artist.trim() ? cleanLabel(artist, 'Type who it’s by, or leave it blank.') : '';
+	// Songs already in the playlist are dealt with, so they don't count towards either cap.
 	const { n, mine } = db
-		.prepare('SELECT COUNT(*) AS n, COALESCE(SUM(suggested_by = ?), 0) AS mine FROM song_requests WHERE event_id = ?')
+		.prepare('SELECT COALESCE(SUM(added = 0), 0) AS n, COALESCE(SUM(suggested_by = ? AND added = 0), 0) AS mine FROM song_requests WHERE event_id = ?')
 		.get(userId, eventId) as { n: number; mine: number };
 	if (n >= MAX_SONGS) throw new EventError('The list is full. Tick the ones you want.');
 	if (mine >= MAX_EACH) throw new EventError(`You’ve added ${MAX_EACH} already. Tick other people’s, or remove one of yours.`);
-	const key = songKey(title, artist);
-	if (db.prepare('SELECT 1 FROM song_requests WHERE event_id = ? AND song_key = ?').get(eventId, key)) {
-		throw new EventError('That song is already on the list. Tick it instead.');
-	}
+	const [t, a] = [tidy(title), tidy(artist)];
+	const key = `${t}|${a}`;
+	// Without an artist, a song matches the same title by anyone; with one, it also matches the title with none.
+	const same = a
+		? db.prepare(`SELECT 1 FROM song_requests WHERE event_id = ? AND song_key IN (?, ?)`).get(eventId, key, `${t}|`)
+		: db.prepare(`SELECT 1 FROM song_requests WHERE event_id = ? AND song_key LIKE ?`).get(eventId, `${t}|%`);
+	if (same) throw new EventError('That song is already on the list. Tick it instead.');
 	const { lastInsertRowid } = db
 		.prepare('INSERT INTO song_requests (event_id, title, artist, song_key, suggested_by) VALUES (?, ?, ?, ?, ?)')
 		.run(eventId, title, artist, key, userId);
