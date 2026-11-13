@@ -72,11 +72,16 @@
 			</p>
 		{/if}
 		{#if event.details}<p class="whitespace-pre-line">{event.details}</p>{/if}
-		{#if event.playlist_url}
-			<a href={event.playlist_url} target="_blank" rel="noopener noreferrer"
-				class="inline-block text-xs font-extrabold tracking-widest text-[#1DB954] uppercase underline underline-offset-4">
-				Playlist on Spotify
-			</a>
+		{#if data.calendarUrl || event.playlist_url}
+			<p class="flex flex-wrap gap-x-5 gap-y-2 text-xs font-extrabold tracking-widest uppercase [&>a]:underline [&>a]:underline-offset-4">
+				{#if data.calendarUrl}
+					<!-- Opens outside the app: an iPhone home-screen app can't hand files to Calendar itself. -->
+					<a href={data.calendarUrl} target="_blank" rel="noopener" class="text-zinc-900 hover:text-lime">Add to calendar</a>
+				{/if}
+				{#if event.playlist_url}
+					<a href={event.playlist_url} target="_blank" rel="noopener noreferrer" class="text-[#1DB954]">Playlist on Spotify</a>
+				{/if}
+			</p>
 		{/if}
 	</section>
 
