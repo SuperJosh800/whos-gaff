@@ -1,5 +1,6 @@
 import { db } from './db.ts';
 import { publish } from './realtime.ts';
+import { buddiesOf } from './buddies.ts';
 import { notify } from './notifications.ts';
 import { EventError, requireHost, requireMember } from './events.ts';
 import { isLocalDateTime, nowLocal, shiftLocal } from '../time.ts';
@@ -154,6 +155,10 @@ export function listCheckIns(eventId: number) {
 export function checkInHomeSafe(eventId: number, userId: number, now = nowLocal()) {
 	const event = requireMember(eventId, userId);
 	if (!event.starts_at || now < event.starts_at) throw new EventError('Check in once the night has started.');
-	db.prepare('INSERT OR REPLACE INTO home_safe (event_id, user_id, at) VALUES (?, ?, ?)').run(eventId, userId, now);
+	const { changes } = db.prepare('INSERT OR IGNORE INTO home_safe (event_id, user_id, at) VALUES (?, ?, ?)').run(eventId, userId, now);
+	if (changes) {
+		const me = (db.prepare('SELECT name FROM users WHERE id = ?').get(userId) as { name: string }).name;
+		for (const b of buddiesOf(eventId, userId)) notify(b.user_id, eventId, `Your buddy ${me} is home safe.`, '/night');
+	}
 	publish(eventId);
 }

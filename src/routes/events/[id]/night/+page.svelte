@@ -17,6 +17,7 @@
 	const suspects = $derived(data.homePlans.filter((p) => p.user_id !== me));
 	const pr = $derived(data.predictions);
 	const bingo = $derived(data.bingo);
+	const buddies = $derived(data.buddies);
 	let preview = $state<string | null>(null);
 	const moveTime = (utc: string) =>
 		new Date(utc.replace(' ', 'T') + 'Z').toLocaleTimeString('en-GB', { hour: 'numeric', minute: '2-digit' });
@@ -242,6 +243,44 @@
 			<ol class="flex flex-wrap border-t border-l border-zinc-200 text-xs font-extrabold tracking-widest uppercase [&>li]:border-r [&>li]:border-b [&>li]:border-zinc-200 [&>li]:px-3 [&>li]:py-2">
 				{#each m.scores as sc, i (sc.id)}<li class={i === 0 ? 'bg-lime text-ink' : ''}>{sc.name} {sc.points}</li>{/each}
 			</ol>
+		{/if}
+	</section>
+
+	<section class="card space-y-3" id="buddies">
+		<h2>Buddies</h2>
+		{#if buddies.mine.length}
+			<div class="grid grid-cols-[1fr_auto] border border-lime text-sm">
+				<p class="min-w-0 px-3 py-2.5"><span class="badge text-lime">Your buddy</span> <span class="font-extrabold">{buddies.mine.join(' and ')}</span></p>
+				<form method="POST" action="?/pingBuddy" use:enhance class="flex">
+					<button class="border-l border-lime px-3 text-[11px] font-extrabold tracking-widest uppercase hover:bg-zinc-100 disabled:opacity-50" disabled={!started}>Where are you?</button>
+				</form>
+			</div>
+			{#if form && 'pinged' in form}
+				<p class="text-sm {form.pinged ? 'text-lime' : 'text-zinc-500'}" role="status">{form.pinged ? `Pinged ${form.pinged}.` : 'You’ve just pinged them. Give them a few minutes.'}</p>
+			{/if}
+			<p class="text-xs text-zinc-500">
+				{started ? 'Lost them? Ping them. They’re told when you’re home safe, and you’re told when they are.' : 'Look out for each other tonight. You can ping them once the night starts.'}
+			</p>
+		{:else if going}
+			<p class="text-sm text-zinc-500">{data.isHost ? 'Pair everyone up so nobody gets left behind.' : 'No buddy yet. The host pairs everyone up.'}</p>
+		{/if}
+		{#if buddies.groups.length}
+			<ul class="divide-y divide-zinc-200 border border-zinc-200 text-sm">
+				{#each buddies.groups as g, i (i)}<li class="px-3 py-2">{g.join(' + ')}</li>{/each}
+			</ul>
+		{/if}
+		{#if buddies.unpaired.length && buddies.groups.length}
+			<p class="text-xs text-zinc-500">No buddy yet: {buddies.unpaired.join(', ')}</p>
+		{/if}
+		{#if data.isHost}
+			<form method="POST" action="?/pairUp" use:enhance class="joined [&>*]:flex-1">
+				{#if !buddies.groups.length}
+					<button class="btn">Pair everyone up</button>
+				{:else}
+					<button class="btn" disabled={!buddies.unpaired.length}>Pair the rest</button>
+					<button class="btn-secondary" name="reshuffle" value="1">Reshuffle all</button>
+				{/if}
+			</form>
 		{/if}
 	</section>
 
