@@ -381,6 +381,8 @@ export function setRsvp(eventId: number, userId: number, response: Rsvp) {
 			return 'waitlisted' as const;
 		}
 		db.prepare('DELETE FROM waitlist WHERE event_id = ? AND user_id = ?').run(eventId, userId);
+		// Someone who's no longer going isn't the driver; they say so again if they come back.
+		if (response !== 'yes') db.prepare('DELETE FROM drivers WHERE event_id = ? AND user_id = ?').run(eventId, userId);
 		upsertRsvp(eventId, userId, response);
 		return 'set' as const;
 	});

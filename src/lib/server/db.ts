@@ -467,6 +467,14 @@ const migrations: string[] = [
 		user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
 		UNIQUE (event_id, user_id)
 	);
+	`,
+	`
+	-- Designated drivers: people going who are driving tonight, skipped when it's their turn for a round.
+	CREATE TABLE drivers (
+		event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+		user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		PRIMARY KEY (event_id, user_id)
+	);
 	`
 ];
 
