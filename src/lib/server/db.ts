@@ -522,6 +522,25 @@ const migrations: string[] = [
 		user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
 		PRIMARY KEY (request_id, user_id)
 	);
+	`,
+	`
+	-- Song requests: songs anyone invited adds and ticks; the host marks the ones they've put in the playlist.
+	CREATE TABLE song_requests (
+		id INTEGER PRIMARY KEY,
+		event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+		title TEXT NOT NULL,
+		artist TEXT NOT NULL DEFAULT '',
+		song_key TEXT NOT NULL,
+		suggested_by INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		added INTEGER NOT NULL DEFAULT 0,
+		added_told INTEGER NOT NULL DEFAULT 0,
+		UNIQUE (event_id, song_key)
+	);
+	CREATE TABLE song_votes (
+		song_id INTEGER NOT NULL REFERENCES song_requests(id) ON DELETE CASCADE,
+		user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		PRIMARY KEY (song_id, user_id)
+	);
 	`
 ];
 

@@ -7,6 +7,7 @@
 	import Tickets from './Tickets.svelte';
 	import Theme from './Theme.svelte';
 	import Venue from './Venue.svelte';
+	import Songs from './Songs.svelte';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -24,6 +25,7 @@
 
 	<Venue {data} />
 	<Theme {data} />
+	<Songs {data} />
 
 	<Chat {data} />
 
