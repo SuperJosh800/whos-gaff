@@ -180,6 +180,10 @@
 		<p class="text-xs text-zinc-500">Dated events hosted for the group. Nudge anyone who hasn’t had everyone round yet.</p>
 	</section>
 
+	<a class="block border border-lime px-3 py-3 hover:bg-zinc-100" href="/groups/{data.group.id}/year">
+		<span><span class="block text-[11px] font-extrabold tracking-widest text-lime uppercase">Year in review</span><span class="text-sm text-zinc-600">Nights out, crowns and who came out the most.</span></span>
+	</a>
+
 	<section class="card space-y-2">
 		<h2>Invite people to the group</h2>
 		<div class="joined">
