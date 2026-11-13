@@ -597,6 +597,17 @@ const migrations: string[] = [
 		price_pence INTEGER,
 		PRIMARY KEY (takeaway_id, user_id)
 	);
+	`,
+	// "I'm off": leaving quietly. Only buddies are told, each once a night (told lists their ids).
+	`
+	CREATE TABLE heading_off (
+		event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+		user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		at TEXT NOT NULL,
+		gone INTEGER NOT NULL DEFAULT 1,
+		told TEXT NOT NULL DEFAULT '[]',
+		PRIMARY KEY (event_id, user_id)
+	);
 	`
 ];
 
