@@ -3,6 +3,7 @@ import { asAction, getEvent } from '#lib/server/events.ts';
 import { listStages } from '#lib/server/night.ts';
 import { eventInput } from '#lib/server/form.ts';
 import { getHangovers, rateHead } from '#lib/server/hangover.ts';
+import { getRating, rateNight } from '#lib/server/ratings.ts';
 import { listLost, postItem, removeItem, reply, sortItem, unreply } from '#lib/server/lostProperty.ts';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -16,7 +17,8 @@ export const load: PageServerLoad = async ({ params, parent, locals }) => {
 		photos: listPhotos(event.id),
 		stages: listStages(event.id),
 		lost: listLost(event.id, locals.user!.id),
-		hangover: getHangovers(event.id, locals.user!.id, event.starts_at)
+		hangover: getHangovers(event.id, locals.user!.id, event.starts_at),
+		rating: getRating(event.id, locals.user!.id, event.starts_at)
 	};
 };
 
@@ -24,6 +26,10 @@ export const actions: Actions = {
 	vote: async (e) => {
 		const { userId, eventId, get } = await eventInput(e);
 		return asAction(() => voteAward(eventId, userId, get('award'), Number(get('nominee'))));
+	},
+	rate: async (e) => {
+		const { userId, eventId, get } = await eventInput(e);
+		return asAction(() => rateNight(eventId, userId, Number(get('stars') || NaN)));
 	},
 	head: async (e) => {
 		const { userId, eventId, get } = await eventInput(e);
