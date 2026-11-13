@@ -5,6 +5,7 @@
 	import Chat from './Chat.svelte';
 	import HostSettings from './HostSettings.svelte';
 	import Tickets from './Tickets.svelte';
+	import Theme from './Theme.svelte';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -19,6 +20,8 @@
 	{:else}
 		<Poll {data} />
 	{/if}
+
+	<Theme {data} />
 
 	<Chat {data} />
 

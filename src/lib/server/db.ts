@@ -412,6 +412,25 @@ const migrations: string[] = [
 		at TEXT NOT NULL DEFAULT (datetime('now')),
 		PRIMARY KEY (event_id, user_id)
 	);
+	`,
+	`
+	-- Dress code or theme poll: suggestions, one vote each, and the one the host locks in. theme_told is
+	-- the last one everyone was told about, so locking the same one again doesn't re-announce it.
+	CREATE TABLE theme_options (
+		id INTEGER PRIMARY KEY,
+		event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+		label TEXT NOT NULL,
+		suggested_by INTEGER NOT NULL REFERENCES users(id),
+		UNIQUE (event_id, label COLLATE NOCASE)
+	);
+	CREATE TABLE theme_votes (
+		event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+		user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		option_id INTEGER NOT NULL REFERENCES theme_options(id) ON DELETE CASCADE,
+		PRIMARY KEY (event_id, user_id)
+	);
+	ALTER TABLE events ADD COLUMN theme TEXT NOT NULL DEFAULT '';
+	ALTER TABLE events ADD COLUMN theme_told TEXT NOT NULL DEFAULT '';
 	`
 ];
 

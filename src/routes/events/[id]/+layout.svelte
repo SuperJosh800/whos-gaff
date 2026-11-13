@@ -72,6 +72,12 @@
 			</p>
 		{/if}
 		{#if event.details}<p class="whitespace-pre-line">{event.details}</p>{/if}
+		{#if event.theme}
+			<a href="{base}#dress-code" class="grid grid-cols-[auto_1fr] border border-zinc-200 text-sm hover:bg-zinc-100">
+				<span class="badge flex items-center border-r border-zinc-200 px-3 text-lime">Dress code</span>
+				<span class="min-w-0 px-3 py-2.5 font-extrabold break-words">{event.theme}</span>
+			</a>
+		{/if}
 		{#if data.calendarUrl || event.playlist_url}
 			<p class="flex flex-wrap gap-x-5 gap-y-2 text-xs font-extrabold tracking-widest uppercase [&>a]:underline [&>a]:underline-offset-4">
 				{#if data.calendarUrl}
