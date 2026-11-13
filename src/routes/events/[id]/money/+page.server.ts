@@ -1,12 +1,23 @@
 import { asAction } from '#lib/server/events.ts';
-import { addExpense, getKitty, getRounds, goingPeople, leaveRoundGroup, recordRound, recordSettlement, saveRoundGroup } from '#lib/server/money.ts';
+import {
+	addExpense,
+	getKitty,
+	getRounds,
+	goingPeople,
+	leaveRoundGroup,
+	listDrivers,
+	recordRound,
+	recordSettlement,
+	saveRoundGroup,
+	setDriving
+} from '#lib/server/money.ts';
 import { eventInput } from '#lib/server/form.ts';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ params, parent }) => {
 	await parent();
 	const eventId = Number(params.id);
-	return { rounds: getRounds(eventId), kitty: getKitty(eventId), going: goingPeople(eventId) };
+	return { rounds: getRounds(eventId), kitty: getKitty(eventId), going: goingPeople(eventId), drivers: listDrivers(eventId) };
 };
 
 export const actions: Actions = {
@@ -14,6 +25,10 @@ export const actions: Actions = {
 		const { userId, eventId, get } = await eventInput(e);
 		const group = get('group') ? Number(get('group')) : null;
 		return asAction(() => recordRound(eventId, userId, group, Number(get('for')), get('skipped') === '1'));
+	},
+	driving: async (e) => {
+		const { userId, eventId, get } = await eventInput(e);
+		return asAction(() => setDriving(eventId, userId, get('driving') === '1'));
 	},
 	roundGroup: async (e) => {
 		const { userId, eventId, get, form } = await eventInput(e);

@@ -18,6 +18,28 @@ export function goingPeople(eventId: number) {
 		.all(eventId) as Person[];
 }
 
+// ---- Designated drivers ----
+
+/** People going who are driving tonight. Someone who stops going drops off without being unmarked. */
+export function listDrivers(eventId: number) {
+	const marked = new Set(
+		(db.prepare('SELECT user_id FROM drivers WHERE event_id = ?').all(eventId) as { user_id: number }[]).map((r) => r.user_id)
+	);
+	return goingPeople(eventId).filter((p) => marked.has(p.id));
+}
+
+/** Says whether you're driving tonight. Only people going can be the driver. */
+export function setDriving(eventId: number, userId: number, driving: boolean) {
+	requireMember(eventId, userId);
+	if (driving) {
+		if (!goingPeople(eventId).some((p) => p.id === userId)) throw new EventError('RSVP “going” first.');
+		db.prepare('INSERT OR IGNORE INTO drivers (event_id, user_id) VALUES (?, ?)').run(eventId, userId);
+	} else {
+		db.prepare('DELETE FROM drivers WHERE event_id = ? AND user_id = ?').run(eventId, userId);
+	}
+	publish(eventId);
+}
+
 // ---- Rounds tracker (WG-20), with smaller rounds (WG-40) ----
 
 /**
@@ -40,23 +62,27 @@ export function getRounds(eventId: number) {
 		if (lists.at(-1)!.id !== g.id) lists.push({ id: g.id, people: [] });
 		lists.at(-1)!.people.push({ id: g.user_id, name: g.name });
 	}
-	return lists.filter((l) => l.id !== null || l.people.length).map(({ id, people }) => roundState(eventId, id, people));
+	const driving = new Set(listDrivers(eventId).map((d) => d.id));
+	return lists.filter((l) => l.id !== null || l.people.length).map(({ id, people }) => roundState(eventId, id, people, driving));
 }
 
 export type Round = ReturnType<typeof roundState>;
 
-function roundState(eventId: number, groupId: number | null, order: Person[]) {
+function roundState(eventId: number, groupId: number | null, order: Person[], driving: Set<number>) {
 	const history = db
 		.prepare(
 			`SELECT r.id, r.user_id, u.name, r.skipped, r.created_at FROM rounds r
 			 JOIN users u ON u.id = r.user_id WHERE r.event_id = ? AND r.group_id IS ? ORDER BY r.id`
 		)
 		.all(eventId, groupId) as { id: number; user_id: number; name: string; skipped: number; created_at: string }[];
-	// Rounds go round in a fixed order; the next one is whoever follows the last person recorded.
+	// Rounds go round in a fixed order; the next one is whoever follows the last person recorded,
+	// passing over anyone driving tonight.
 	const lastIndex = history.length ? order.findIndex((p) => p.id === history.at(-1)!.user_id) : -1;
-	const next = order.length ? order[(lastIndex + 1) % order.length] : null;
+	const turns = order.map((_, i) => order[(lastIndex + 1 + i) % order.length]);
+	const next = turns.find((p) => !driving.has(p.id)) ?? null;
 	const tally = order.map((p) => ({
 		...p,
+		driving: driving.has(p.id),
 		bought: history.filter((h) => h.user_id === p.id && !h.skipped).length,
 		skipped: history.filter((h) => h.user_id === p.id && h.skipped).length
 	}));

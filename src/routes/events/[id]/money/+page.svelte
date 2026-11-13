@@ -7,6 +7,8 @@
 	const me = $derived(page.data.user?.id);
 	const pounds = (pence: number) => `£${(pence / 100).toFixed(2)}`;
 	const names = $derived(new Map(data.kitty.people.map((p) => [p.id, p.name])));
+	const amGoing = $derived(data.going.some((p) => p.id === me));
+	const amDriving = $derived(data.drivers.some((d) => d.id === me));
 </script>
 
 {#if form?.error}<p class="error mb-5" role="alert">{form.error}</p>{/if}
@@ -14,6 +16,21 @@
 <div class="space-y-5">
 	<section class="card space-y-4">
 		<h2>Rounds</h2>
+		{#if amGoing || data.drivers.length}
+			<div class="grid grid-cols-[1fr_auto] items-center border border-zinc-200">
+				<p class="min-w-0 px-3 py-2.5 text-sm">
+					<span class="block text-[11px] font-extrabold tracking-widest text-zinc-500 uppercase">Driving tonight</span>
+					{data.drivers.length ? data.drivers.map((d) => (d.id === me ? 'You' : d.name)).join(', ') : 'Nobody yet'}
+				</p>
+				{#if amGoing}
+					<form method="POST" action="?/driving" use:enhance class="self-stretch">
+						<input type="hidden" name="driving" value={amDriving ? '0' : '1'} />
+						<button class="h-full border-l border-zinc-200 px-3 text-[11px] font-extrabold tracking-widest uppercase {amDriving ? 'bg-lime text-ink' : 'hover:bg-zinc-100'}" aria-pressed={amDriving}>I’m driving</button>
+					</form>
+				{/if}
+			</div>
+			{#if data.drivers.length}<p class="text-xs text-zinc-500">Drivers are skipped when it’s their turn for a round.</p>{/if}
+		{/if}
 		{#each data.rounds as round, i (round.id ?? 'main')}
 			{@const next = round.next}
 			{@const mine = round.tally.some((t) => t.id === me)}
@@ -31,6 +48,8 @@
 				{/if}
 				{#if round.id === null && round.tally.length < 2 && data.rounds.length > 1}
 					<p class="text-sm text-zinc-500">Just {round.tally[0].id === me ? 'you' : round.tally[0].name} left in the main round.</p>
+				{:else if !next && round.tally.length}
+					<p class="text-sm text-zinc-500">Everyone in this round is driving, so there’s nobody to buy.</p>
 				{:else if next}
 					<div class="border border-zinc-200">
 						<p class="px-3 py-3"><span class="block text-[11px] font-extrabold tracking-widest text-zinc-500 uppercase">Next round</span>
@@ -47,7 +66,7 @@
 						<tbody>
 							{#each round.tally as t (t.id)}
 								<tr class="border-t border-zinc-200">
-									<td class="py-1.5 {t.id === next.id ? 'font-extrabold text-lime' : ''}">{t.name}{t.id === next.id ? ' (next)' : ''}</td>
+									<td class="py-1.5 {t.id === next.id ? 'font-extrabold text-lime' : ''}">{t.name}{t.id === next.id ? ' (next)' : ''}{#if t.driving}<span class="ml-1 text-zinc-500">(driving)</span>{/if}</td>
 									<td>{t.bought}</td>
 									<td class={t.skipped ? 'font-bold text-red-700' : ''}>{t.skipped}</td>
 								</tr>

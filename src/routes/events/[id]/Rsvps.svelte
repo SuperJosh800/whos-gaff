@@ -59,7 +59,7 @@
 				<p class="text-[11px] font-extrabold tracking-widest uppercase {g.tone}">{g.label}</p>
 				<p class="text-2xl leading-none font-black">{g.people.length}</p>
 				<ul class="mt-1 space-y-0.5 text-sm text-zinc-700">
-					{#each g.people as p (p.id)}<li><a class="hover:underline" href="/people/{p.id}">{p.name}</a>{p.is_host ? ' (host)' : ''}</li>{/each}
+					{#each g.people as p (p.id)}<li><a class="hover:underline" href="/people/{p.id}">{p.name}</a>{p.is_host ? ' (host)' : ''}{g.key === 'yes' && data.drivers.includes(p.id) ? ' (driving)' : ''}</li>{/each}
 				</ul>
 			</div>
 		{/each}

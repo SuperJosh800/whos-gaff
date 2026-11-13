@@ -26,6 +26,7 @@ import { eventInput } from '#lib/server/form.ts';
 import { getProfile } from '#lib/server/auth.ts';
 import { getTickets, nudgeTickets, setHaveTicket, setTickets } from '#lib/server/tickets.ts';
 import { repeatedInto, setRepeat } from '#lib/server/repeats.ts';
+import { listDrivers } from '#lib/server/money.ts';
 import { listVenues, lockVenue, removeVenue, reopenVenue, suggestVenue, voteVenue } from '#lib/server/venues.ts';
 import { listThemes, lockTheme, removeTheme, reopenTheme, suggestTheme, voteTheme } from '#lib/server/themes.ts';
 import type { Actions, PageServerLoad } from './$types';
@@ -46,6 +47,7 @@ export const load: PageServerLoad = async ({ params, locals, url, parent }) => {
 		myGaffs: isHost ? listGaffs(userId) : [],
 		repeatedInto: isHost ? repeatedInto(event.id) : null,
 		waitlist: event.starts_at ? listWaitlist(event.id) : [],
+		drivers: event.starts_at ? listDrivers(event.id).map((d) => d.id) : [],
 		payday: getProfile(userId).payday,
 		tickets: event.starts_at ? getTickets(event.id, userId) : null,
 		themes: listThemes(event.id, userId),

@@ -7,6 +7,8 @@ import {
 	getKitty,
 	getRounds,
 	leaveRoundGroup,
+	listDrivers,
+	setDriving,
 	parsePounds,
 	payLink,
 	recordRound,
@@ -123,3 +125,44 @@ describe('home safe', () => {
 		expect(homeSafeCutoff('2026-11-30T22:00')).toBe('2026-12-01T03:00');
 	});
 });
+
+describe('designated drivers', () => {
+	const next = (id: number) => getRounds(id)[0].next?.name;
+
+	it('only people going can drive, and they’re passed over for rounds but keep what they bought', () => {
+		const { id, host, a, b } = night();
+		const maybe = user('Maybe');
+		joinByToken(getEvent(id)!.invite_token, maybe.id);
+		setRsvp(id, maybe.id, 'maybe');
+		expect(() => setDriving(id, maybe.id, true)).toThrow('RSVP “going”');
+		// Order is Host, A, B. Host buys, then A is next, but A is driving, so it's B.
+		recordRound(id, host.id, null, host.id, false);
+		setDriving(id, a.id, true);
+		setDriving(id, a.id, true); // a double tap changes nothing
+		expect(listDrivers(id).map((d) => d.name)).toEqual(['A']);
+		expect(next(id)).toBe('B');
+		expect(() => recordRound(id, host.id, null, a.id, false)).toThrow('Someone already updated');
+		recordRound(id, host.id, null, b.id, false);
+		expect(next(id)).toBe('Host');
+		expect(getRounds(id)[0].tally.find((t) => t.name === 'A')).toMatchObject({ driving: true, bought: 0 });
+		setDriving(id, a.id, false);
+		recordRound(id, host.id, null, host.id, false);
+		expect(next(id)).toBe('A');
+	});
+
+	it('drops a driver who stops going, and has nobody to buy when everyone in a round drives', () => {
+		const { id, host, a, b } = night();
+		setDriving(id, b.id, true);
+		setRsvp(id, b.id, 'no');
+		expect(listDrivers(id)).toEqual([]);
+		setRsvp(id, b.id, 'yes');
+		expect(listDrivers(id).map((d) => d.name)).toEqual(['B']); // back with their answer
+		saveRoundGroup(id, a.id, null, [a.id, b.id]);
+		setDriving(id, a.id, true);
+		const small = getRounds(id).find((r) => r.id !== null)!;
+		expect(small.next).toBeNull();
+		expect(getRounds(id)[0].next?.name).toBe('Host');
+		expect(() => recordRound(id, host.id, small.id, a.id, false)).toThrow('Someone already updated');
+	});
+});
+
