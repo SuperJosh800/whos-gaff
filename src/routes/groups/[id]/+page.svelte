@@ -225,7 +225,7 @@
 
 	<a class="grid grid-cols-[1fr_auto] items-center border border-zinc-200 hover:bg-zinc-100" href="/groups/{data.group.id}/quiz">
 		<span class="px-3 py-3"><span class="block text-[11px] font-extrabold tracking-widest text-hot uppercase">Group quiz</span><span class="text-sm text-zinc-600">Write questions about each other and see who knows the group best.</span></span>
-		{#if data.quizLeft}<span class="self-stretch border-l border-zinc-200 bg-lime px-3 py-3 text-center text-ink"><span class="block text-xl leading-none font-black tabular-nums">{data.quizLeft}</span><span class="text-[10px] font-extrabold tracking-widest uppercase">to answer</span></span>{/if}
+		{#if data.quizLeft}<span class="flex flex-col justify-center self-stretch border-l border-zinc-200 bg-lime px-3 py-3 text-center text-ink"><span class="block text-xl leading-none font-black tabular-nums">{data.quizLeft}</span><span class="text-[10px] font-extrabold tracking-widest uppercase">to answer</span></span>{/if}
 	</a>
 
 	<a class="block border border-lime px-3 py-3 hover:bg-zinc-100" href="/groups/{data.group.id}/year">

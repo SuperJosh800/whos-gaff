@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { enhance } from '$app/forms';
+	import { enhance, type SubmitFunction } from '$app/forms';
 	import { page } from '$app/state';
 	import type { PageProps } from './$types';
 
@@ -9,6 +9,16 @@
 	const result = $derived(form && 'result' in form ? form.result : null);
 	const others = $derived(data.members.filter((m) => m.id !== me));
 	const got = (r: { answered: number; correct: number }) => (r.answered ? `${r.correct} of ${r.answered} got it` : 'Nobody’s answered yet');
+	// enhance sends the form even when a submit handler prevents it, so the confirm cancels it here.
+	const confirmDelete = (text: string): SubmitFunction => ({ cancel }) => {
+		if (!confirm(text)) cancel();
+	};
+	let addError = $state('');
+	// Shows a problem with a new question by the form, which is well down the page on a phone.
+	const adding: SubmitFunction = () => async ({ update, result }) => {
+		addError = result.type === 'failure' ? String(result.data?.error ?? 'Something went wrong.') : '';
+		if (result.type !== 'failure') await update();
+	};
 </script>
 
 <svelte:head><title>Quiz · {data.group.name} · Who's Gaff</title></svelte:head>
@@ -28,23 +38,22 @@
 		{#if result}
 			<p class="border px-3 py-2.5 text-sm {result.correct ? 'border-lime' : 'border-hot'}" role="status">
 				<span class="font-extrabold uppercase {result.correct ? 'text-lime' : 'text-hot'}">{result.correct ? 'Right' : 'Wrong'}.</span>
-				{result.question} <strong>{result.answer}</strong>
+				{result.question} {result.correct ? 'It’s' : 'It was'} <strong>{result.answer}</strong>.
 			</p>
 		{/if}
 		{#if q.next}
 			<div class="border border-zinc-200">
 				<p class="px-3 py-3"><span class="block text-[11px] font-extrabold tracking-widest text-zinc-500 uppercase">About {q.next.about} · from {q.next.author}</span>
-					<span class="text-xl leading-tight font-black">{q.next.question}</span></p>
-				<form method="POST" action="?/answer" use:enhance class="divide-y divide-zinc-200 border-t border-zinc-200">
+					<span class="text-xl leading-tight font-black" id="quiz-question">{q.next.question}</span></p>
+				<form method="POST" action="?/answer" use:enhance class="divide-y divide-zinc-200 border-t border-zinc-200" role="group" aria-labelledby="quiz-question">
 					{#each q.next.options as o (o)}
 						<button class="block w-full px-3 py-3 text-left text-sm font-extrabold hover:bg-lime hover:text-ink focus-visible:bg-lime focus-visible:text-ink" name="choice" value={o}>{o}</button>
 					{/each}
 					<input type="hidden" name="id" value={q.next.id} />
-					<input type="hidden" name="question" value={q.next.question} />
 				</form>
 			</div>
 		{:else}
-			<p class="text-sm text-zinc-500">{q.scores.some((s) => s.id === me) ? 'You’re all caught up. Write one for everyone else below.' : 'No questions for you yet. Write the first one below.'}</p>
+			<p class="text-sm text-zinc-500">{q.total ? 'You’re all caught up. Write one for everyone else below.' : 'No questions yet. Write the first one below.'}</p>
 		{/if}
 	</section>
 
@@ -69,7 +78,8 @@
 
 	<section class="card space-y-3" id="write">
 		<h2>Write a question</h2>
-		<form method="POST" action="?/add" use:enhance class="space-y-3">
+		{#if addError}<p class="error" role="alert">{addError}</p>{/if}
+		<form method="POST" action="?/add" use:enhance={adding} class="space-y-3">
 			<label class="block"><span class="label">About</span>
 				<select class="input" name="about" required>
 					{#each others as m (m.id)}<option value={m.id}>{m.name}</option>{/each}
@@ -97,9 +107,9 @@
 					<li class="grid grid-cols-[1fr_auto] items-center">
 						<p class="min-w-0 px-3 py-2.5 break-words">{a.question} <strong>{a.answer}</strong>
 							<span class="block text-xs text-zinc-500">From {a.author} · {got(a)}</span></p>
-						<form method="POST" action="?/delete" use:enhance class="self-stretch" onsubmit={(e) => { if (!confirm('Delete this question about you?')) e.preventDefault(); }}>
+						<form method="POST" action="?/delete" use:enhance={confirmDelete('Delete this question about you?')} class="self-stretch">
 							<input type="hidden" name="id" value={a.id} />
-							<button class="h-full border-l border-zinc-200 px-3 text-[11px] font-extrabold tracking-widest text-zinc-500 uppercase hover:bg-zinc-100 hover:text-zinc-900">Delete</button>
+							<button class="h-full border-l border-zinc-200 px-3 text-[11px] font-extrabold tracking-widest text-zinc-500 uppercase hover:bg-zinc-100 hover:text-zinc-900" aria-label="Delete: {a.question}">Delete</button>
 						</form>
 					</li>
 				{/each}
@@ -115,9 +125,28 @@
 					<li class="grid grid-cols-[1fr_auto] items-center">
 						<p class="min-w-0 px-3 py-2.5 break-words">{a.question} <strong>{a.answer}</strong>
 							<span class="block text-xs text-zinc-500">About {a.about} · {got(a)}</span></p>
-						<form method="POST" action="?/delete" use:enhance class="self-stretch" onsubmit={(e) => { if (!confirm('Delete this question?')) e.preventDefault(); }}>
+						<form method="POST" action="?/delete" use:enhance={confirmDelete('Delete this question?')} class="self-stretch">
 							<input type="hidden" name="id" value={a.id} />
-							<button class="h-full border-l border-zinc-200 px-3 text-[11px] font-extrabold tracking-widest text-zinc-500 uppercase hover:bg-zinc-100 hover:text-zinc-900">Delete</button>
+							<button class="h-full border-l border-zinc-200 px-3 text-[11px] font-extrabold tracking-widest text-zinc-500 uppercase hover:bg-zinc-100 hover:text-zinc-900" aria-label="Delete: {a.question}">Delete</button>
+						</form>
+					</li>
+				{/each}
+			</ul>
+		</section>
+	{/if}
+
+	{#if q.all?.length}
+		<section class="card space-y-3">
+			<h2>All the group’s questions</h2>
+			<p class="text-xs text-zinc-500">You made the group, so you can take down any question that’s out of order.</p>
+			<ul class="divide-y divide-zinc-200 border border-zinc-200 text-sm">
+				{#each q.all as a (a.id)}
+					<li class="grid grid-cols-[1fr_auto] items-center">
+						<p class="min-w-0 px-3 py-2.5 break-words">{a.question}
+							<span class="block text-xs text-zinc-500">From {a.author} · about {a.about}</span></p>
+						<form method="POST" action="?/delete" use:enhance={confirmDelete(`Delete “${a.question}” for everyone?`)} class="self-stretch">
+							<input type="hidden" name="id" value={a.id} />
+							<button class="h-full border-l border-zinc-200 px-3 text-[11px] font-extrabold tracking-widest text-zinc-500 uppercase hover:bg-zinc-100 hover:text-zinc-900" aria-label="Delete: {a.question}">Delete</button>
 						</form>
 					</li>
 				{/each}

@@ -53,11 +53,13 @@ export function deleteQuestion(groupId: number, userId: number, questionId: numb
 		| { author_id: number; about_id: number }
 		| undefined;
 	if (!q) return;
-	if (![q.author_id, q.about_id, group.created_by].includes(userId)) throw new EventError('Only whoever wrote it, or whoever it’s about, can delete it.');
+	if (![q.author_id, q.about_id, group.created_by].includes(userId)) {
+		throw new EventError('Only whoever wrote it, whoever it’s about, or whoever made the group can delete it.');
+	}
 	db.prepare('DELETE FROM quiz_questions WHERE id = ?').run(questionId);
 }
 
-/** Answers a question, once. Not your own, and not one about you. Returns whether you got it and the right answer. */
+/** Answers a question, once. Not your own, and not one about you. Returns whether you got it, with the question and right answer. */
 export function answerQuestion(groupId: number, userId: number, questionId: number, choice: string) {
 	requireGroupMember(groupId, userId);
 	const q = db.prepare(`${SELECT} WHERE q.id = ? AND q.group_id = ?`).get(questionId, groupId) as Question | undefined;
@@ -68,7 +70,7 @@ export function answerQuestion(groupId: number, userId: number, questionId: numb
 	const correct = choice === q.answer;
 	const { changes } = db.prepare('INSERT OR IGNORE INTO quiz_answers (question_id, user_id, correct) VALUES (?, ?, ?)').run(questionId, userId, correct ? 1 : 0);
 	if (!changes) throw new EventError('You’ve already answered that one.');
-	return { correct, answer: q.answer };
+	return { correct, question: q.question, answer: q.answer };
 }
 
 /** How many questions are waiting for someone in a group. */
@@ -88,7 +90,7 @@ export function questionsToAnswer(groupId: number, userId: number) {
  * how the group did on questions about them, and the questions they wrote.
  */
 export function getQuiz(groupId: number, viewerId: number) {
-	requireGroupMember(groupId, viewerId);
+	const group = requireGroupMember(groupId, viewerId);
 	const next = db
 		.prepare(
 			`${SELECT} WHERE q.group_id = ? AND q.author_id != ? AND q.about_id != ?
@@ -114,7 +116,15 @@ export function getQuiz(groupId: number, viewerId: number) {
 			 GROUP BY u.id ORDER BY correct DESC, answered ASC, u.name`
 		)
 		.all(groupId, groupId) as { id: number; name: string; answered: number; correct: number }[];
+	// Whoever made the group can delete any question, so they see them all, without the answers.
+	const all =
+		group.created_by === viewerId
+			? stats('q.author_id != ? AND q.about_id != ?', viewerId, viewerId).map(({ id, question, author, about }) => ({ id, question, author, about }))
+			: null;
+	const { total } = db.prepare('SELECT COUNT(*) AS total FROM quiz_questions WHERE group_id = ?').get(groupId) as { total: number };
 	return {
+		total,
+		all,
 		next: next ? { id: next.id, author: next.author, about: next.about, question: next.question, options: options(next) } : null,
 		left: questionsToAnswer(groupId, viewerId),
 		scores: scores.map((s) => ({ ...s, place: scores.findIndex((o) => o.correct === s.correct && o.answered === s.answered) + 1 })),

@@ -25,7 +25,7 @@ export const actions: Actions = {
 	},
 	answer: async (e) => {
 		const { userId, groupId, get } = await input(e);
-		return asAction(() => ({ result: { question: get('question'), ...answerQuestion(groupId, userId, Number(get('id')), get('choice')) } }));
+		return asAction(() => ({ result: answerQuestion(groupId, userId, Number(get('id')), get('choice')) }));
 	},
 	delete: async (e) => {
 		const { userId, groupId, get } = await input(e);

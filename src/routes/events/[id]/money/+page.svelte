@@ -143,9 +143,10 @@
 					<p class="min-w-0"><span class="block text-[11px] font-extrabold tracking-widest text-zinc-500 uppercase">{ta.started_by === me ? 'You' : ta.by} started an order from</span>
 						<span class="text-2xl leading-tight font-black uppercase">{ta.place}</span></p>
 					{#if ta.canCancel}
-						<form method="POST" action="?/cancelTakeaway" use:enhance={inTakeaway} onsubmit={(e) => { if (!confirm('Call off the takeaway?')) e.preventDefault(); }}>
+						<form method="POST" action="?/cancelTakeaway" use:enhance={inTakeaway}>
 							<input type="hidden" name="takeaway" value={ta.id} />
-							<button class="text-[11px] font-extrabold tracking-widest text-zinc-500 uppercase hover:text-zinc-900">Call it off</button>
+							<!-- The confirm is on the click: enhance sends the form even when a submit handler prevents it. -->
+							<button class="text-[11px] font-extrabold tracking-widest text-zinc-500 uppercase hover:text-zinc-900" onclick={(e) => { if (!confirm('Call off the takeaway?')) e.preventDefault(); }}>Call it off</button>
 						</form>
 					{/if}
 				</div>
