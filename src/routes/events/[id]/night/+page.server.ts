@@ -17,6 +17,7 @@ import {
 } from '#lib/server/night.ts';
 import { eventInput } from '#lib/server/form.ts';
 import { canSeeAddress } from '#lib/server/gaff.ts';
+import { getDrinks, logDrink, undoDrink, WATER_EVERY } from '#lib/server/drinks.ts';
 import { callOut, completeMission, getMissions, swapMission, takeMission } from '#lib/server/missions.ts';
 import { nowLocal } from '#lib/time.ts';
 import { AWARDS, getPredictions, savePredictions } from '#lib/server/after.ts';
@@ -45,6 +46,8 @@ export const load: PageServerLoad = async ({ params, parent, locals }) => {
 		awards: AWARDS,
 		bingo: getBingo(event.id, locals.user!.id),
 		buddies: getBuddies(event.id, locals.user!.id),
+		drinks: getDrinks(event.id, locals.user!.id),
+		waterEvery: WATER_EVERY,
 		// No transport API yet: link out to journey planning from the venue (WG-17).
 		transitLink: address
 			? `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(address)}&travelmode=transit`
@@ -72,6 +75,14 @@ export const actions: Actions = {
 	nudge: async (e) => {
 		const { userId, eventId } = await eventInput(e);
 		return asAction(() => ({ nudged: nudgeNoPlan(eventId, userId) }));
+	},
+	drink: async (e) => {
+		const { userId, eventId, get } = await eventInput(e);
+		return asAction(() => logDrink(eventId, userId, get('kind'), Number(get('after'))));
+	},
+	undoDrink: async (e) => {
+		const { userId, eventId, get } = await eventInput(e);
+		return asAction(() => undoDrink(eventId, userId, Number(get('last'))));
 	},
 	homeSafe: async (e) => {
 		const { userId, eventId } = await eventInput(e);
