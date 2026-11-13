@@ -19,7 +19,14 @@ export function notify(userId: number, eventId: number | null, message: string, 
 		eventId,
 		message
 	);
-	void pushTo(userId, { body: message, url: eventId ? `/events/${eventId}${path}` : path || '/' });
+	// A push that fails must never undo or break the update itself.
+	try {
+		pushTo(userId, { body: message, url: eventId ? `/events/${eventId}${path}` : path || '/' }).catch((e) =>
+			console.error('[push] failed', e)
+		);
+	} catch (e) {
+		console.error('[push] failed', e);
+	}
 }
 
 export function listNotifications(userId: number, limit = 10) {

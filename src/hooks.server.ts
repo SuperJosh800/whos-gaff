@@ -1,5 +1,5 @@
 import type { Handle } from '@sveltejs/kit/hooks';
-import { getSessionUser, purgeExpired, SESSION_COOKIE } from '#lib/server/auth.ts';
+import { getSessionUser, hashToken, purgeExpired, SESSION_COOKIE } from '#lib/server/auth.ts';
 
 // Clear out expired sessions and reset links once an hour.
 purgeExpired();
@@ -19,6 +19,7 @@ const SECURITY_HEADERS: Record<string, string> = {
 export const handle: Handle = async ({ event, resolve }) => {
 	const token = event.cookies.get(SESSION_COOKIE);
 	event.locals.user = token ? getSessionUser(token) : null;
+	event.locals.sessionId = event.locals.user && token ? hashToken(token) : null;
 	if (token && !event.locals.user) event.cookies.delete(SESSION_COOKIE, { path: '/' });
 
 	const response = await resolve(event);

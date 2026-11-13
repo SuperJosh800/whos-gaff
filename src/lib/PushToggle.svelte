@@ -19,7 +19,10 @@
 		if (Notification.permission === 'denied') return void (status = 'blocked');
 		const reg = await registration();
 		if (!reg) return void (status = 'unsupported');
-		status = (await reg.pushManager.getSubscription()) ? 'on' : 'off';
+		// The browser may still be subscribed for someone who logged out here, so ask the server too.
+		const sub = await reg.pushManager.getSubscription();
+		const res = sub && (await fetch(`/push?endpoint=${encodeURIComponent(sub.endpoint)}`).catch(() => null));
+		status = res?.ok && ((await res.json()) as { on: boolean }).on ? 'on' : 'off';
 	}
 
 	/** The service worker, or null if it never starts (then the browser can't do push here). */
@@ -53,13 +56,20 @@
 
 	async function turnOff() {
 		busy = true;
-		const sub = await (await registration())?.pushManager.getSubscription();
-		if (sub) {
-			await fetch('/push', { method: 'DELETE', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ endpoint: sub.endpoint }) });
-			await sub.unsubscribe();
+		error = '';
+		try {
+			const sub = await (await registration())?.pushManager.getSubscription();
+			if (sub) {
+				const res = await fetch('/push', { method: 'DELETE', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ endpoint: sub.endpoint }) });
+				if (!res.ok) throw new Error();
+				await sub.unsubscribe();
+			}
+			status = 'off';
+		} catch {
+			error = 'Couldn’t turn notifications off. Try again.';
+		} finally {
+			busy = false;
 		}
-		status = 'off';
-		busy = false;
 	}
 
 	$effect(() => {

@@ -341,9 +341,11 @@ const migrations: string[] = [
 	`,
 	`
 	-- Phones and browsers that want push notifications. endpoint is the push service URL for that device.
+	-- Each belongs to the login that turned it on, so logging out of that phone stops its pushes.
 	CREATE TABLE push_subscriptions (
 		endpoint TEXT PRIMARY KEY,
 		user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
 		p256dh TEXT NOT NULL,
 		auth TEXT NOT NULL,
 		created_at TEXT NOT NULL DEFAULT (datetime('now'))

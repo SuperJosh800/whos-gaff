@@ -33,7 +33,8 @@ const PERSONAL: [table: string, column: string][] = [
 	['round_group_members', 'user_id'],
 	['missions', 'user_id'],
 	['mission_guesses', 'user_id'],
-	['custom_games', 'owner_id']
+	['custom_games', 'owner_id'],
+	['push_subscriptions', 'user_id']
 ];
 
 /** Everything stored about a user, as plain data for a JSON download. Passwords and session tokens are left out. */
@@ -46,7 +47,13 @@ export function exportData(userId: number) {
 	for (const [table, column] of PERSONAL) {
 		const key = column === 'user_id' || PERSONAL.filter(([t]) => t === table).length === 1 ? table : `${table} (${column})`;
 		// Award votes for you leave out who cast them: the app itself only ever shows the counts.
-		const columns = table === 'award_votes' && column === 'nominee_id' ? 'event_id, award' : '*';
+		// Push devices leave out the session they belong to and their encryption keys.
+		const columns =
+			table === 'award_votes' && column === 'nominee_id'
+				? 'event_id, award'
+				: table === 'push_subscriptions'
+					? 'endpoint, created_at'
+					: '*';
 		data[key] = db.prepare(`SELECT ${columns} FROM ${table} WHERE ${column} = ?`).all(userId);
 	}
 	return data;

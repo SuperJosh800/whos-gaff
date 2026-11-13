@@ -19,7 +19,9 @@ sw.addEventListener('push', (event) => {
 
 sw.addEventListener('notificationclick', (event) => {
 	event.notification.close();
-	const url = new URL((event.notification.data as { url?: string })?.url ?? '/', sw.location.origin).href;
+	const target = new URL((event.notification.data as { url?: string })?.url ?? '/', sw.location.origin);
+	// Only ever open pages of this app.
+	const url = target.origin === sw.location.origin ? target.href : sw.location.origin + '/';
 	event.waitUntil(
 		(async () => {
 			const open = (await sw.clients.matchAll({ type: 'window', includeUncontrolled: true })) as WindowClient[];
