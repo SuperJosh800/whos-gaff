@@ -575,6 +575,28 @@ const migrations: string[] = [
 		choice TEXT NOT NULL CHECK (choice IN ('stay', 'move')),
 		PRIMARY KEY (vote_id, user_id)
 	);
+	`,
+	// Takeaway order: everyone going adds what they want, one person orders, and the cost goes in the kitty.
+	`
+	CREATE TABLE takeaways (
+		id INTEGER PRIMARY KEY,
+		event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+		place TEXT NOT NULL,
+		started_by INTEGER NOT NULL REFERENCES users(id),
+		started_at INTEGER NOT NULL,
+		orderer_id INTEGER REFERENCES users(id),
+		total_pence INTEGER,
+		ordered_at INTEGER,
+		cancelled INTEGER NOT NULL DEFAULT 0
+	);
+	CREATE INDEX takeaways_event ON takeaways (event_id, id);
+	CREATE TABLE takeaway_items (
+		takeaway_id INTEGER NOT NULL REFERENCES takeaways(id) ON DELETE CASCADE,
+		user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		item TEXT NOT NULL,
+		price_pence INTEGER,
+		PRIMARY KEY (takeaway_id, user_id)
+	);
 	`
 ];
 

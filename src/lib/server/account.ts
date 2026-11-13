@@ -58,7 +58,10 @@ const PERSONAL: [table: string, column: string][] = [
 	['song_votes', 'user_id'],
 	['drop_photos', 'user_id'],
 	['move_votes', 'started_by'],
-	['move_ballots', 'user_id']
+	['move_ballots', 'user_id'],
+	['takeaways', 'started_by'],
+	['takeaways', 'orderer_id'],
+	['takeaway_items', 'user_id']
 ];
 
 /** Everything stored about a user, as plain data for a JSON download. Passwords and session tokens are left out. */
@@ -141,6 +144,11 @@ export function deleteAccount(userId: number) {
 		db.prepare('DELETE FROM predictions WHERE user_id = ? OR nominee_id = ?').run(userId, userId);
 		db.prepare('DELETE FROM taxi_told WHERE user_id = ? OR about_id = ?').run(userId, userId);
 		db.prepare('DELETE FROM move_votes WHERE started_by = ?').run(userId);
+		// Orders not yet placed go; placed ones stay, like the kitty costs they made, as "Deleted user",
+		// so everyone else's share of them still adds up.
+		db.prepare('DELETE FROM takeaway_items WHERE user_id = ? AND takeaway_id IN (SELECT id FROM takeaways WHERE ordered_at IS NULL)').run(userId);
+		db.prepare('DELETE FROM takeaways WHERE started_by = ? AND ordered_at IS NULL').run(userId);
+		db.prepare('UPDATE takeaways SET orderer_id = NULL WHERE orderer_id = ? AND ordered_at IS NULL').run(userId);
 		// Squares that happened stay marked for everyone else, without the name.
 		db.prepare('UPDATE bingo_marks SET marked_by = NULL WHERE marked_by = ?').run(userId);
 		db.prepare('DELETE FROM mission_guesses WHERE user_id = ? OR suspect_id = ?').run(userId, userId);
