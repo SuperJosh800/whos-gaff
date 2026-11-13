@@ -17,6 +17,7 @@ import {
 import { eventInput } from '#lib/server/form.ts';
 import { callOut, completeMission, getMissions, swapMission, takeMission } from '#lib/server/missions.ts';
 import { nowLocal } from '#lib/time.ts';
+import { AWARDS, getPredictions, predictAward } from '#lib/server/after.ts';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ params, parent, locals }) => {
@@ -32,6 +33,8 @@ export const load: PageServerLoad = async ({ params, parent, locals }) => {
 		cutoff: event.starts_at ? homeSafeCutoff(event.starts_at) : null,
 		now: nowLocal(),
 		missions: getMissions(event.id, locals.user!.id),
+		predictions: getPredictions(event.id, locals.user!.id),
+		awards: AWARDS,
 		// No transport API yet: link out to journey planning from the venue (WG-17).
 		transitLink: address
 			? `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(address)}&travelmode=transit`
@@ -75,6 +78,13 @@ export const actions: Actions = {
 	missionDone: async (e) => {
 		const { userId, eventId, form } = await eventInput(e);
 		return asAction(() => completeMission(eventId, userId, form.get('photo') as File | null));
+	},
+	predict: async (e) => {
+		const { userId, eventId, get } = await eventInput(e);
+		return asAction(() => {
+			for (const award of Object.keys(AWARDS)) if (get(award)) predictAward(eventId, userId, award, Number(get(award)));
+			return { predicted: true };
+		});
 	},
 	callOut: async (e) => {
 		const { userId, eventId, get } = await eventInput(e);

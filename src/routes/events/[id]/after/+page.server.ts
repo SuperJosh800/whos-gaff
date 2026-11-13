@@ -1,4 +1,4 @@
-import { addPhoto, getAwards, isOver, listPhotos, voteAward } from '#lib/server/after.ts';
+import { addPhoto, getAwards, getPredictions, isOver, listPhotos, voteAward } from '#lib/server/after.ts';
 import { asAction, getEvent } from '#lib/server/events.ts';
 import { listStages } from '#lib/server/night.ts';
 import { eventInput } from '#lib/server/form.ts';
@@ -10,6 +10,7 @@ export const load: PageServerLoad = async ({ params, parent, locals }) => {
 	return {
 		over: isOver(event),
 		...getAwards(event.id, locals.user!.id),
+		predictions: getPredictions(event.id, locals.user!.id),
 		photos: listPhotos(event.id),
 		stages: listStages(event.id)
 	};

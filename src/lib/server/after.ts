@@ -84,6 +84,56 @@ export function hallOfFame(userId: number) {
 	).map((r) => ({ ...r, label: AWARDS[r.award] }));
 }
 
+// ---- Night predictions ----
+// Before the night, everyone going guesses who'll win each award. Picks stay hidden until the night
+// starts, then the award votes afterwards decide who called it. Nobody has to mark anything.
+
+export function predictAward(eventId: number, userId: number, award: string, nomineeId: number, now = nowLocal()) {
+	const event = requireMember(eventId, userId);
+	if (isOver(event, now)) throw new EventError('Predictions closed when the night started.');
+	if (!(award in AWARDS)) throw new EventError('Unknown award.');
+	const people = attendees(eventId);
+	if (!people.some((p) => p.id === userId)) throw new EventError('RSVP going to make predictions.');
+	if (!people.some((p) => p.id === nomineeId)) throw new EventError('Pick someone who’s going.');
+	db.prepare(
+		`INSERT INTO predictions (event_id, user_id, award, nominee_id) VALUES (?, ?, ?, ?)
+		 ON CONFLICT (event_id, user_id, award) DO UPDATE SET nominee_id = excluded.nominee_id`
+	).run(eventId, userId, award, nomineeId);
+	publish(eventId);
+}
+
+export function getPredictions(eventId: number, userId: number, now = nowLocal()) {
+	const event = requireMember(eventId, userId);
+	const locked = isOver(event, now);
+	const rows = db
+		.prepare(
+			`SELECT p.user_id, p.award, p.nominee_id, u.name, n.name AS nominee FROM predictions p
+			 JOIN users u ON u.id = p.user_id JOIN users n ON n.id = p.nominee_id
+			 WHERE p.event_id = ? ORDER BY u.name, p.user_id`
+		)
+		.all(eventId) as { user_id: number; award: Award; nominee_id: number; name: string; nominee: string }[];
+	const mine = Object.fromEntries(rows.filter((r) => r.user_id === userId).map((r) => [r.award, r.nominee_id])) as Partial<Record<Award, number>>;
+	const predictors = [...new Set(rows.map((r) => r.user_id))];
+	const people = attendees(eventId);
+	const canPredict = people.some((p) => p.id === userId);
+	if (!locked) return { locked, people, canPredict, mine, count: predictors.length, table: [], decided: false };
+
+	const winners = db.prepare(`SELECT award, nominee_id FROM (${WINNERS}) WHERE event_id = ?`).all(eventId) as { award: Award; nominee_id: number }[];
+	const decided = winners.length > 0;
+	const table = predictors
+		.map((id) => {
+			const picks = rows.filter((r) => r.user_id === id);
+			const cells = Object.keys(AWARDS).map((award) => {
+				const pick = picks.find((r) => r.award === award);
+				const won = winners.filter((w) => w.award === award);
+				return { award: award as Award, nominee: pick?.nominee ?? null, right: !!pick && won.some((w) => w.nominee_id === pick.nominee_id) };
+			});
+			return { user_id: id, name: picks[0].name, cells, score: cells.filter((c) => c.right).length };
+		})
+		.sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
+	return { locked, people, canPredict, mine, count: predictors.length, table, decided };
+}
+
 // ---- Photos for the night recap card (WG-33) ----
 
 const UPLOADS = process.env.UPLOADS_PATH ?? 'data/uploads';

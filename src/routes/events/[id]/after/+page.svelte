@@ -5,6 +5,10 @@
 
 	let { data, form }: PageProps = $props();
 	const going = $derived(data.people);
+	const pr = $derived(data.predictions);
+	// Whoever called the most awards right; nobody if no award has a winner yet or nobody got one.
+	const topScore = $derived(pr.decided ? (pr.table[0]?.score ?? 0) : 0);
+	const callers = $derived(pr.table.filter((r) => topScore && r.score === topScore));
 	let shared = $state('');
 
 	const summary = $derived(
@@ -12,6 +16,7 @@
 			`${data.event.title}${data.event.starts_at ? ` · ${formatWhen(data.event.starts_at)}` : ''}`,
 			`Who came: ${going.map((p) => p.name).join(', ')}`,
 			...data.awards.filter((a) => a.winners.length).map((a) => `${a.label}: ${a.winners.map((w) => w.name).join(' & ')}`),
+			callers.length ? `Called it: ${callers.map((c) => c.name).join(' & ')} (${topScore}/${data.awards.length})` : '',
 			data.stages.length ? `The night: ${data.stages.map((s) => `${s.name} ${formatTime(s.starts_at)}`).join(' → ')}` : ''
 		]
 			.filter(Boolean)
@@ -63,6 +68,7 @@
 					{#each data.awards as a (a.key)}
 						<p>{a.label}: <strong>{a.winners.length ? a.winners.map((w) => w.name).join(' & ') : '–'}</strong></p>
 					{/each}
+					{#if callers.length}<p class="mt-1 text-zinc-600">Called it: <strong class="text-zinc-900">{callers.map((c) => c.name).join(' & ')}</strong> ({topScore}/{data.awards.length})</p>{/if}
 				</div>
 				{#if data.stages.length}
 					<div>
@@ -95,6 +101,28 @@
 				{/each}
 			</div>
 		</section>
+
+		{#if pr.table.length}
+			<section class="card space-y-3" id="predictions">
+				<h2>Who called it</h2>
+				<p class="text-sm text-zinc-500">{pr.decided ? 'Picks made before the night, marked against the award votes.' : 'Picks made before the night. They’re marked once the award votes come in.'}</p>
+				<ol class="divide-y divide-zinc-200 border border-zinc-200 text-sm">
+					{#each pr.table as row (row.user_id)}
+						<li class="grid grid-cols-[1fr_auto]">
+							<div class="min-w-0 px-3 py-2.5">
+								<p class="font-extrabold">{row.name}</p>
+								<p class="text-zinc-600">
+									{#each row.cells as c, i (c.award)}{i ? ' · ' : ''}{data.awards.find((a) => a.key === c.award)?.label}: <span class={c.right ? 'font-bold text-lime' : ''}>{c.nominee ?? '–'}{c.right ? ' ✓' : ''}</span>{/each}
+								</p>
+							</div>
+							{#if pr.decided}
+								<span class="flex items-center border-l border-zinc-200 px-3 font-black tabular-nums {row.score && row.score === topScore ? 'bg-lime text-ink' : ''}">{row.score}/{row.cells.length}</span>
+							{/if}
+						</li>
+					{/each}
+				</ol>
+			</section>
+		{/if}
 
 		<section class="card space-y-3">
 			<h2>Photos</h2>
