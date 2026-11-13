@@ -28,12 +28,17 @@ function crew() {
 describe('year in review', () => {
 	it('counts only the group’s nights in that year that have happened', () => {
 		const { id, ana, ben, night } = crew();
-		night(ana, '2097-12-31T23:30', [ben]); // the year before
+		const before = night(ana, '2097-12-31T23:30', [ben]); // the year before
 		const a = night(ana, '2098-01-01T00:00', [ben]); // first minute of the year
 		night(ben, '2098-12-31T23:30', [ana]); // later tonight: hasn't happened yet
 		createEvent(ana.id, { title: 'Not a group night', mode: 'fixed', startsAt: '2098-06-01T20:00' });
-		const r = yearReview(id, 2098, NOW);
+		createEvent(ana.id, { title: 'Undated', mode: 'poll', options: ['2098-04-01T20:00', '2098-04-02T20:00'], groupId: id });
+		const other = createGroup(ana.id, 'Other lot');
+		createEvent(ana.id, { title: 'Other group', mode: 'fixed', startsAt: '2098-05-01T20:00', groupId: other });
+		const r = yearReview(id, ana.id, 2098, NOW);
 		expect(r.nights.map((x) => x.id)).toEqual([a]);
+		expect(r.topHost).toEqual({ names: ['Ana'], count: 1 });
+		expect(yearReview(id, ana.id, 2097, NOW).nights.map((x) => x.id)).toEqual([before]);
 		expect(reviewYears(id, NOW)).toEqual([2098, 2097]);
 	});
 
@@ -42,8 +47,8 @@ describe('year in review', () => {
 		night(ana, '2098-03-01T20:00', [ben, cat], [dan]);
 		night(ben, '2098-04-01T20:00', [cat], [ana]);
 		night(cat, '2098-05-01T20:00', [dan]);
-		const r = yearReview(id, 2098, NOW);
-		expect(r.attendance).toEqual([
+		const r = yearReview(id, ana.id, 2098, NOW);
+		expect(r.attendance.map(({ name, count }) => ({ name, count }))).toEqual([
 			{ name: 'Cat', count: 3 },
 			{ name: 'Ben', count: 2 },
 			{ name: 'Ana', count: 1 },
@@ -65,7 +70,7 @@ describe('year in review', () => {
 		voteAward(two, ben.id, 'mvp', dan.id, after);
 		voteAward(two, cat.id, 'mvp', ben.id, after); // Dan wins night two outright
 		db.prepare('DELETE FROM group_members WHERE group_id = ? AND user_id = ?').run(id, dan.id);
-		const r = yearReview(id, 2098, NOW);
+		const r = yearReview(id, ana.id, 2098, NOW);
 		expect(r.awards.find((a) => a.key === 'mvp')!.top).toEqual({ names: ['Ana'], count: 1 });
 		expect(r.attendance.map((a) => a.name)).not.toContain('Dan');
 	});
@@ -80,9 +85,42 @@ describe('year in review', () => {
 		const home = db.prepare('INSERT INTO home_safe (event_id, user_id, at) VALUES (?, ?, ?)');
 		home.run(e, cat.id, '2098-08-02T01:00');
 		home.run(e, ben.id, '2098-08-02T03:00');
-		const r = yearReview(id, 2098, NOW);
+		const r = yearReview(id, ana.id, 2098, NOW);
 		expect(r.totals).toEqual({ nights: 1, photos: 1, spentPence: 1250 });
 		expect(r.firstHome).toEqual({ names: ['Cat'], count: 1 });
 		expect(r.topRounds).toBeNull();
+	});
+
+	it('counts rounds bought (not skipped) and moves, only from the year’s nights', () => {
+		const { id, ana, ben, cat, night } = crew();
+		const e = night(ana, '2098-09-01T20:00', [ben, cat]);
+		const old = night(ana, '2097-09-01T20:00', [ben, cat]);
+		const round = db.prepare('INSERT INTO rounds (event_id, user_id, skipped) VALUES (?, ?, ?)');
+		round.run(e, ben.id, 0);
+		round.run(e, cat.id, 1);
+		round.run(e, cat.id, 1);
+		for (let i = 0; i < 3; i++) round.run(old, cat.id, 0);
+		const move = db.prepare(`INSERT INTO moves (event_id, user_id, place) VALUES (?, ?, 'Pub')`);
+		move.run(e, ana.id);
+		move.run(old, cat.id);
+		move.run(old, cat.id);
+		const r = yearReview(id, ana.id, 2098, NOW);
+		expect(r.topRounds).toEqual({ names: ['Ben'], count: 1 });
+		expect(r.mostMoves).toEqual({ names: ['Ana'], count: 1 });
+	});
+
+	it('keeps people who share a name apart, and hides nights from before the viewer joined', () => {
+		const { id, ana, ben, night } = crew();
+		const e = night(ana, '2098-10-01T20:00', [ben]);
+		const twin = user('Ben');
+		const token = (db.prepare('SELECT invite_token FROM friend_groups WHERE id = ?').get(id) as { invite_token: string }).invite_token;
+		joinGroupByToken(token, twin.id);
+		night(ana, '2098-11-01T20:00', [twin]);
+		const r = yearReview(id, ana.id, 2098, NOW);
+		expect(r.attendance.filter((a) => a.name === 'Ben').map((a) => a.id).sort()).toEqual([ben.id, twin.id].sort());
+		expect(r.nights.every((n) => n.title)).toBe(true);
+		const late = yearReview(id, twin.id, 2098, NOW);
+		expect(late.nights.find((n) => n.id === e)!.title).toBeNull();
+		expect(late.nights.filter((n) => n.title)).toHaveLength(1);
 	});
 });
