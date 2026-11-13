@@ -143,7 +143,7 @@
 				<ul class="divide-y divide-zinc-200 border border-zinc-200 text-sm">
 					{#each lost.items as i (i.id)}
 						<li class="{i.sorted ? 'text-zinc-500' : ''}">
-							<div class="grid grid-cols-[4rem_1fr] items-start">
+							<div class="grid grid-cols-[5.5rem_1fr] items-start">
 								<span class="px-3 py-2.5 text-[11px] font-extrabold tracking-widest uppercase {i.sorted ? 'text-zinc-500' : i.kind === 'lost' ? 'text-hot' : 'text-lime'}">{i.sorted ? 'Sorted' : i.kind}</span>
 								<p class="min-w-0 py-2.5 pr-3 break-words"><span class="font-extrabold">{i.text}</span>
 									<span class="block text-xs text-zinc-500">{i.kind === 'lost' ? 'Lost' : 'Found'} by {i.name}{i.replies.length ? ` · ${i.replies.join(', ')} ${i.kind === 'lost' ? (i.replies.length > 1 ? 'have got it' : 'has got it') : i.replies.length > 1 ? 'say it’s theirs' : 'says it’s theirs'}` : ''}</span></p>
@@ -151,17 +151,13 @@
 							{#if !i.sorted && lost.canPost && i.user_id !== me}
 								<form method="POST" action="?/lostReply" use:enhance={inLost} class="border-t border-zinc-200">
 									<input type="hidden" name="item" value={i.id} />
-									{#if i.replied}
-										<input type="hidden" name="undo" value="1" />
-										<button class="w-full px-3 py-2 text-left text-[11px] font-extrabold tracking-widest text-zinc-500 uppercase hover:bg-zinc-100" aria-label="Take back your reply to {i.text}">{i.kind === 'lost' ? 'You’ve got it' : 'You said it’s yours'} · undo</button>
-									{:else}
-										<button class="w-full bg-lime px-3 py-2 text-left text-[11px] font-extrabold tracking-widest text-ink uppercase hover:brightness-110">{i.kind === 'lost' ? 'I’ve got it' : 'That’s mine'}</button>
-									{/if}
+									{#if i.replied}<input type="hidden" name="undo" value="1" />{/if}
+									<button class="w-full px-3 py-2 text-left text-[11px] font-extrabold tracking-widest uppercase {i.replied ? 'bg-lime text-ink' : 'text-hot hover:bg-zinc-100'}" aria-pressed={i.replied} aria-label="{i.kind === 'lost' ? 'I’ve got it' : 'That’s mine'}: {i.text}">{i.kind === 'lost' ? 'I’ve got it' : 'That’s mine'}</button>
 								</form>
 							{/if}
 							{#if i.canManage}
 								<form method="POST" action="?/lostSort" use:enhance={inLost} class="strip border-x-0 border-b-0">
-									<button name="sorted" value={i.sorted ? '0' : '1'} aria-label="{i.sorted ? 'Not sorted' : 'Sorted'}: {i.text}">{i.sorted ? 'Not sorted' : 'Sorted'}</button>
+									<button name="sorted" value={i.sorted ? '0' : '1'} aria-label="{i.sorted ? 'Mark not sorted' : 'Mark sorted'}: {i.text}">{i.sorted ? 'Not sorted' : 'Mark sorted'}</button>
 									<button formaction="?/lostRemove" name="remove" value="1" aria-label="Take down: {i.text}">Take down</button>
 									<input type="hidden" name="item" value={i.id} />
 								</form>
@@ -177,7 +173,7 @@
 						<label class="has-focus-visible:outline-2 has-focus-visible:outline-hot"><input class="sr-only" type="radio" name="kind" value="found" />I found</label>
 					</div>
 					<div class="joined">
-						<input class="input border-t-0" name="text" maxlength="120" required placeholder="Black denim jacket" aria-label="What" />
+						<input class="input border-t-0" name="text" maxlength="120" required placeholder="Black denim jacket" aria-label="What you lost or found" />
 						<button class="btn shrink-0 border-t-0">Post</button>
 					</div>
 				</form>

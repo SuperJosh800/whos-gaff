@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { db } from './db.ts';
 import { signUp, type User } from './auth.ts';
 import { createEvent, getEvent, joinByToken, setRsvp } from './events.ts';
 import { listLost, postItem, removeItem, reply, sortItem, unreply } from './lostProperty.ts';
@@ -31,14 +32,17 @@ describe('lost property', () => {
 		const { id, host, sam, alex, maybe } = night();
 		postItem(id, sam.id, 'lost', '  black   denim jacket ', AFTER, AT);
 		postItem(id, alex.id, 'found', 'a set of keys', AFTER, AT);
-		expect(notes(host)).toEqual(['Lost property: Alex found a set of keys. Yours? (Night)', 'Lost property: Sam lost black denim jacket. Seen it? (Night)']);
+		expect(notes(host)).toEqual(['Lost property: Alex found: a set of keys. Yours? (Night)', 'Lost property: Sam lost: black denim jacket. Seen it? (Night)']);
 		expect(notes(maybe)).toEqual([]);
-		expect(notes(sam)).toEqual(['Lost property: Alex found a set of keys. Yours? (Night)']);
+		expect(notes(sam)).toEqual(['Lost property: Alex found: a set of keys. Yours? (Night)']);
 		const jacket = itemId(id, sam, 'black denim jacket');
+		// Replying again, even after taking it back, doesn't tell Sam again.
 		reply(id, alex.id, jacket, AFTER);
+		reply(id, alex.id, jacket, AFTER);
+		unreply(id, alex.id, jacket);
 		reply(id, alex.id, jacket, AFTER);
 		reply(id, host.id, itemId(id, sam, 'a set of keys'), AFTER);
-		expect(notes(sam).filter((m) => /has got/.test(m))).toEqual(['Lost property: Alex has got black denim jacket. (Night)']);
+		expect(notes(sam).filter((m) => /has got/.test(m))).toEqual(['Lost property: Alex has got it: black denim jacket. (Night)']);
 		expect(notes(alex).filter((m) => /theirs/.test(m))).toEqual(['Lost property: Host says it’s theirs: a set of keys. (Night)']);
 		expect(() => reply(id, sam.id, jacket, AFTER)).toThrow('your own post');
 		expect(() => reply(id, maybe.id, jacket, AFTER)).toThrow('Only people who went');
@@ -64,6 +68,16 @@ describe('lost property', () => {
 		for (let i = 0; i < 3; i++) postItem(id, sam.id, 'lost', `Thing ${i}`, AFTER, AT + i);
 		expect(() => postItem(id, sam.id, 'lost', 'One more', AFTER, AT + 3)).toThrow('posted 3 this hour');
 		postItem(id, sam.id, 'lost', 'An hour later', AFTER, AT + 60 * 60_000);
+		// Taking posts down doesn't free up more posts in the hour.
+		const { id: id2, alex, host: host2 } = night();
+		for (let i = 0; i < 3; i++) {
+			postItem(id2, alex.id, 'lost', `Phone ${i}`, AFTER, AT);
+			removeItem(id2, alex.id, itemId(id2, alex, `Phone ${i}`));
+		}
+		expect(() => postItem(id2, alex.id, 'lost', 'Phone 3', AFTER, AT)).toThrow('posted 3 this hour');
+		expect(listLost(id2, alex.id).items).toEqual([]);
+		const gone = (db.prepare('SELECT id FROM lost_items WHERE event_id = ? LIMIT 1').get(id2) as { id: number }).id;
+		expect(() => reply(id2, host2.id, gone, AFTER)).toThrow('taken down');
 	});
 
 	it('lets the poster or host mark it sorted or take it down, and keeps nights apart', () => {

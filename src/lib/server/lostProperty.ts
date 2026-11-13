@@ -10,7 +10,7 @@ import { isOver } from './after.ts';
 import { nowLocal } from '../time.ts';
 
 export type Kind = 'lost' | 'found';
-/** Posts each person can make in an hour, as each one tells everyone. */
+/** Posts each person can make in an hour, taken down or not, as each one tells everyone. */
 const POSTS_AN_HOUR = 3;
 
 function requireWent(eventId: number, userId: number, now: string) {
@@ -21,7 +21,7 @@ function requireWent(eventId: number, userId: number, now: string) {
 }
 
 function requireItem(eventId: number, itemId: number) {
-	const item = db.prepare('SELECT id, user_id, kind, text, sorted FROM lost_items WHERE id = ? AND event_id = ?').get(itemId, eventId) as
+	const item = db.prepare('SELECT id, user_id, kind, text, sorted FROM lost_items WHERE id = ? AND event_id = ? AND removed = 0').get(itemId, eventId) as
 		| { id: number; user_id: number; kind: Kind; text: string; sorted: number }
 		| undefined;
 	if (!item) throw new EventError('That post’s been taken down.');
@@ -39,7 +39,7 @@ export function postItem(eventId: number, userId: number, kind: string, text: st
 	if (n >= POSTS_AN_HOUR) throw new EventError(`You’ve posted ${POSTS_AN_HOUR} this hour. Give it a bit.`);
 	db.prepare('INSERT INTO lost_items (event_id, user_id, kind, text, posted_at) VALUES (?, ?, ?, ?, ?)').run(eventId, userId, kind, text, nowMs);
 	const who = name(userId);
-	const message = kind === 'lost' ? `${who} lost ${text}. Seen it?` : `${who} found ${text}. Yours?`;
+	const message = kind === 'lost' ? `${who} lost: ${text}. Seen it?` : `${who} found: ${text}. Yours?`;
 	for (const p of goingPeople(eventId)) if (p.id !== userId) notify(p.id, eventId, `Lost property: ${message} (${event.title})`, '/after#lost');
 	publish(eventId);
 }
@@ -50,9 +50,11 @@ export function reply(eventId: number, userId: number, itemId: number, now = now
 	const item = requireItem(eventId, itemId);
 	if (item.user_id === userId) throw new EventError('That’s your own post.');
 	if (item.sorted) throw new EventError('That’s been sorted.');
+	// The poster hears once from each person, even if they take their reply back and reply again.
 	const { changes } = db.prepare('INSERT OR IGNORE INTO lost_replies (item_id, user_id) VALUES (?, ?)').run(itemId, userId);
+	if (!changes) db.prepare('UPDATE lost_replies SET undone = 0 WHERE item_id = ? AND user_id = ?').run(itemId, userId);
 	if (changes) {
-		const said = item.kind === 'lost' ? 'has got' : 'says it’s theirs:';
+		const said = item.kind === 'lost' ? 'has got it:' : 'says it’s theirs:';
 		notify(item.user_id, eventId, `Lost property: ${name(userId)} ${said} ${item.text}. (${event.title})`, '/after#lost');
 	}
 	publish(eventId);
@@ -62,7 +64,7 @@ export function reply(eventId: number, userId: number, itemId: number, now = now
 export function unreply(eventId: number, userId: number, itemId: number) {
 	requireMember(eventId, userId);
 	requireItem(eventId, itemId);
-	db.prepare('DELETE FROM lost_replies WHERE item_id = ? AND user_id = ?').run(itemId, userId);
+	db.prepare('UPDATE lost_replies SET undone = 1 WHERE item_id = ? AND user_id = ?').run(itemId, userId);
 	publish(eventId);
 }
 
@@ -79,7 +81,7 @@ export function removeItem(eventId: number, userId: number, itemId: number) {
 	const event = requireMember(eventId, userId);
 	const item = requireItem(eventId, itemId);
 	if (item.user_id !== userId && event.host_id !== userId) throw new EventError('Only whoever posted it or the host can do that.');
-	db.prepare('DELETE FROM lost_items WHERE id = ?').run(itemId);
+	db.prepare('UPDATE lost_items SET removed = 1 WHERE id = ?').run(itemId);
 	publish(eventId);
 }
 
@@ -89,11 +91,11 @@ export function listLost(eventId: number, viewerId: number) {
 	const items = db
 		.prepare(
 			`SELECT i.id, i.user_id, u.name, i.kind, i.text, i.sorted FROM lost_items i JOIN users u ON u.id = i.user_id
-			 WHERE i.event_id = ? ORDER BY i.sorted, i.id DESC`
+			 WHERE i.event_id = ? AND i.removed = 0 ORDER BY i.sorted, i.id DESC`
 		)
 		.all(eventId) as { id: number; user_id: number; name: string; kind: Kind; text: string; sorted: number }[];
 	const replies = db
-		.prepare('SELECT r.item_id, u.id, u.name FROM lost_replies r JOIN lost_items i ON i.id = r.item_id JOIN users u ON u.id = r.user_id WHERE i.event_id = ? ORDER BY r.rowid')
+		.prepare('SELECT r.item_id, u.id, u.name FROM lost_replies r JOIN lost_items i ON i.id = r.item_id JOIN users u ON u.id = r.user_id WHERE i.event_id = ? AND r.undone = 0 ORDER BY r.rowid')
 		.all(eventId) as { item_id: number; id: number; name: string }[];
 	return {
 		items: items.map((i) => {
