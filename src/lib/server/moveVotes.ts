@@ -3,7 +3,6 @@
 import { db } from './db.ts';
 import { publish } from './realtime.ts';
 import { notify } from './notifications.ts';
-import { attempt } from './ratelimit.ts';
 import { EventError, requireMember } from './events.ts';
 import { canSeeAddress } from './gaff.ts';
 import { goingPeople } from './money.ts';
@@ -14,6 +13,8 @@ export const VOTE_MS = 60_000;
 const NIGHT_MS = 12 * 60 * 60_000;
 /** The last result stays up this long, unless someone asks again. */
 const RESULT_MS = 60 * 60_000;
+/** A vote that closed longer ago than this (the server was down) closes without telling anyone. */
+const TELL_WITHIN_MS = 60_000;
 
 type VoteRow = { id: number; started_by: number; place: string; started_at: number; name: string };
 export type Outcome = 'stay' | 'move' | 'tie';
@@ -24,8 +25,16 @@ function requireGoing(eventId: number, userId: number) {
 	return event;
 }
 
+/** Votes from people still going: someone who votes and then drops out isn't counted. */
 function tally(voteId: number) {
-	return db.prepare(`SELECT COALESCE(SUM(choice = 'stay'), 0) AS stay, COALESCE(SUM(choice = 'move'), 0) AS move FROM move_ballots WHERE vote_id = ?`).get(voteId) as {
+	return db
+		.prepare(
+			`SELECT COALESCE(SUM(b.choice = 'stay'), 0) AS stay, COALESCE(SUM(b.choice = 'move'), 0) AS move
+			 FROM move_ballots b JOIN move_votes v ON v.id = b.vote_id JOIN events e ON e.id = v.event_id
+			 LEFT JOIN rsvps r ON r.event_id = v.event_id AND r.user_id = b.user_id
+			 WHERE b.vote_id = ? AND (r.response = 'yes' OR b.user_id = e.host_id)`
+		)
+		.get(voteId) as {
 		stay: number;
 		move: number;
 	};
@@ -37,11 +46,14 @@ const outcomeOf = ({ stay, move }: { stay: number; move: number }): Outcome => (
 export function startVote(eventId: number, userId: number, place: string, nowMs = Date.now()) {
 	const event = requireGoing(eventId, userId);
 	if (!event.starts_at || nowMs < localToMs(event.starts_at)) throw new EventError('You can ask once the night has started.');
+	// Tell everyone the last result before the next question, even if the 5-second check hasn't yet.
+	closeDueVotes(nowMs);
 	if (nowMs >= localToMs(event.starts_at) + NIGHT_MS) throw new EventError('The night’s over.');
 	if (db.prepare('SELECT 1 FROM move_votes WHERE event_id = ? AND started_at + ? > ?').get(eventId, VOTE_MS, nowMs)) {
 		throw new EventError('There’s already a vote on. Have your say on that one.');
 	}
-	if (!attempt(`move-vote:${eventId}:${userId}`, 3, 60 * 60_000, nowMs).ok) throw new EventError('You’ve asked 3 times this hour. Give it a rest.');
+	const asked = db.prepare('SELECT COUNT(*) AS n FROM move_votes WHERE event_id = ? AND started_by = ? AND started_at > ?').get(eventId, userId, nowMs - 60 * 60_000) as { n: number };
+	if (asked.n >= 3) throw new EventError('You’ve asked 3 times this hour. Give it a rest.');
 	place = place.replace(/\s+/g, ' ').trim().slice(0, 60);
 	db.prepare('INSERT INTO move_votes (event_id, started_by, place, started_at) VALUES (?, ?, ?, ?)').run(eventId, userId, place, nowMs);
 	const name = (db.prepare('SELECT name FROM users WHERE id = ?').get(userId) as { name: string }).name;
@@ -66,16 +78,16 @@ export function castVote(eventId: number, userId: number, voteId: number, choice
 
 /**
  * Tells everyone going the result of votes that have just closed, once. Checked every 5 seconds; a vote
- * nobody voted in closes quietly.
+ * nobody voted in, or that closed while the server was down, closes quietly.
  */
 export function closeDueVotes(nowMs = Date.now()) {
 	const due = db
-		.prepare('SELECT v.id, v.event_id, v.place, e.title FROM move_votes v JOIN events e ON e.id = v.event_id WHERE v.closed = 0 AND v.started_at + ? <= ?')
-		.all(VOTE_MS, nowMs) as { id: number; event_id: number; place: string; title: string }[];
+		.prepare('SELECT v.id, v.event_id, v.place, v.started_at, e.title FROM move_votes v JOIN events e ON e.id = v.event_id WHERE v.closed = 0 AND v.started_at + ? <= ?')
+		.all(VOTE_MS, nowMs) as { id: number; event_id: number; place: string; started_at: number; title: string }[];
 	for (const v of due) {
 		db.prepare('UPDATE move_votes SET closed = 1 WHERE id = ?').run(v.id);
 		const t = tally(v.id);
-		if (t.stay + t.move) {
+		if (t.stay + t.move && nowMs - (v.started_at + VOTE_MS) < TELL_WITHIN_MS) {
 			const outcome = outcomeOf(t);
 			const result =
 				outcome === 'move' ? `move on${v.place ? ` to ${v.place}` : ''}` : outcome === 'stay' ? 'stay put' : 'it’s a tie';
@@ -102,6 +114,7 @@ export function getMoveVote(eventId: number, viewerId: number, nowMs = Date.now(
 	return {
 		live: on && counts ? { id: latest.id, by: latest.name, place: latest.place, endsAt: latest.started_at + VOTE_MS, ...counts, mine } : null,
 		last: recent && counts ? { by: latest.name, place: latest.place, ...counts, outcome: outcomeOf(counts), mine } : null,
-		canStart: nightOn && !on
+		canStart: nightOn && !on,
+		over: !!event.starts_at && nowMs >= localToMs(event.starts_at) + NIGHT_MS
 	};
 }

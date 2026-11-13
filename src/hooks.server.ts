@@ -29,11 +29,12 @@ setInterval(repeats, 10 * 60 * 1000).unref?.();
 // Tell everyone when a photo drop goes off and when a stay-or-move-on vote closes. Checked every
 // 5 seconds, as they only last a minute or two.
 const timed = () => {
-	try {
-		fireDueDrops();
-		closeDueVotes();
-	} catch (e) {
-		console.error('[photo drops / votes] failed', e);
+	for (const job of [fireDueDrops, closeDueVotes]) {
+		try {
+			job();
+		} catch (e) {
+			console.error(`[${job.name}] failed`, e);
+		}
 	}
 };
 timed();

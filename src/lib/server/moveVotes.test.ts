@@ -66,6 +66,31 @@ describe('stay or move on', () => {
 		expect(getMoveVote(quiet.id, quiet.alex.id, AT + VOTE_MS).last).toMatchObject({ stay: 0, move: 0, outcome: 'tie' });
 	});
 
+	it('closes quietly after the server was down, counts only people still going, and tells the result before the next question', () => {
+		const late = night();
+		startVote(late.id, late.sam.id, 'Sub Club', AT);
+		castVote(late.id, late.alex.id, liveId(late.id, late.sam.id), 'move', AT);
+		closeDueVotes(AT + VOTE_MS + 2 * 60 * 60_000);
+		expect(notes(late.alex.id, /Stay or move on:/)).toEqual([]);
+		expect(getMoveVote(late.id, late.alex.id, AT + VOTE_MS + 2 * 60 * 60_000).canStart).toBe(true);
+
+		const { id, host, sam, alex, maybe } = night();
+		startVote(id, sam.id, '', AT);
+		const vote = liveId(id, sam.id);
+		castVote(id, alex.id, vote, 'stay', AT);
+		castVote(id, host.id, vote, 'move', AT);
+		setRsvp(id, alex.id, 'no');
+		expect(getMoveVote(id, host.id, AT + 1).live).toMatchObject({ stay: 0, move: 1 });
+		startVote(id, host.id, 'Bar', AT + VOTE_MS);
+		expect(notes(sam.id, /Stay or move on:|asks/)).toEqual([
+			'Host asks: stay or move on to Bar? Vote in the next 60 seconds. (Night)',
+			'Stay or move on: move on (1 move, 0 stay). (Night)'
+		]);
+		expect(notes(maybe.id, /Stay or move on:/)).toEqual([]);
+		expect(notes(alex.id, /Stay or move on:/)).toEqual([]);
+		expect(() => castVote(id, user('Stranger').id, liveId(id, host.id, AT + VOTE_MS), 'move', AT + VOTE_MS)).toThrow('not invited');
+	});
+
 	it('calls stay, move on or a tie', () => {
 		const result = (stay: number, move: number) => {
 			const { id, host, sam, alex } = night();
@@ -87,7 +112,8 @@ describe('stay or move on', () => {
 		expect(() => startVote(id, sam.id, '', START + 12 * 60 * 60_000)).toThrow('over');
 		expect(() => startVote(id, maybe.id, '', AT)).toThrow('RSVP “going”');
 		expect(() => startVote(id, user('Stranger').id, '', AT)).toThrow('not invited');
-		expect(getMoveVote(id, sam.id, START - 1).canStart).toBe(false);
+		expect(getMoveVote(id, sam.id, START - 1)).toMatchObject({ canStart: false, over: false });
+		expect(getMoveVote(id, sam.id, START + 12 * 60 * 60_000)).toMatchObject({ canStart: false, over: true });
 		startVote(id, sam.id, '', START);
 		expect(() => startVote(id, host.id, '', START + VOTE_MS - 1)).toThrow('already a vote');
 		expect(getMoveVote(id, host.id, START + VOTE_MS - 1).canStart).toBe(false);
