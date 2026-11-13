@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { enhance } from '$app/forms';
+	import { enhance, type SubmitFunction } from '$app/forms';
+	import { page } from '$app/state';
 	import { formatTime, formatWhen } from '#lib/time.ts';
 	import type { PageProps } from './$types';
 
@@ -10,6 +11,17 @@
 	const topScore = $derived(pr.decided ? (pr.table[0]?.score ?? 0) : 0);
 	const callers = $derived(pr.table.filter((r) => topScore && r.score === topScore));
 	let shared = $state('');
+	const lost = $derived(data.lost);
+	const me = $derived(page.data.user?.id);
+	let lostError = $state('');
+	// Shows a failed post here in the section rather than at the top of the page.
+	const inLost: SubmitFunction = ({ cancel, formData }) => {
+		if (formData.get('remove') && !confirm('Take this post down?')) cancel();
+		return async ({ update, result }) => {
+			lostError = result.type === 'failure' ? String(result.data?.error ?? 'Something went wrong.') : '';
+			if (result.type !== 'failure') await update();
+		};
+	};
 
 	const summary = $derived(
 		[
@@ -123,6 +135,53 @@
 				</ol>
 			</section>
 		{/if}
+
+		<section class="card space-y-3" id="lost">
+			<h2>Lost property</h2>
+			{#if lostError}<p class="error" role="alert">{lostError}</p>{/if}
+			{#if lost.items.length}
+				<ul class="divide-y divide-zinc-200 border border-zinc-200 text-sm">
+					{#each lost.items as i (i.id)}
+						<li class="{i.sorted ? 'text-zinc-500' : ''}">
+							<div class="grid grid-cols-[5.5rem_1fr] items-start">
+								<span class="px-3 py-2.5 text-[11px] font-extrabold tracking-widest uppercase {i.sorted ? 'text-zinc-500' : i.kind === 'lost' ? 'text-hot' : 'text-lime'}">{i.sorted ? 'Sorted' : i.kind}</span>
+								<p class="min-w-0 py-2.5 pr-3 break-words"><span class="font-extrabold">{i.text}</span>
+									<span class="block text-xs text-zinc-500">{i.kind === 'lost' ? 'Lost' : 'Found'} by {i.name}{i.replies.length ? ` · ${i.replies.join(', ')} ${i.kind === 'lost' ? (i.replies.length > 1 ? 'have got it' : 'has got it') : i.replies.length > 1 ? 'say it’s theirs' : 'says it’s theirs'}` : ''}</span></p>
+							</div>
+							{#if !i.sorted && lost.canPost && i.user_id !== me}
+								<form method="POST" action="?/lostReply" use:enhance={inLost} class="border-t border-zinc-200">
+									<input type="hidden" name="item" value={i.id} />
+									{#if i.replied}<input type="hidden" name="undo" value="1" />{/if}
+									<button class="w-full px-3 py-2 text-left text-[11px] font-extrabold tracking-widest uppercase {i.replied ? 'bg-lime text-ink' : 'text-hot hover:bg-zinc-100'}" aria-pressed={i.replied} aria-label="{i.kind === 'lost' ? 'I’ve got it' : 'That’s mine'}: {i.text}">{i.kind === 'lost' ? 'I’ve got it' : 'That’s mine'}</button>
+								</form>
+							{/if}
+							{#if i.canManage}
+								<form method="POST" action="?/lostSort" use:enhance={inLost} class="strip border-x-0 border-b-0">
+									<button name="sorted" value={i.sorted ? '0' : '1'} aria-label="{i.sorted ? 'Mark not sorted' : 'Mark sorted'}: {i.text}">{i.sorted ? 'Not sorted' : 'Mark sorted'}</button>
+									<button formaction="?/lostRemove" name="remove" value="1" aria-label="Take down: {i.text}">Take down</button>
+									<input type="hidden" name="item" value={i.id} />
+								</form>
+							{/if}
+						</li>
+					{/each}
+				</ul>
+			{/if}
+			{#if lost.canPost}
+				<form method="POST" action="?/lost" use:enhance={inLost} class="space-y-0">
+					<div class="strip" role="radiogroup" aria-label="Lost or found">
+						<label class="has-focus-visible:outline-2 has-focus-visible:outline-hot"><input class="sr-only" type="radio" name="kind" value="lost" checked />I lost</label>
+						<label class="has-focus-visible:outline-2 has-focus-visible:outline-hot"><input class="sr-only" type="radio" name="kind" value="found" />I found</label>
+					</div>
+					<div class="joined">
+						<input class="input border-t-0" name="text" maxlength="120" required placeholder="Black denim jacket" aria-label="What you lost or found" />
+						<button class="btn shrink-0 border-t-0">Post</button>
+					</div>
+				</form>
+				<p class="text-xs text-zinc-500">Everyone who went is told.</p>
+			{:else if !lost.items.length}
+				<p class="text-sm text-zinc-500">Nothing lost or found.</p>
+			{/if}
+		</section>
 
 		<section class="card space-y-3">
 			<h2>Photos</h2>
