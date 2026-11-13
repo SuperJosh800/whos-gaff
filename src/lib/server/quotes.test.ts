@@ -27,7 +27,7 @@ describe('quotes wall', () => {
 	it('posts a tidied quote, tells whoever said it, and tags one of the group’s nights', () => {
 		const { id, ana, ben, cal } = crew();
 		const night = createEvent(ana.id, { title: 'Pub crawl', mode: 'fixed', startsAt: '2099-06-20T21:00', groupId: id });
-		addQuote(id, ana.id, ben.id, '  “I’m only   staying for one.”  ', night, AT);
+		addQuote(id, ana.id, ben.id, '  “I’m only   staying for one.”  ', night, AT, '2099-06-21T00:00');
 		addQuote(id, cal.id, cal.id, 'I said what I said', null, AT);
 		expect(notes(ben)).toEqual(['Ana put you on the quotes wall in Flat 2/1: “I’m only staying for one.”']);
 		expect(notes(cal)).toEqual([]);
@@ -49,7 +49,13 @@ describe('quotes wall', () => {
 		const theirs = createEvent(other.ana.id, { title: 'Theirs', mode: 'fixed', startsAt: '2099-06-20T21:00', groupId: other.id });
 		expect(() => addQuote(id, stranger.id, ana.id, 'Hi', null, AT)).toThrow('not in that group');
 		expect(() => addQuote(id, ana.id, stranger.id, 'Hi', null, AT)).toThrow('Pick who said it');
-		expect(() => addQuote(id, ana.id, ben.id, 'Hi', theirs, AT)).toThrow('group’s nights');
+		expect(() => addQuote(id, ana.id, ben.id, 'Hi', theirs, AT, '2099-06-21T00:00')).toThrow('group’s nights');
+		// Nights that haven't started, or have no date yet, can't be tagged.
+		const soon = createEvent(ana.id, { title: 'Soon', mode: 'fixed', startsAt: '2099-06-20T21:00', groupId: id });
+		const undated = createEvent(ana.id, { title: 'TBC', mode: 'poll', options: ['2099-06-01T20:00', '2099-06-02T20:00'], groupId: id });
+		expect(() => addQuote(id, ana.id, ben.id, 'Hi', soon, AT, '2099-06-20T20:59')).toThrow('group’s nights');
+		expect(() => addQuote(id, ana.id, ben.id, 'Hi', undated, AT, '2099-06-21T00:00')).toThrow('group’s nights');
+		addQuote(id, ana.id, ben.id, 'Hi', soon, AT, '2099-06-20T21:00');
 		expect(() => addQuote(id, ana.id, ben.id, ' “” ', null, AT)).toThrow('What did they say');
 		addQuote(id, ana.id, ben.id, 'Mine', null, AT);
 		const q = quoteId(id, ana, 'Mine');

@@ -20,12 +20,15 @@ function requireQuote(groupId: number, quoteId: number) {
 }
 
 /** Puts a quote on the wall and tells whoever said it (unless that's you). */
-export function addQuote(groupId: number, userId: number, saidBy: number, text: string, eventId: number | null, nowMs = Date.now()) {
+export function addQuote(groupId: number, userId: number, saidBy: number, text: string, eventId: number | null, nowMs = Date.now(), now = nowLocal()) {
 	const group = requireGroupMember(groupId, userId);
 	if (!isGroupMember(groupId, saidBy)) throw new EventError('Pick who said it.');
 	text = text.replace(/\s+/g, ' ').trim().replace(/^["“”]+|["“”]+$/g, '').trim().slice(0, 200);
 	if (!text) throw new EventError('What did they say?');
-	if (eventId !== null && !db.prepare('SELECT 1 FROM events WHERE id = ? AND group_id = ?').get(eventId, groupId)) throw new EventError('Pick one of the group’s nights.');
+	// Only nights that have started, as in the list to pick from.
+	if (eventId !== null && !db.prepare('SELECT 1 FROM events WHERE id = ? AND group_id = ? AND starts_at <= ?').get(eventId, groupId, now)) {
+		throw new EventError('Pick one of the group’s nights so far.');
+	}
 	const { n } = db.prepare('SELECT COUNT(*) AS n FROM quotes WHERE poster_id = ? AND posted_at > ?').get(userId, nowMs - HOUR_MS) as { n: number };
 	if (n >= QUOTES_PER_HOUR) throw new EventError(`You’ve posted ${QUOTES_PER_HOUR} quotes this hour. Give it a bit.`);
 	db.prepare('INSERT INTO quotes (group_id, poster_id, said_by, event_id, text, posted_at) VALUES (?, ?, ?, ?, ?, ?)').run(groupId, userId, saidBy, eventId, text, nowMs);

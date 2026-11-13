@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance, type SubmitFunction } from '$app/forms';
+	import { invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import { formatShortDay } from '#lib/time.ts';
 	import type { PageProps } from './$types';
@@ -14,8 +15,14 @@
 		if (result.type !== 'failure') await update();
 	};
 	// enhance sends the form even when a submit handler prevents it, so the confirm cancels it here.
-	const confirmRemove: SubmitFunction = ({ cancel }) => {
-		if (!confirm('Take this quote off the wall?')) cancel();
+	// A failed vote or take-down (say, someone else took the quote down) still refreshes the wall.
+	const refresh: SubmitFunction = () => async ({ update, result }) => {
+		await update();
+		if (result.type === 'failure') await invalidateAll();
+	};
+	const confirmRemove: SubmitFunction = (input) => {
+		if (!confirm('Take this quote off the wall?')) return input.cancel();
+		return refresh(input);
 	};
 </script>
 
@@ -31,12 +38,13 @@
 	<section class="card space-y-3" id="add">
 		<h2>Who said what?</h2>
 		{#if addError}<p class="error" role="alert">{addError}</p>{/if}
-		<form method="POST" action="?/add" use:enhance={adding} class="space-y-3">
+		<form method="POST" action="?sort={data.sort}&/add" use:enhance={adding} class="space-y-3">
 			<label class="block"><span class="label">Quote</span>
 				<textarea class="input" name="text" maxlength="200" rows="2" required placeholder="I’m only staying for one."></textarea></label>
 			<div class="grid grid-cols-2 gap-3">
 				<label class="block min-w-0"><span class="label">Said by</span>
 					<select class="input" name="said_by" required>
+						<option value="" disabled selected>Pick who</option>
 						{#each others as m (m.id)}<option value={m.id}>{m.name}</option>{/each}
 						<option value={me}>Me</option>
 					</select></label>
@@ -63,18 +71,18 @@
 							<figure>
 							<blockquote class="text-lg leading-snug font-black break-words">“{q.text}”</blockquote>
 							<figcaption class="mt-1 text-xs text-zinc-500">
-								<span class="font-extrabold text-hot uppercase">{q.said_by === me ? 'You' : q.said_by_name}</span>{q.night ? ` · ${q.night}, ${formatShortDay(q.starts_at!)}` : ''} · posted by {q.poster_id === me ? 'you' : q.poster}
+								<span class="font-extrabold text-hot uppercase">{q.said_by === me ? 'You' : q.said_by_name}</span>{q.night && q.starts_at ? ` · ${q.night}, ${formatShortDay(q.starts_at)}` : ''} · posted by {q.poster_id === me ? 'you' : q.poster}
 							</figcaption>
 							</figure>
 							{#if q.canRemove}
-								<form method="POST" action="?/remove" use:enhance={confirmRemove} class="mt-2">
+								<form method="POST" action="?sort={data.sort}&/remove" use:enhance={confirmRemove} class="-mb-2">
 									<input type="hidden" name="id" value={q.id} />
-									<button class="text-[11px] font-extrabold tracking-widest text-zinc-500 uppercase hover:text-zinc-900" aria-label="Take down: {q.text}">Take down</button>
+									<button class="py-2.5 pr-4 text-[11px] font-extrabold tracking-widest text-zinc-500 uppercase hover:text-zinc-900" aria-label="Take down: {q.text}">Take down</button>
 								</form>
 							{/if}
 						</div>
 						{#if q.canVote}
-							<form method="POST" action="?/vote" use:enhance class="self-stretch border-l border-zinc-200">
+							<form method="POST" action="?sort={data.sort}&/vote" use:enhance={refresh} class="self-stretch border-l border-zinc-200">
 								<input type="hidden" name="id" value={q.id} />
 								<input type="hidden" name="on" value={q.voted ? '0' : '1'} />
 								<button class="flex h-full w-16 flex-col items-center justify-center {q.voted ? 'bg-lime text-ink' : 'hover:bg-zinc-100'}" aria-pressed={q.voted} aria-label="Vote for “{q.text}”, {q.votes} {q.votes === 1 ? 'vote' : 'votes'}">
