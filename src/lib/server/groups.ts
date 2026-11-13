@@ -203,6 +203,34 @@ export function hostingLeaderboard(groupId: number) {
 		.all(groupId) as { id: number; name: string; hosted: number }[];
 }
 
+// ---- Season leaderboard ----
+
+/**
+ * Points from scored games and secret missions across the group's nights in a year (a season), for
+ * everyone in the group, most first. Missions score as on the Night tab: the mission's points for doing
+ * it, 1 for catching someone. Ties share a place.
+ */
+export function seasonLeaderboard(groupId: number, year: number, now = nowLocal()) {
+	const nights = `SELECT id FROM events WHERE group_id = ? AND starts_at >= ? AND starts_at < ? AND starts_at <= ?`;
+	const range = [groupId, `${year}-01-01T00:00`, `${year + 1}-01-01T00:00`, now];
+	const rows = db
+		.prepare(
+			`SELECT u.id, u.name,
+				(SELECT COALESCE(SUM(c.points), 0) FROM challenge_results c WHERE c.user_id = u.id AND c.event_id IN (${nights})) AS games,
+				(SELECT COALESCE(SUM(x.points), 0) FROM (
+					SELECT user_id, event_id, points FROM missions WHERE status = 'done'
+					UNION ALL SELECT caught_by, event_id, 1 FROM missions WHERE status = 'caught'
+				 ) x WHERE x.user_id = u.id AND x.event_id IN (${nights})) AS missions,
+				(SELECT COUNT(*) FROM event_members em JOIN events e ON e.id = em.event_id
+				 LEFT JOIN rsvps r ON r.event_id = em.event_id AND r.user_id = em.user_id
+				 WHERE em.user_id = u.id AND (r.response = 'yes' OR e.host_id = u.id) AND em.event_id IN (${nights})) AS nights
+			 FROM group_members m JOIN users u ON u.id = m.user_id WHERE m.group_id = ?`
+		)
+		.all(...range, ...range, ...range, groupId) as { id: number; name: string; games: number; missions: number; nights: number }[];
+	const ranked = rows.map((r) => ({ ...r, points: r.games + r.missions })).sort((a, b) => b.points - a.points || a.name.localeCompare(b.name));
+	return ranked.map((r) => ({ ...r, place: ranked.findIndex((o) => o.points === r.points) + 1 }));
+}
+
 export function nudgeToHost(groupId: number, userId: number, targetId: number) {
 	const group = requireGroupMember(groupId, userId);
 	if (!isGroupMember(groupId, targetId) || targetId === userId) throw new EventError('Pick someone else in the group.');

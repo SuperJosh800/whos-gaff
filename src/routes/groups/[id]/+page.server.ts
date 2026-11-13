@@ -11,9 +11,11 @@ import {
 	markFreeGaff,
 	nudgeToHost,
 	requireGroupMember,
+	seasonLeaderboard,
 	sendPing
 } from '#lib/server/groups.ts';
 import { getProfile } from '#lib/server/auth.ts';
+import { reviewYears } from '#lib/server/yearReview.ts';
 import { nowLocal } from '#lib/time.ts';
 import type { Plan } from '#lib/plans.ts';
 import type { Actions, PageServerLoad, RequestEvent } from './$types';
@@ -23,6 +25,11 @@ export const load: PageServerLoad = ({ params, locals, url }) => {
 	const groupId = Number(params.id);
 	if (!isGroupMember(groupId, locals.user.id)) error(404, 'Group not found');
 	const group = requireGroupMember(groupId, locals.user.id);
+	// Seasons are calendar years; this year's shows even before its first night.
+	const thisYear = Number(nowLocal().slice(0, 4));
+	const seasons = [...new Set([thisYear, ...reviewYears(groupId)])].sort((a, b) => b - a);
+	const asked = Number(url.searchParams.get('season'));
+	const season = seasons.includes(asked) ? asked : thisYear;
 	return {
 		group: { id: group.id, name: group.name, created_by: group.created_by },
 		inviteLink: `${url.origin}/groups/join/${group.invite_token}`,
@@ -30,6 +37,9 @@ export const load: PageServerLoad = ({ params, locals, url }) => {
 		freeGaffs: listFreeGaffs(groupId),
 		pings: listPings(groupId),
 		leaderboard: hostingLeaderboard(groupId),
+		seasons,
+		season,
+		seasonBoard: seasonLeaderboard(groupId, season),
 		payday: getProfile(locals.user.id).payday,
 		today: nowLocal().slice(0, 10)
 	};

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { db } from './db.ts';
 import { signUp, type User } from './auth.ts';
-import { createEvent, listAttendees } from './events.ts';
+import { createEvent, getEvent, isMember, joinByToken, listAttendees, setRsvp } from './events.ts';
 import {
 	answerPing,
 	createGroup,
@@ -11,6 +11,7 @@ import {
 	listPings,
 	markFreeGaff,
 	nudgeToHost,
+	seasonLeaderboard,
 	sendPing
 } from './groups.ts';
 
@@ -100,5 +101,52 @@ describe('groups', () => {
 		expect(() => nudgeToHost(id, a.id, b.id)).toThrow('already hosted');
 		nudgeToHost(id, b.id, a.id);
 		expect(notes(a).at(-1)).toBe('B says you owe The lads a gaff!');
+	});
+
+	it('adds up game and mission points across the group’s nights in a season, ties sharing a place', () => {
+		const { id, a, b, c } = crew();
+		const night = (startsAt: string, inGroup = true) => {
+			const e = createEvent(a.id, { title: 'Night', mode: 'fixed', startsAt, groupId: inGroup ? id : undefined });
+			for (const u of [b, c]) {
+				if (!isMember(e, u.id)) joinByToken(getEvent(e)!.invite_token, u.id);
+				setRsvp(e, u.id, 'yes');
+			}
+			return e;
+		};
+		const game = (e: number, u: User, points: number, done = 1) =>
+			db.prepare('INSERT INTO challenge_results (event_id, user_id, challenge, points, done) VALUES (?, ?, ?, ?, ?)').run(e, u.id, 'x', points, done);
+		const mission = (e: number, u: User, points: number, status: string, caughtBy: User | null = null) =>
+			db.prepare('INSERT INTO missions (event_id, user_id, text, points, status, caught_by) VALUES (?, ?, ?, ?, ?, ?)').run(e, u.id, 'x', points, status, caughtBy?.id ?? null);
+		const march = night('2099-03-14T20:00');
+		const june = night('2099-06-20T20:00');
+		game(march, b, 2);
+		game(march, b, 0, 0);
+		game(june, c, 1);
+		mission(march, a, 3, 'done');
+		mission(june, b, 3, 'caught', c);
+		mission(june, c, 2, 'swapped');
+		mission(june, c, 2, 'live');
+		// Not counted: another year, a night not for the group, and a night that hasn't happened yet.
+		game(night('2098-12-31T23:00'), c, 5);
+		game(night('2099-03-14T21:00', false), c, 5);
+		game(night('2099-12-31T22:00'), c, 5);
+		game(night('2100-01-01T00:00'), c, 50);
+		setRsvp(night('2099-05-01T20:00'), c.id, 'no');
+		const board = seasonLeaderboard(id, 2099, '2099-07-01T00:00');
+		expect(board.map((r) => [r.name, r.place, r.games, r.missions, r.points, r.nights])).toEqual([
+			['A', 1, 0, 3, 3, 3],
+			['B', 2, 2, 0, 2, 3],
+			['C', 2, 1, 1, 2, 2]
+		]);
+		expect(seasonLeaderboard(id, 2099, '2100-07-01T00:00').map((r) => [r.name, r.points])).toEqual([
+			['C', 7],
+			['A', 3],
+			['B', 2]
+		]);
+		expect(seasonLeaderboard(id, 2098, '2099-07-01T00:00').map((r) => [r.name, r.points])).toEqual([
+			['C', 5],
+			['A', 0],
+			['B', 0]
+		]);
 	});
 });
