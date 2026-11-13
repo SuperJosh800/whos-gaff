@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { enhance } from '$app/forms';
+	import { enhance, type SubmitFunction } from '$app/forms';
 	import { page } from '$app/state';
-	import { formatTime, formatWhen } from '#lib/time.ts';
+	import { formatTime, formatWhen, nowLocal } from '#lib/time.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -23,6 +23,36 @@
 	const bingo = $derived(data.bingo);
 	const buddies = $derived(data.buddies);
 	const drinks = $derived(data.drinks);
+	const myHelp = $derived(data.help.find((h) => h.mine));
+	const others = $derived(data.help.filter((h) => !h.mine));
+	// Checked against the clock, so the button appears on a page left open from before the window.
+	let clock = $state(nowLocal());
+	$effect(() => {
+		const timer = setInterval(() => (clock = nowLocal()), 30_000);
+		return () => clearInterval(timer);
+	});
+	const helpOpen = $derived(!!data.helpWindow && clock >= data.helpWindow.from && clock < data.helpWindow.until);
+	let locating = $state(false);
+	/**
+	 * Adds your location if the phone shares it within 12 seconds; the request goes either way. The
+	 * phone's own timeout doesn't count time on the permission prompt, so this has its own.
+	 */
+	const withLocation: SubmitFunction = async ({ formData }) => {
+		locating = true;
+		const pos = await new Promise<GeolocationPosition | null>((resolve) => {
+			if (!navigator.geolocation) return resolve(null);
+			setTimeout(() => resolve(null), 12_000);
+			navigator.geolocation.getCurrentPosition(resolve, () => resolve(null), { enableHighAccuracy: true, timeout: 10_000, maximumAge: 60_000 });
+		});
+		if (pos) {
+			formData.set('lat', String(pos.coords.latitude));
+			formData.set('lng', String(pos.coords.longitude));
+			formData.set('accuracy', String(Math.round(pos.coords.accuracy)));
+		}
+		locating = false;
+		// Keep the note in the box, so the next "Send again" doesn't wipe it.
+		return async ({ update }) => update({ reset: false });
+	};
 	let preview = $state<string | null>(null);
 	const moveTime = (utc: string) =>
 		new Date(utc.replace(' ', 'T') + 'Z').toLocaleTimeString('en-GB', { hour: 'numeric', minute: '2-digit' });
@@ -31,6 +61,63 @@
 {#if form?.error}<p class="error mb-5" role="alert">{form.error}</p>{/if}
 
 <div class="space-y-5">
+	<section class="card space-y-3" id="help">
+		<h2>Lost or in trouble?</h2>
+		{#each others as h (h.id)}
+			<div class="border border-hot text-sm">
+				<div class="px-3 py-2.5"><span class="badge text-hot">Needs help</span>
+					<p class="font-extrabold" role="alert">{h.name} needs someone to come get them</p>
+					<p class="text-xs text-zinc-500">Sent {formatTime(h.at)}{h.coming.length ? ` · On their way: ${h.coming.join(', ')}` : ''}</p>
+					{#if h.note}<p class="mt-1 break-words">“{h.note}”</p>{/if}</div>
+				<div class="grid grid-cols-2 border-t border-hot">
+					{#if h.map}
+						<a class="flex flex-col items-center justify-center gap-1 px-3 py-2.5 text-center text-[11px] font-extrabold tracking-widest text-hot uppercase hover:bg-zinc-100" href={h.map} target="_blank" rel="noopener noreferrer">
+							<span class="underline underline-offset-4">Open map</span>{#if h.accuracy}<span class="text-[10px] font-bold tracking-normal text-zinc-500 normal-case">within {h.accuracy} m</span>{/if}</a>
+					{:else}
+						<span class="flex items-center justify-center px-3 py-2.5 text-center text-xs text-zinc-500">No location shared</span>
+					{/if}
+					<form method="POST" action="?/onMyWay" use:enhance class="flex border-l border-hot">
+						<input type="hidden" name="request" value={h.id} />
+						<input type="hidden" name="coming" value={h.iAmComing ? '0' : '1'} />
+						<button class="w-full px-3 py-2.5 text-[11px] font-extrabold tracking-widest uppercase {h.iAmComing ? 'bg-lime text-ink' : 'hover:bg-zinc-100'}" aria-pressed={h.iAmComing}>
+							{#if h.iAmComing}You’re on your way<span class="block text-[10px] font-bold tracking-normal normal-case underline underline-offset-2">Can’t come after all?</span>{:else}On my way{/if}</button>
+					</form>
+				</div>
+			</div>
+		{/each}
+		{#if myHelp}
+			<div class="border border-lime text-sm">
+				<div class="px-3 py-2.5" role="status"><span class="badge text-lime">Sent {formatTime(myHelp.at)}</span>
+					<p>{myHelp.coming.length ? `${myHelp.coming.join(', ')} ${myHelp.coming.length === 1 ? 'is' : 'are'} on the way.` : 'Everyone going has been told. Stay where you are if you can.'}</p>
+					{#if form && 'helpSent' in form && !form.helpSent?.told}
+						<p class="mt-1 text-hot">Your new details are on their screens, but they weren’t notified again because you sent it a moment ago. Call someone if it’s urgent.</p>
+					{/if}
+					<p class="mt-1 text-xs text-zinc-500">{myHelp.map ? 'They can see your location.' : 'Your location wasn’t shared, so say where you are below.'} In danger? Call 999.</p></div>
+				<form method="POST" action="?/comeGetMe" use:enhance={withLocation} class="joined border-t border-lime">
+					<input class="input border-0" name="note" maxlength="200" value={myHelp.note} placeholder="Where are you? e.g. outside the chippy" aria-label="Note for everyone going" />
+					<button class="shrink-0 border-l border-lime px-3 text-[11px] font-extrabold tracking-widest uppercase hover:bg-zinc-100" disabled={locating}>{locating ? 'Finding you…' : 'Send again'}</button>
+				</form>
+				<form method="POST" action="?/imOk" use:enhance class="flex border-t border-lime">
+					<button class="w-full bg-lime px-3 py-2.5 text-[11px] font-extrabold tracking-widest text-ink uppercase">I’m OK now</button>
+				</form>
+			</div>
+		{:else if !going}
+			<p class="text-sm text-zinc-500">RSVP “going” to use Come get me.</p>
+		{:else if !helpOpen}
+			<p class="text-sm text-zinc-500">Lost or in trouble on the night? Come get me sends your location to everyone going. It works from 3 hours before the night starts until the next day.</p>
+		{:else}
+			<!-- Two steps, so a stray tap doesn't alarm everyone; works without JavaScript too (no location then). -->
+			<details class="group border border-hot">
+				<summary class="flex cursor-pointer list-none items-center justify-center bg-hot px-4 py-3 text-sm font-extrabold tracking-wider text-ink uppercase group-open:bg-transparent group-open:text-hot">Come get me</summary>
+				<form method="POST" action="?/comeGetMe" use:enhance={withLocation} class="space-y-3 border-t border-hot p-3">
+					<p class="text-sm text-zinc-600">Sends your location to everyone going, so someone can come and get you. In danger? Call 999.</p>
+					<input class="input" name="note" maxlength="200" placeholder="Anything to add? e.g. outside the chippy" aria-label="Note for everyone going" />
+					<button class="btn w-full" disabled={locating}>{locating ? 'Finding you…' : 'Send to everyone going'}</button>
+				</form>
+			</details>
+		{/if}
+	</section>
+
 	<section class="card space-y-4">
 		<h2>The night</h2>
 		{#if data.stages.length}

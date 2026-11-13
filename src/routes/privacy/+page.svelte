@@ -37,10 +37,11 @@
 			<li><strong>Optional profile details:</strong> your payment link (such as a Monzo.me link) and your payday.</li>
 			<li><strong>Things you add:</strong> events, date votes, RSVPs, chat messages, gaff profiles (which can include an address, wifi details and house rules), bring-list items, damage log entries, “we’ve moved” updates, getting-home plans and “home safe” check-ins, kitty expenses and payments, rounds, awards votes, photos, games you make, game and challenge results, group memberships and “who’s out?” answers.</li>
 			<li><strong>Drinks tracker:</strong> if you use it, each drink or water you tap and when. Only you can see it in the app, and it’s deleted a week after you tap it.</li>
+			<li><strong>Come get me:</strong> if you ask for help on a night, your location (if your phone shares it), how accurate it is and your note. Only people going see it. Your location is wiped when you tap “I’m OK now” or 12 hours after you last sent it, and the request is deleted after a week.</li>
 			<li><strong>Login sessions:</strong> a random code in a cookie that keeps you logged in for 30 days. We store only a scrambled copy of it.</li>
 			<li><strong>Server logs:</strong> the server may briefly record errors and web addresses visited, kept for troubleshooting only.</li>
 		</ul>
-		<p>Apart from the optional drinks tracker, we don’t ask for, and you shouldn’t add, sensitive details such as health information in chats or plans.</p>
+		<p>Apart from the optional drinks tracker and your location when you use Come get me, we don’t ask for, and you shouldn’t add, sensitive details such as health information in chats or plans.</p>
 	</section>
 
 	<section>
@@ -58,6 +59,7 @@
 			<li>People in the same event or group see your name and what you add there, such as votes, RSVPs, messages and photos.</li>
 			<li>A gaff’s address and details are only shown to people who RSVP “going”.</li>
 			<li>Your drinks tracker count is only shown to you.</li>
+			<li>Your location from Come get me is only shown to people going.</li>
 			<li>Your email address isn’t shown to other users.</li>
 			<li>{who} can see the database because they run the server.</li>
 		</ul>

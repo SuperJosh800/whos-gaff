@@ -2,11 +2,13 @@ import type { Handle } from '@sveltejs/kit/hooks';
 import { getSessionUser, hashToken, purgeExpired, SESSION_COOKIE } from '#lib/server/auth.ts';
 import { makeRepeats } from '#lib/server/repeats.ts';
 import { purgeDrinks } from '#lib/server/drinks.ts';
+import { purgeHelp } from '#lib/server/help.ts';
 
-// Clear out expired sessions and reset links, and week-old drink taps, once an hour.
+// Clear out expired sessions and reset links, and week-old drink taps and Come get me requests, once an hour.
 const purge = () => {
 	purgeExpired();
 	purgeDrinks();
+	purgeHelp();
 };
 purge();
 setInterval(purge, 60 * 60 * 1000).unref?.();
@@ -28,7 +30,8 @@ const SECURITY_HEADERS: Record<string, string> = {
 	'x-frame-options': 'DENY',
 	// Invite links carry a token in the URL; never send the path to other sites.
 	'referrer-policy': 'strict-origin-when-cross-origin',
-	'permissions-policy': 'camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()',
+	// Location is only asked for when someone taps Come get me.
+	'permissions-policy': 'camera=(), microphone=(), geolocation=(self), payment=(), usb=(), interest-cohort=()',
 	'cross-origin-opener-policy': 'same-origin',
 	'cross-origin-resource-policy': 'same-origin'
 };

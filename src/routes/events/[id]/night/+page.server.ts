@@ -18,6 +18,7 @@ import {
 import { eventInput } from '#lib/server/form.ts';
 import { canSeeAddress } from '#lib/server/gaff.ts';
 import { getDrinks, logDrink, undoDrink, WATER_EVERY } from '#lib/server/drinks.ts';
+import { askForHelp, helpWindow, listHelp, onMyWay, readSpot, resolveHelp } from '#lib/server/help.ts';
 import { callOut, completeMission, getMissions, swapMission, takeMission } from '#lib/server/missions.ts';
 import { nowLocal } from '#lib/time.ts';
 import { AWARDS, getPredictions, savePredictions } from '#lib/server/after.ts';
@@ -46,6 +47,8 @@ export const load: PageServerLoad = async ({ params, parent, locals }) => {
 		awards: AWARDS,
 		bingo: getBingo(event.id, locals.user!.id),
 		buddies: getBuddies(event.id, locals.user!.id),
+		help: listHelp(event.id, locals.user!.id),
+		helpWindow: helpWindow(event),
 		drinks: getDrinks(event.id, locals.user!.id),
 		waterEvery: WATER_EVERY,
 		// No transport API yet: link out to journey planning from the venue (WG-17).
@@ -75,6 +78,18 @@ export const actions: Actions = {
 	nudge: async (e) => {
 		const { userId, eventId } = await eventInput(e);
 		return asAction(() => ({ nudged: nudgeNoPlan(eventId, userId) }));
+	},
+	comeGetMe: async (e) => {
+		const { userId, eventId, get } = await eventInput(e);
+		return asAction(() => ({ helpSent: askForHelp(eventId, userId, readSpot(get('lat'), get('lng'), get('accuracy')), get('note')) }));
+	},
+	onMyWay: async (e) => {
+		const { userId, eventId, get } = await eventInput(e);
+		return asAction(() => onMyWay(eventId, userId, Number(get('request')), get('coming') !== '0'));
+	},
+	imOk: async (e) => {
+		const { userId, eventId } = await eventInput(e);
+		return asAction(() => resolveHelp(eventId, userId));
 	},
 	drink: async (e) => {
 		const { userId, eventId, get } = await eventInput(e);

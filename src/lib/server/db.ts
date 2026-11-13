@@ -500,6 +500,28 @@ const migrations: string[] = [
 		at TEXT NOT NULL DEFAULT (datetime('now'))
 	);
 	CREATE INDEX drink_log_person ON drink_log (event_id, user_id);
+	`,
+	`
+	-- Come get me: someone going asks the others to come and get them, with their location if their phone
+	-- shares it (wiped once they're OK), and who's on their way.
+	CREATE TABLE help_requests (
+		id INTEGER PRIMARY KEY,
+		event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+		user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		lat REAL,
+		lng REAL,
+		accuracy INTEGER,
+		note TEXT NOT NULL DEFAULT '',
+		at TEXT NOT NULL,
+		told INTEGER NOT NULL DEFAULT 0,
+		resolved_at TEXT
+	);
+	CREATE INDEX help_requests_event ON help_requests (event_id, resolved_at);
+	CREATE TABLE help_responders (
+		request_id INTEGER NOT NULL REFERENCES help_requests(id) ON DELETE CASCADE,
+		user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		PRIMARY KEY (request_id, user_id)
+	);
 	`
 ];
 
