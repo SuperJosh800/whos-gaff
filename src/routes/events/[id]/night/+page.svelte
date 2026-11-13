@@ -27,9 +27,10 @@
 	const drops = $derived(data.drops);
 	// The server's clock, so the countdown is right even if the phone's clock is off.
 	const offset = $derived(data.nowMs - Date.now());
+	const mv = $derived(data.moveVote);
 	let tick = $state(Date.now());
 	$effect(() => {
-		if (!drops.live) return;
+		if (!drops.live && !mv.live) return;
 		const timer = setInterval(() => (tick = Date.now()), 1000);
 		return () => clearInterval(timer);
 	});
@@ -39,6 +40,17 @@
 	$effect(() => {
 		if (drops.live && tick + offset >= drops.live.revealAt) invalidateAll();
 	});
+	const voteLeft = $derived(mv.live ? Math.max(0, mv.live.endsAt - (tick + offset)) : 0);
+	const voteCountdown = $derived(`${Math.ceil(voteLeft / 1000)}s`);
+	// Show the result as soon as the vote closes.
+	$effect(() => {
+		if (mv.live && tick + offset >= mv.live.endsAt) invalidateAll();
+	});
+	let voteError = $state('');
+	const inVote: SubmitFunction = () => async ({ update, result }) => {
+		voteError = result.type === 'failure' ? String(result.data?.error ?? 'Something went wrong.') : '';
+		if (result.type !== 'failure') await update();
+	};
 	let dropError = $state('');
 	// Shows a failed photo here in the section rather than at the top of the page.
 	const sendDrop: SubmitFunction = () => async ({ update, result }) => {
@@ -137,6 +149,44 @@
 					<button class="btn w-full" disabled={locating}>{locating ? 'Finding you…' : 'Send to everyone going'}</button>
 				</form>
 			</details>
+		{/if}
+	</section>
+
+	<section class="card space-y-3" id="move">
+		<h2>Stay or move on?</h2>
+		{#if voteError}<p class="error" role="alert">{voteError}</p>{/if}
+		{#if mv.live}
+			<div class="border border-lime">
+				<div class="flex items-center justify-between gap-3 px-3 py-2.5">
+					<p class="min-w-0 text-sm" role="alert"><span class="font-extrabold">{mv.live.by}</span> asks: stay or move on{mv.live.place ? ` to ${mv.live.place}` : ''}?</p>
+					<span class="text-2xl font-black text-lime tabular-nums" role="timer" aria-label="Time left">{voteCountdown}</span>
+				</div>
+				{#if going}
+					<form method="POST" action="?/castVote" use:enhance={inVote} class="strip border-x-0 border-b-0 border-lime">
+						<input type="hidden" name="vote" value={mv.live.id} />
+						<button name="choice" value="stay" aria-pressed={mv.live.mine === 'stay'}>Stay <span class="ml-1 tabular-nums">{mv.live.stay}</span></button>
+						<button name="choice" value="move" aria-pressed={mv.live.mine === 'move'}>Move on <span class="ml-1 tabular-nums">{mv.live.move}</span></button>
+					</form>
+				{:else}
+					<p class="border-t border-lime px-3 py-2 text-xs text-zinc-500">{mv.live.stay} stay, {mv.live.move} move on. RSVP “going” to vote.</p>
+				{/if}
+			</div>
+		{:else if mv.last}
+			<div class="grid grid-cols-[1fr_auto] items-center border border-zinc-200">
+				<p class="px-3 py-2.5"><span class="block text-[11px] font-extrabold tracking-widest text-zinc-500 uppercase">{mv.last.by} asked · result</span>
+					<span class="block text-2xl leading-tight font-black uppercase {mv.last.outcome === 'tie' ? '' : 'text-lime'}">
+						{mv.last.stay + mv.last.move === 0 ? 'Nobody voted' : mv.last.outcome === 'move' ? `Move on${mv.last.place ? ` to ${mv.last.place}` : ''}` : mv.last.outcome === 'stay' ? 'Stay put' : 'It’s a tie'}</span></p>
+				<span class="border-l border-zinc-200 px-3 py-2.5 text-right text-xs text-zinc-500 tabular-nums">{mv.last.move} move<br />{mv.last.stay} stay</span>
+			</div>
+		{/if}
+		{#if mv.canStart && going}
+			<form method="POST" action="?/startVote" use:enhance={inVote} class="joined">
+				<input class="input" name="place" maxlength="60" placeholder="Where to? (optional)" aria-label="Where you'd move on to (optional)" />
+				<button class="btn shrink-0">Ask the group</button>
+			</form>
+			<p class="text-xs text-zinc-500">Everyone going gets 60 seconds to vote.</p>
+		{:else if !mv.live && !mv.last}
+			<p class="text-sm text-zinc-500">{going ? 'Once the night starts, ask the group whether to stay or move on. Everyone going gets 60 seconds to vote.' : 'RSVP “going” to vote on whether to stay or move on.'}</p>
 		{/if}
 	</section>
 

@@ -557,6 +557,24 @@ const migrations: string[] = [
 		photo_id INTEGER NOT NULL REFERENCES event_photos(id) ON DELETE CASCADE,
 		PRIMARY KEY (drop_id, user_id)
 	);
+	`,
+	`
+	-- Stay or move on: a 60-second vote (started_at in ms since 1970) and each person's vote.
+	CREATE TABLE move_votes (
+		id INTEGER PRIMARY KEY,
+		event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+		started_by INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		place TEXT NOT NULL DEFAULT '',
+		started_at INTEGER NOT NULL,
+		closed INTEGER NOT NULL DEFAULT 0
+	);
+	CREATE INDEX move_votes_due ON move_votes (closed, started_at);
+	CREATE TABLE move_ballots (
+		vote_id INTEGER NOT NULL REFERENCES move_votes(id) ON DELETE CASCADE,
+		user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		choice TEXT NOT NULL CHECK (choice IN ('stay', 'move')),
+		PRIMARY KEY (vote_id, user_id)
+	);
 	`
 ];
 

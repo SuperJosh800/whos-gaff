@@ -20,6 +20,7 @@ import { canSeeAddress } from '#lib/server/gaff.ts';
 import { getDrinks, logDrink, undoDrink, WATER_EVERY } from '#lib/server/drinks.ts';
 import { askForHelp, helpWindow, listHelp, onMyWay, readSpot, resolveHelp } from '#lib/server/help.ts';
 import { armDrop, cancelDrop, getDrops, sendDropPhoto } from '#lib/server/photoDrops.ts';
+import { castVote, getMoveVote, startVote } from '#lib/server/moveVotes.ts';
 import { callOut, completeMission, getMissions, swapMission, takeMission } from '#lib/server/missions.ts';
 import { nowLocal } from '#lib/time.ts';
 import { AWARDS, getPredictions, savePredictions } from '#lib/server/after.ts';
@@ -51,6 +52,7 @@ export const load: PageServerLoad = async ({ params, parent, locals }) => {
 		help: listHelp(event.id, locals.user!.id),
 		helpWindow: helpWindow(event),
 		drops: getDrops(event.id, locals.user!.id),
+		moveVote: getMoveVote(event.id, locals.user!.id),
 		nowMs: Date.now(),
 		drinks: getDrinks(event.id, locals.user!.id),
 		waterEvery: WATER_EVERY,
@@ -93,6 +95,14 @@ export const actions: Actions = {
 	imOk: async (e) => {
 		const { userId, eventId } = await eventInput(e);
 		return asAction(() => resolveHelp(eventId, userId));
+	},
+	startVote: async (e) => {
+		const { userId, eventId, get } = await eventInput(e);
+		return asAction(() => startVote(eventId, userId, get('place')));
+	},
+	castVote: async (e) => {
+		const { userId, eventId, get } = await eventInput(e);
+		return asAction(() => castVote(eventId, userId, Number(get('vote')), get('choice')));
 	},
 	armDrop: async (e) => {
 		const { userId, eventId, get } = await eventInput(e);

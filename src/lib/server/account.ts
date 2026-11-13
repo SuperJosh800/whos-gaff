@@ -56,7 +56,9 @@ const PERSONAL: [table: string, column: string][] = [
 	['help_responders', 'user_id'],
 	['song_requests', 'suggested_by'],
 	['song_votes', 'user_id'],
-	['drop_photos', 'user_id']
+	['drop_photos', 'user_id'],
+	['move_votes', 'started_by'],
+	['move_ballots', 'user_id']
 ];
 
 /** Everything stored about a user, as plain data for a JSON download. Passwords and session tokens are left out. */
@@ -130,7 +132,7 @@ export function deleteAccount(userId: number) {
 			'sessions', 'password_resets', 'push_subscriptions', 'event_members', 'rsvps', 'votes', 'messages', 'notifications',
 			'moves', 'home_plans', 'home_safe', 'group_members', 'free_gaffs', 'pings', 'ping_answers',
 			'event_photos', 'challenge_results', 'game_players', 'round_group_members',
-			'missions', 'bingo_cards', 'buddies', 'ticket_holders', 'theme_votes', 'venue_votes', 'waitlist', 'drivers', 'drink_log', 'help_responders', 'help_requests', 'song_votes', 'drop_photos'
+			'missions', 'bingo_cards', 'buddies', 'ticket_holders', 'theme_votes', 'venue_votes', 'waitlist', 'drivers', 'drink_log', 'help_responders', 'help_requests', 'song_votes', 'drop_photos', 'move_ballots'
 		]) {
 			db.prepare(`DELETE FROM ${table} WHERE user_id = ?`).run(userId);
 		}
@@ -138,6 +140,7 @@ export function deleteAccount(userId: number) {
 		db.prepare('DELETE FROM award_votes WHERE voter_id = ? OR nominee_id = ?').run(userId, userId);
 		db.prepare('DELETE FROM predictions WHERE user_id = ? OR nominee_id = ?').run(userId, userId);
 		db.prepare('DELETE FROM taxi_told WHERE user_id = ? OR about_id = ?').run(userId, userId);
+		db.prepare('DELETE FROM move_votes WHERE started_by = ?').run(userId);
 		// Squares that happened stay marked for everyone else, without the name.
 		db.prepare('UPDATE bingo_marks SET marked_by = NULL WHERE marked_by = ?').run(userId);
 		db.prepare('DELETE FROM mission_guesses WHERE user_id = ? OR suspect_id = ?').run(userId, userId);

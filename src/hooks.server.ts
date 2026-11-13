@@ -4,6 +4,7 @@ import { makeRepeats } from '#lib/server/repeats.ts';
 import { purgeDrinks } from '#lib/server/drinks.ts';
 import { purgeHelp } from '#lib/server/help.ts';
 import { fireDueDrops } from '#lib/server/photoDrops.ts';
+import { closeDueVotes } from '#lib/server/moveVotes.ts';
 
 // Clear out expired sessions and reset links, and week-old drink taps and Come get me requests, once an hour.
 const purge = () => {
@@ -25,16 +26,18 @@ const repeats = () => {
 repeats();
 setInterval(repeats, 10 * 60 * 1000).unref?.();
 
-// Tell everyone when a photo drop goes off. Checked every 5 seconds, as they only have 2 minutes.
-const drops = () => {
+// Tell everyone when a photo drop goes off and when a stay-or-move-on vote closes. Checked every
+// 5 seconds, as they only last a minute or two.
+const timed = () => {
 	try {
 		fireDueDrops();
+		closeDueVotes();
 	} catch (e) {
-		console.error('[photo drops] failed', e);
+		console.error('[photo drops / votes] failed', e);
 	}
 };
-drops();
-setInterval(drops, 5 * 1000).unref?.();
+timed();
+setInterval(timed, 5 * 1000).unref?.();
 
 // The Content-Security-Policy is set by SvelteKit (kit.csp in vite.config.ts) so it can hash its own inline scripts.
 const SECURITY_HEADERS: Record<string, string> = {
