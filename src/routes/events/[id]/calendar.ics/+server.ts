@@ -1,24 +1,22 @@
-import { error } from '@sveltejs/kit';
-import { eventIcs } from '#lib/server/calendar.ts';
-import { getEvent, isMember } from '#lib/server/events.ts';
-import { canSeeAddress, getGaff } from '#lib/server/gaff.ts';
+import { error, redirect } from '@sveltejs/kit';
+import { calendarFile, calendarLinkUser } from '#lib/server/calendar.ts';
 import type { RequestHandler } from './$types';
 
-// The night as a calendar file. The address is only in it for people who can see it on the event page.
+// The night as a calendar file, for whoever the signed link was made for or whoever is logged in.
 export const GET: RequestHandler = ({ params, locals, url }) => {
 	const eventId = Number(params.id);
-	const event = getEvent(eventId);
-	if (!locals.user || !event || !isMember(eventId, locals.user.id)) error(404, 'Event not found');
-	if (!event.starts_at) error(404, 'The date isn’t decided yet');
+	const userId = calendarLinkUser(eventId, url.searchParams) ?? locals.user?.id;
+	// An old link opened in a browser that isn't logged in: log in, then get the file.
+	if (!userId) redirect(303, `/login?next=${encodeURIComponent(url.pathname)}`);
+	const file = calendarFile(eventId, userId, url.origin);
+	if (!file) error(404, 'Event not found');
 
-	const gaff = event.gaff_id ? getGaff(event.gaff_id) : undefined;
-	const location = canSeeAddress(event, locals.user.id) ? gaff?.address || event.location : null;
-	const ics = eventIcs({ ...event, starts_at: event.starts_at }, { url: `${url.origin}/events/${eventId}`, location });
-	const name = event.title.replace(/[^\w ]+/g, '').trim().replace(/\s+/g, '-').slice(0, 40) || 'night-out';
-	return new Response(ics, {
+	const name = file.title.replace(/[^\p{L}\p{N} ]+/gu, '').trim().replace(/\s+/g, '-').slice(0, 40) || 'night-out';
+	const ascii = name.replace(/[^\w-]/g, '') || 'night-out';
+	return new Response(file.ics, {
 		headers: {
 			'content-type': 'text/calendar; charset=utf-8',
-			'content-disposition': `inline; filename="${name}.ics"`,
+			'content-disposition': `inline; filename="${ascii}.ics"; filename*=UTF-8''${encodeURIComponent(name)}.ics`,
 			'cache-control': 'private, no-store'
 		}
 	});
