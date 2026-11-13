@@ -15,7 +15,7 @@
 	const me = $derived(page.data.user?.id);
 	let lostError = $state('');
 	const hg = $derived(data.hangover);
-	const worst = $derived(hg.worst.map((h) => h.name).join(' & '));
+	const worst = $derived(hg.worst.length ? `${hg.worst.map((h) => h.name).join(' & ')} (${hg.scale[hg.worst[0].head]})` : '');
 	let headError = $state('');
 	const inHead: SubmitFunction = () => async ({ update, result }) => {
 		headError = result.type === 'failure' ? String(result.data?.error ?? 'Something went wrong.') : '';
@@ -35,7 +35,7 @@
 			`${data.event.title}${data.event.starts_at ? ` · ${formatWhen(data.event.starts_at)}` : ''}`,
 			`Who came: ${going.map((p) => p.name).join(', ')}`,
 			...data.awards.filter((a) => a.winners.length).map((a) => `${a.label}: ${a.winners.map((w) => w.name).join(' & ')}`),
-			worst ? `Worst hangover: ${worst} (${hg.scale[hg.worst[0].head]})` : '',
+			worst ? `Worst hangover: ${worst}` : '',
 			callers.length ? `Called it: ${callers.map((c) => c.name).join(' & ')} (${topScore}/${data.awards.length})` : '',
 			data.stages.length ? `The night: ${data.stages.map((s) => `${s.name} ${formatTime(s.starts_at)}`).join(' → ')}` : ''
 		]
@@ -127,27 +127,26 @@
 			<h2>How’s the head?</h2>
 			{#if headError}<p class="error" role="alert">{headError}</p>{/if}
 			{#if hg.state === 'soon'}
-				<p class="text-sm text-zinc-500">The hangover check-in opens the morning after{hg.opensAt ? `, from ${formatWhen(hg.opensAt)}` : ''}.</p>
+				<p class="text-sm text-zinc-500">The hangover check-in opens {hg.opensAt ? formatWhen(hg.opensAt) : 'once there’s a date'}.</p>
 			{:else if hg.state === 'open' && hg.canCheckIn}
 				<form method="POST" action="?/head" use:enhance={inHead} class="strip" role="group" aria-label="How’s your head?">
 					{#each hg.scale as label, i (label)}
 						<button name="head" value={i} aria-pressed={hg.mine === i} class="!px-1">{label}</button>
 					{/each}
 				</form>
-				<p class="text-xs text-zinc-500">Worst head gets Worst hangover. Open for 3 days after the night.</p>
+				<p class="text-xs text-zinc-500">The worst head gets Worst hangover, from how people rate themselves, not a vote. Open for 3 days after the night.</p>
 			{/if}
 			{#if hg.heads.length}
 				<ol class="divide-y divide-zinc-200 border border-zinc-200 text-sm">
 					{#each hg.heads as h (h.user_id)}
 						<li class="grid grid-cols-[1fr_auto]">
 							<span class="min-w-0 px-3 py-2.5 font-extrabold break-words">{h.name}{h.user_id === me ? ' (you)' : ''}</span>
-							<span class="flex items-center border-l border-zinc-200 px-3 text-[11px] font-extrabold tracking-widest uppercase {hg.worst.some((w) => w.user_id === h.user_id) ? 'bg-lime text-ink' : 'text-zinc-500'}">{hg.scale[h.head]}</span>
+							<span class="flex items-center border-l border-zinc-200 px-3 text-[11px] font-extrabold tracking-widest uppercase {hg.worst.some((w) => w.user_id === h.user_id) ? 'bg-lime text-ink' : 'text-zinc-500'}">{hg.scale[h.head]}{#if hg.worst.some((w) => w.user_id === h.user_id)}<span class="sr-only">, worst hangover</span>{/if}</span>
 						</li>
 					{/each}
 				</ol>
-			{:else if hg.state === 'closed'}
-				<p class="text-sm text-zinc-500">Nobody checked in.</p>
 			{/if}
+			{#if hg.state === 'closed'}<p class="text-sm text-zinc-500">{hg.heads.length ? 'Check-ins have closed.' : 'Nobody checked in.'}</p>{/if}
 		</section>
 
 		{#if pr.table.length}

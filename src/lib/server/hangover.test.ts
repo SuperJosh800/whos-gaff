@@ -66,16 +66,27 @@ describe('hangover check-in', () => {
 		expect(nudges(maybe)).toEqual([]);
 	});
 
-	it('nudges a night that starts just after midnight the next morning, and never once check-ins close', () => {
+	it('nudges the first 10am after check-ins open, and drops a nudge not sent by noon', () => {
+		// Starting after midnight, the morning after is the same day.
 		const late = night('2099-07-01T00:30');
-		nudgeHangovers('2099-07-01T10:00');
+		nudgeHangovers('2099-07-01T09:59');
 		expect(nudges(late.sam)).toEqual([]);
-		nudgeHangovers('2099-07-02T10:00');
+		nudgeHangovers('2099-07-01T10:00');
 		expect(nudges(late.sam)).toHaveLength(1);
-		// The server was off from the night until after check-ins closed.
-		const missed = night('2099-08-01T21:00');
-		nudgeHangovers('2099-08-04T21:00');
+		// A daytime start opens in the evening, so it's 10am the next day, across the month end.
+		const day = night('2099-07-31T14:00');
+		nudgeHangovers('2099-07-31T23:00');
+		expect(nudges(day.sam)).toEqual([]);
+		nudgeHangovers('2099-08-01T10:05');
+		expect(nudges(day.sam)).toHaveLength(1);
+		// The server was off until after noon: nobody's told, then or later.
+		const missed = night('2099-08-10T21:00');
+		nudgeHangovers('2099-08-11T12:00');
+		nudgeHangovers('2099-08-11T12:10');
 		expect(nudges(missed.sam)).toEqual([]);
+		const justInTime = night('2099-08-20T21:00');
+		nudgeHangovers('2099-08-21T11:59');
+		expect(nudges(justInTime.sam)).toHaveLength(1);
 	});
 
 	it('is removed with the account and in the export', () => {

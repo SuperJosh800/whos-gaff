@@ -1,6 +1,6 @@
 // The morning-after hangover check-in: everyone who went says how their head is, from Fresh to Dying.
 // Whoever's worst gets "Worst hangover" alongside the voted awards. One "How's the head?" nudge goes out
-// at 10am the morning after to anyone who hasn't checked in.
+// at 10am the morning after to anyone who hasn't checked in, and never later than noon.
 import { db } from './db.ts';
 import { publish } from './realtime.ts';
 import { notify } from './notifications.ts';
@@ -17,8 +17,14 @@ const CLOSES_AFTER = 72 * HOUR;
 
 const opensAt = (start: string) => shiftLocal(start, OPENS_AFTER);
 const closesAt = (start: string) => shiftLocal(start, CLOSES_AFTER);
-/** 10am the day after the night starts. */
-const nudgeAt = (start: string) => `${shiftLocal(`${start.slice(0, 10)}T00:00`, 24 * HOUR).slice(0, 10)}T10:00`;
+/** The morning after: the first 10am once check-ins have opened (the same day for a night starting after midnight). */
+function nudgeAt(start: string) {
+	const open = opensAt(start);
+	const day = open.slice(11) <= '10:00' ? open.slice(0, 10) : shiftLocal(open, 24 * HOUR).slice(0, 10);
+	return `${day}T10:00`;
+}
+/** A nudge not sent by noon (the server was off) is dropped rather than sent at a silly hour. */
+const tooLate = (start: string) => `${nudgeAt(start).slice(0, 10)}T12:00`;
 
 /** Saves how bad your head is (0 to 5). Only people who went, from 6 hours after the start for 3 days. */
 export function rateHead(eventId: number, userId: number, head: number, now = nowLocal()) {
@@ -59,7 +65,8 @@ export function getHangovers(eventId: number, userId: number, startsAt: string |
 
 /**
  * Sends the one "How's the head?" nudge for nights whose morning after has come, to everyone who went and
- * hasn't checked in. Nights whose check-in has already closed (the server was off) are skipped.
+ * hasn't checked in. If it's past noon by then (the server was off, or this has just been deployed), the
+ * night is marked as done without telling anyone.
  */
 export function nudgeHangovers(now = nowLocal()) {
 	const due = db
@@ -68,6 +75,7 @@ export function nudgeHangovers(now = nowLocal()) {
 	for (const e of due) {
 		if (now < nudgeAt(e.starts_at)) continue;
 		db.prepare('INSERT INTO hangover_nudges (event_id) VALUES (?)').run(e.id);
+		if (now >= tooLate(e.starts_at)) continue;
 		const done = new Set((db.prepare('SELECT user_id FROM hangovers WHERE event_id = ?').all(e.id) as { user_id: number }[]).map((h) => h.user_id));
 		for (const p of attendees(e.id)) if (!done.has(p.id)) notify(p.id, e.id, `How’s the head? Check in for ${e.title}.`, '/after#hangover');
 	}
