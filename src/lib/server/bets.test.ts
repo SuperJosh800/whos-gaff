@@ -23,7 +23,7 @@ function night() {
 	return { id, host, sam, alex, kim, maybe };
 }
 const betId = (id: number, u: User, text: string) => getBets(id, u.id, BEFORE).bets.find((b) => b.text === text)!.id;
-const notes = (u: User) => listNotifications(u.id, 50).filter((x) => /Bet settled/.test(x.message)).map((x) => x.message);
+const notes = (u: User) => listNotifications(u.id, 50).filter((x) => /was settled/.test(x.message)).map((x) => x.message);
 
 describe('bets', () => {
 	it('splits the losers’ coins between the winners by stake, with spare coins to the biggest stake', () => {
@@ -47,7 +47,7 @@ describe('bets', () => {
 		const bet = betId(id, sam, 'Alex is first home');
 		expect(() => placeStake(id, maybe.id, bet, 'yes', 10)).toThrow('RSVP “going”');
 		placeStake(id, sam.id, bet, 'yes', 30);
-		placeStake(id, alex.id, bet, 'no', 50);
+		placeStake(id, alex.id, bet, 'yes', 50);
 		placeStake(id, alex.id, bet, 'no', 20);
 		placeStake(id, kim.id, bet, 'yes', 10);
 		expect(wallet(id, alex.id)).toBe(COINS - 20);
@@ -56,15 +56,20 @@ describe('bets', () => {
 		expect(() => placeStake(id, sam.id, bet, 'yes', 2.5)).toThrow('whole number');
 		expect(getBets(id, host.id, BEFORE)).toMatchObject({ bets: [{ yes: 40, no: 20, canSettle: false, canCancel: true, mine: null }], coins: [] });
 		expect(() => settleBet(id, sam.id, bet, 'yes', BEFORE)).toThrow('once the night has started');
+		// Betting closes when the night starts, so nobody can back out once they can see how it's going.
+		expect(() => placeStake(id, alex.id, bet, 'yes', 20, DURING)).toThrow('Betting closed');
+		expect(() => placeStake(id, alex.id, bet, 'no', 0, DURING)).toThrow('Betting closed');
+		expect(() => proposeBet(id, alex.id, 'Too late', DURING)).toThrow('Betting closed');
+		expect(getBets(id, alex.id, DURING)).toMatchObject({ started: true, canPropose: false });
 		expect(() => settleBet(id, alex.id, bet, 'yes', DURING)).toThrow('Only whoever made the bet or the host');
 		settleBet(id, sam.id, bet, 'yes', DURING);
 		// 20 split 30:10 gives Sam 15 and Kim 5.
 		expect([sam, alex, kim].map((u) => wallet(id, u.id))).toEqual([115, 80, 105]);
-		expect(notes(alex)).toEqual(['Bet settled: “Alex is first home”: yes. You lost 20 coins. (Night)']);
-		expect(notes(kim)).toEqual(['Bet settled: “Alex is first home”: yes. You won 5 coins. (Night)']);
+		expect(notes(alex)).toEqual(['“Alex is first home” was settled yes. You lost 20 coins. (Night)']);
+		expect(notes(kim)).toEqual(['“Alex is first home” was settled yes. You won 5 coins. (Night)']);
 		expect(notes(sam)).toEqual([]);
 		expect(getBets(id, kim.id, DURING)).toMatchObject({
-			bets: [{ outcome: 'yes', mine: { side: 'yes', coins: 10, result: 5 }, canSettle: false, canCancel: false }],
+			bets: [{ outcome: 'yes', refunded: false, mine: { side: 'yes', coins: 10, result: 5 }, canSettle: false, canCancel: false }],
 			coins: [
 				{ name: 'Sam', coins: 115 },
 				{ name: 'Kim', coins: 105 },
@@ -89,7 +94,12 @@ describe('bets', () => {
 		cancelBet(id, sam.id, betId(id, sam, 'Called off'));
 		settleBet(id, sam.id, betId(id, sam, 'One-sided'), 'no', DURING);
 		expect([alex, kim].map((u) => wallet(id, u.id))).toEqual([100, 100]);
-		expect(notes(kim)).toEqual(['Bet settled: “Off”: it’s off. You got your coins back. (Night)']);
+		expect(notes(kim)).toEqual(['“Off” was settled it’s off. You got your coins back. (Night)']);
+		expect(getBets(id, alex.id, DURING).bets.map((x) => [x.text, x.refunded])).toEqual([
+			['One-sided', true],
+			['Off', true]
+		]);
+		expect(notes(alex)).toContain('“One-sided” was settled no. You got your coins back. (Night)');
 		expect(() => placeStake(id, alex.id, 999999, 'yes', 1)).toThrow('called off');
 	});
 
@@ -127,5 +137,38 @@ describe('bets', () => {
 		]);
 		expect(wallet(id, alex.id)).toBe(90);
 		expect(wallet(id, kim.id)).toBe(110);
+	});
+
+	it('takes your coins off open bets when you stop going before the night', () => {
+		const { id, host, sam, alex } = night();
+		proposeBet(id, sam.id, 'Settled');
+		placeStake(id, sam.id, betId(id, sam, 'Settled'), 'yes', 10);
+		placeStake(id, alex.id, betId(id, sam, 'Settled'), 'no', 1);
+		settleBet(id, host.id, betId(id, sam, 'Settled'), 'yes', DURING);
+		expect(notes(sam)).toEqual(['“Settled” was settled yes. You won 1 coin. (Night)']);
+		proposeBet(id, sam.id, 'Bet');
+		placeStake(id, alex.id, betId(id, sam, 'Bet'), 'no', 30);
+		setRsvp(id, alex.id, 'maybe');
+		expect(getBets(id, sam.id, BEFORE).bets[0]).toMatchObject({ text: 'Bet', yes: 0, no: 0 });
+		setRsvp(id, alex.id, 'yes');
+		// The settled bet stands.
+		expect(wallet(id, alex.id)).toBe(99);
+	});
+
+	it('always pays out exactly what the losers lose', () => {
+		let seed = 7;
+		const rand = (n: number) => ((seed = (seed * 1103515245 + 12345) % 2 ** 31), seed % n);
+		for (let round = 0; round < 300; round++) {
+			const stakes = Array.from({ length: 1 + rand(7) }, (_, i) => ({ user_id: i + 1, side: rand(2) ? ('yes' as const) : ('no' as const), coins: 1 + rand(100) }));
+			for (const outcome of ['yes', 'no'] as const) {
+				const result = payouts(stakes, outcome);
+				expect([...result.values()].reduce((a, c) => a + c, 0)).toBe(0);
+				for (const s of stakes) {
+					const r = result.get(s.user_id)!;
+					if (s.side !== outcome) expect(r === -s.coins || r === 0).toBe(true);
+					else expect(r).toBeGreaterThanOrEqual(0);
+				}
+			}
+		}
 	});
 });

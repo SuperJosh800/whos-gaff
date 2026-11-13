@@ -383,6 +383,11 @@ export function setRsvp(eventId: number, userId: number, response: Rsvp) {
 		db.prepare('DELETE FROM waitlist WHERE event_id = ? AND user_id = ?').run(eventId, userId);
 		// Someone who's no longer going isn't the driver; they say so again if they come back.
 		if (response !== 'yes') db.prepare('DELETE FROM drivers WHERE event_id = ? AND user_id = ?').run(eventId, userId);
+		// Their coins come off bets too, while betting's still open (before the night starts); after that
+		// dropping out isn't a way out of a losing bet.
+		if (response !== 'yes' && nowLocal() < event.starts_at!) {
+			db.prepare('DELETE FROM bet_stakes WHERE user_id = ? AND bet_id IN (SELECT id FROM bets WHERE event_id = ? AND outcome IS NULL)').run(userId, eventId);
+		}
 		upsertRsvp(eventId, userId, response);
 		return 'set' as const;
 	});

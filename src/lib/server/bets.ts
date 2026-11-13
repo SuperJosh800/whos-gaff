@@ -1,6 +1,6 @@
 // Bets (Games tab): anyone going proposes a yes/no bet ("Sam's first home"), and everyone going stakes
-// pretend coins on a side, from 100 each a night. Once the night has started, whoever proposed it or the
-// host settles it, and the winners split the losers' coins in proportion to what they staked.
+// pretend coins on a side, from 100 each a night. Betting closes when the night starts; after that, whoever
+// proposed a bet or the host settles it, and the winners split the losers' coins by what they staked.
 import { db, tx } from './db.ts';
 import { publish } from './realtime.ts';
 import { notify } from './notifications.ts';
@@ -11,6 +11,7 @@ import { nowLocal } from '../time.ts';
 
 /** Everyone starts each night with this many coins. */
 export const COINS = 100;
+/** Bets open at once on a night. */
 const OPEN_BETS = 20;
 const BETS_EACH = 5;
 
@@ -44,8 +45,12 @@ export function wallet(eventId: number, userId: number) {
 	return COINS + won - riding;
 }
 
-export function proposeBet(eventId: number, userId: number, text: string) {
-	requireGoing(eventId, userId);
+function requireBettingOpen(event: Parameters<typeof isOver>[0], now: string) {
+	if (isOver(event, now)) throw new EventError('Betting closed when the night started.');
+}
+
+export function proposeBet(eventId: number, userId: number, text: string, now = nowLocal()) {
+	requireBettingOpen(requireGoing(eventId, userId), now);
 	text = text.replace(/\s+/g, ' ').trim().slice(0, 100);
 	if (!text) throw new EventError('What’s the bet?');
 	const { open, mine } = db
@@ -57,9 +62,9 @@ export function proposeBet(eventId: number, userId: number, text: string) {
 	publish(eventId);
 }
 
-/** Puts coins on a side, or changes your stake. 0 coins takes your stake back. */
-export function placeStake(eventId: number, userId: number, betId: number, side: string, coins: number) {
-	requireGoing(eventId, userId);
+/** Puts coins on a side, or changes your stake, until the night starts. 0 coins takes your stake back. */
+export function placeStake(eventId: number, userId: number, betId: number, side: string, coins: number, now = nowLocal()) {
+	requireBettingOpen(requireGoing(eventId, userId), now);
 	requireOpen(eventId, betId);
 	if (side !== 'yes' && side !== 'no') throw new EventError('Pick yes or no.');
 	if (!Number.isInteger(coins) || coins < 0) throw new EventError('Bet a whole number of coins.');
@@ -115,10 +120,11 @@ export function settleBet(eventId: number, userId: number, betId: number, outcom
 		for (const [id, coins] of result) set.run(coins, betId, id);
 	});
 	const said = outcome === 'off' ? 'it’s off' : outcome;
+	const plural = (n: number) => `${n} ${n === 1 ? 'coin' : 'coins'}`;
 	for (const [id, coins] of result) {
 		if (id === userId) continue;
-		const how = coins > 0 ? `You won ${coins} coins.` : coins < 0 ? `You lost ${-coins} coins.` : 'You got your coins back.';
-		notify(id, eventId, `Bet settled: “${bet.text}”: ${said}. ${how} (${event.title})`, '/games#bets');
+		const how = coins > 0 ? `You won ${plural(coins)}.` : coins < 0 ? `You lost ${plural(-coins)}.` : 'You got your coins back.';
+		notify(id, eventId, `“${bet.text}” was settled ${said}. ${how} (${event.title})`, '/games#bets');
 	}
 	publish(eventId);
 }
@@ -158,14 +164,17 @@ export function getBets(eventId: number, viewerId: number, now = nowLocal()) {
 		)
 		.all(COINS, eventId) as { id: number; name: string; coins: number }[];
 	const going = canSeeAddress(event, viewerId);
-	const canSettleNow = isOver(event, now);
+	const started = isOver(event, now);
 	return {
 		bets: bets.map((b) => {
 			const runs = b.proposer_id === viewerId || event.host_id === viewerId;
-			return { ...b, mine: mine.get(b.id) ?? null, canSettle: !b.outcome && runs && canSettleNow, canCancel: !b.outcome && runs };
+			// A settled bet nobody took the other side of gave everyone their coins back.
+			const refunded = b.outcome === 'off' || (!!b.outcome && (!b.yes || !b.no));
+			return { ...b, refunded, mine: mine.get(b.id) ?? null, canSettle: !b.outcome && runs && started, canCancel: !b.outcome && runs };
 		}),
 		wallet: going ? wallet(eventId, viewerId) : null,
 		coins,
-		canPropose: going
+		started,
+		canPropose: going && !started
 	};
 }
