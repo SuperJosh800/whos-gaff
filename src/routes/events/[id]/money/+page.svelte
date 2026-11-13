@@ -94,14 +94,14 @@
 							</form>
 						</div>
 					{:else}
-						<p class="text-sm text-zinc-500">Everyone in this round is driving or has gone home, so there’s nobody to buy.</p>
+						<p class="text-sm text-zinc-500">Everyone in this round is driving or has left, so there’s nobody to buy.</p>
 					{/if}
 					<table class="w-full text-sm">
 						<thead><tr class="text-left text-[11px] tracking-widest text-zinc-500 uppercase"><th class="py-1 font-extrabold">Who</th><th class="font-extrabold">Bought</th><th class="font-extrabold">Skipped</th></tr></thead>
 						<tbody>
 							{#each round.tally as t (t.id)}
 								<tr class="border-t border-zinc-200">
-									<td class="py-1.5 {t.id === next?.id ? 'font-extrabold text-lime' : ''}">{t.name}{t.id === next?.id ? ' (next)' : ''}{#if t.gone}<span class="text-zinc-500">{' (gone home)'}</span>{:else if t.driving}<span class="text-zinc-500">{' (driving)'}</span>{/if}</td>
+									<td class="py-1.5 {t.id === next?.id ? 'font-extrabold text-lime' : ''}">{t.name}{t.id === next?.id ? ' (next)' : ''}{#if t.gone}<span class="text-zinc-500">{' (left)'}</span>{:else if t.driving}<span class="text-zinc-500">{' (driving)'}</span>{/if}</td>
 									<td>{t.bought}</td>
 									<td class={t.skipped ? 'font-bold text-red-700' : ''}>{t.skipped}</td>
 								</tr>

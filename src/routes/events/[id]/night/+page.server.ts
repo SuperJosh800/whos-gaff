@@ -4,6 +4,7 @@ import {
 	checkInHomeSafe,
 	comeBack,
 	headOff,
+	offUntil,
 	HOME_KINDS,
 	homeSafeCutoff,
 	listCheckIns,
@@ -45,6 +46,7 @@ export const load: PageServerLoad = async ({ params, parent, locals }) => {
 		homeKinds: HOME_KINDS,
 		checkIns: listCheckIns(event.id),
 		cutoff: event.starts_at ? homeSafeCutoff(event.starts_at) : null,
+		offUntil: event.starts_at ? offUntil(event.starts_at) : null,
 		now: nowLocal(),
 		missions: getMissions(event.id, locals.user!.id),
 		predictions: getPredictions(event.id, locals.user!.id),
@@ -131,8 +133,12 @@ export const actions: Actions = {
 		return asAction(() => checkInHomeSafe(eventId, userId));
 	},
 	headOff: async (e) => {
-		const { userId, eventId, get } = await eventInput(e);
-		return asAction(() => (get('back') ? comeBack(eventId, userId) : headOff(eventId, userId)));
+		const { userId, eventId } = await eventInput(e);
+		return asAction(() => headOff(eventId, userId));
+	},
+	comeBack: async (e) => {
+		const { userId, eventId } = await eventInput(e);
+		return asAction(() => comeBack(eventId, userId));
 	},
 	takeMission: async (e) => {
 		const { userId, eventId } = await eventInput(e);

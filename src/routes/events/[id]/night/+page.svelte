@@ -626,21 +626,17 @@
 				{/if}
 			</div>
 			{#if !started}<p class="text-sm text-zinc-500">Check-ins open when the night starts ({formatWhen(data.event.starts_at)}).</p>{/if}
-			{#if started && data.checkIns.some((c) => c.user_id === me) && !meCheckedIn}
-				<form method="POST" action="?/headOff" use:enhance class="grid grid-cols-[1fr_auto] items-center border border-zinc-200">
-					<p class="min-w-0 px-3 py-2.5 text-sm">{#if meOff}<span class="font-extrabold text-lime">You headed off at {formatTime(meOff)}.</span> Check in when you’re home.{:else}Leaving? Slip off without a fuss. Only your buddy is told; everyone else sees it here, and rounds skip you.{/if}</p>
-					{#if meOff}
-						<button class="h-full border-l border-zinc-200 px-3 text-[11px] font-extrabold tracking-widest uppercase hover:bg-zinc-100" name="back" value="1">I’m back</button>
-					{:else}
-						<button class="h-full border-l border-zinc-200 bg-hot px-4 text-[11px] font-extrabold tracking-widest text-ink uppercase">I’m off</button>
-					{/if}
+			{#if started && data.checkIns.some((c) => c.user_id === me) && !meCheckedIn && (meOff || (!!data.offUntil && data.now < data.offUntil))}
+				<form method="POST" action={meOff ? '?/comeBack' : '?/headOff'} use:enhance class="grid grid-cols-[1fr_auto] items-center border border-zinc-200">
+					<p class="min-w-0 px-3 py-2.5 text-sm" role="status">{#if meOff}<span class="font-extrabold text-lime">You headed off at {formatTime(meOff)}.</span> Check in when you’re home.{:else}Leaving? Slip off without a fuss. {buddies.mine.length ? `Only ${buddies.mine.join(' and ')} ${buddies.mine.length > 1 ? 'get' : 'gets'} a push;` : 'You haven’t got a buddy, so nobody gets a push;'} everyone else sees it here, and rounds skip you.{/if}</p>
+					<button class="h-full border-l border-zinc-200 px-3 text-[11px] font-extrabold tracking-widest uppercase hover:bg-zinc-100 {meOff ? '' : 'text-hot'}">{meOff ? 'I’m back' : 'I’m off'}</button>
 				</form>
 			{/if}
 			<ul class="divide-y divide-zinc-200 border border-zinc-200">
 				{#each data.checkIns as c (c.user_id)}
 					<li class="grid grid-cols-[1fr_auto] items-center text-sm">
 						<span class="px-3 py-2.5 font-extrabold">{c.name}</span>
-						<span class="px-3 text-[11px] font-extrabold tracking-widest uppercase {c.at ? 'text-lime' : overdue ? 'text-hot' : 'text-zinc-500'}">{c.at ? `Home ${formatTime(c.at)}` : overdue ? 'Not in by 3am' : c.off ? `Headed off ${formatTime(c.off)}` : started ? 'Still out' : 'Not home yet'}</span>
+						<span class="px-3 text-[11px] font-extrabold tracking-widest uppercase {c.at ? 'text-lime' : overdue ? 'text-hot' : 'text-zinc-500'}">{c.at ? `Home ${formatTime(c.at)}` : overdue ? (c.off ? `Off ${formatTime(c.off)} · not in` : 'Not in by 3am') : c.off ? `Headed off ${formatTime(c.off)}` : started ? 'Still out' : 'Not home yet'}</span>
 					</li>
 				{/each}
 			</ul>

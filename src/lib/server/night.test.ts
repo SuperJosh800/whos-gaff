@@ -167,9 +167,40 @@ describe('I’m off', () => {
 		expect(nextRound(id)).toBe('Abe');
 		headOff(id, abe.id, '2099-06-20T23:45');
 		headOff(id, abe.id, '2099-06-20T23:50');
+		comeBack(id, abe.id);
+		headOff(id, abe.id, '2099-06-20T23:55');
+		comeBack(id, abe.id);
+		headOff(id, abe.id, '2099-06-20T23:58');
+		headOff(id, abe.id, '2099-06-20T23:59');
 		expect(offNotes(host.id)).toHaveLength(1);
-		expect(offOf(id, abe.id)).toBe('2099-06-20T23:45');
-		expect(exportData(abe.id).heading_off).toMatchObject([{ event_id: id, at: '2099-06-20T23:45' }]);
+		expect(offOf(id, abe.id)).toBe('2099-06-20T23:58');
+		expect(exportData(abe.id).heading_off).toMatchObject([{ event_id: id, at: '2099-06-20T23:58' }]);
+	});
+
+	it('tells a buddy paired after you left when you head off again, and closes a day after the start', () => {
+		const { id, host, people } = night('Abe');
+		const [abe] = people;
+		headOff(id, abe.id, '2099-06-20T23:00');
+		expect(offNotes(host.id)).toEqual([]);
+		pairUp(id, host.id);
+		comeBack(id, abe.id);
+		headOff(id, abe.id, '2099-06-20T23:10');
+		expect(offNotes(host.id)).toHaveLength(1);
+		expect(() => headOff(id, host.id, '2099-06-21T21:00')).toThrow('long over');
+		headOff(id, host.id, '2099-06-21T20:59');
+		expect(() => comeBack(id, user('Stranger').id)).toThrow('not invited');
+	});
+
+	it('lists people still out first, then headed off, then home, and has nobody to buy a round when all have gone', () => {
+		const { id, host, people } = night('Ann', 'Abe', 'Cat');
+		const [ann, abe, cat] = people;
+		headOff(id, ann.id, '2099-06-20T23:00');
+		checkInHomeSafe(id, abe.id, '2099-06-20T23:30');
+		expect(listCheckIns(id).map((c) => c.name)).toEqual(['Cat', 'Host', 'Ann', 'Abe']);
+		headOff(id, host.id, '2099-06-20T23:40');
+		expect(nextRound(id)).toBe('Cat');
+		headOff(id, cat.id, '2099-06-20T23:50');
+		expect(nextRound(id)).toBeUndefined();
 	});
 
 	it('passes over people home safe, and doesn’t let them head off again', () => {
