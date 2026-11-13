@@ -16,6 +16,7 @@
 	const going = $derived(data.homePlans.some((p) => p.user_id === me));
 	const suspects = $derived(data.homePlans.filter((p) => p.user_id !== me));
 	const pr = $derived(data.predictions);
+	const bingo = $derived(data.bingo);
 	let preview = $state<string | null>(null);
 	const moveTime = (utc: string) =>
 		new Date(utc.replace(' ', 'T') + 'Z').toLocaleTimeString('en-GB', { hour: 'numeric', minute: '2-digit' });
@@ -104,6 +105,41 @@
 			<p class="text-xs text-zinc-500">
 				Who’ll win each award? Picks stay hidden until the night starts ({formatWhen(data.event.starts_at!)}), then the award votes afterwards decide who called it.
 			</p>
+		{/if}
+	</section>
+
+	<section class="card space-y-3" id="bingo">
+		<div class="flex flex-wrap items-baseline justify-between gap-2">
+			<h2>Bingo</h2>
+			{#if bingo.players}<span class="text-xs text-zinc-500">{bingo.players} playing</span>{/if}
+		</div>
+		{#if bingo.winners.length}
+			<p class="border border-lime px-3 py-2.5 text-sm"><span class="badge text-lime">Bingo</span> {bingo.winners.join(', then ')}</p>
+		{/if}
+		{#if !bingo.going}
+			<p class="text-sm text-zinc-500">RSVP “going” to get a bingo card.</p>
+		{:else if !bingo.card}
+			<form method="POST" action="?/bingoCard" use:enhance>
+				<button class="btn w-full">Get a bingo card</button>
+			</form>
+			<p class="text-xs text-zinc-500">Nine things that happen on a night out. When one does, tap it and it fills in on everyone’s card. First full line wins.</p>
+		{:else}
+			<form method="POST" action="?/bingoMark" use:enhance class="grid grid-cols-3 border-t border-l border-zinc-200 {started ? '' : 'opacity-60'}">
+				{#each bingo.card as sq (sq.moment)}
+					<button name="moment" value={sq.moment} disabled={!started || (sq.marked && !sq.mine && !data.isHost)}
+						aria-pressed={sq.marked}
+						class="flex aspect-square flex-col items-center justify-center gap-1 border-r border-b border-zinc-200 p-1.5 text-center text-xs leading-tight font-bold disabled:cursor-default {sq.marked ? 'bg-lime text-ink' : 'hover:bg-zinc-100'}">
+						<span>{sq.label}</span>
+						{#if sq.by}<span class="text-[10px] font-semibold opacity-70">{sq.by}</span>{/if}
+					</button>
+				{/each}
+			</form>
+			<p class="text-xs text-zinc-500">
+				{started ? 'Tap a square when it happens; it fills in on everyone’s card. Tap again to undo one you marked.' : `Squares can be marked once the night starts${data.event.starts_at ? ` (${formatWhen(data.event.starts_at)})` : ''}.`}
+			</p>
+		{/if}
+		{#if bingo.called.length}
+			<p class="text-xs text-zinc-500">Happened so far: {bingo.called.map((c) => `${c.label} (${c.by})`).join(' · ')}</p>
 		{/if}
 	</section>
 
