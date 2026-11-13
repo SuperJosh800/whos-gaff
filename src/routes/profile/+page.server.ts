@@ -17,7 +17,9 @@ export const actions: Actions = {
 		const result = updateProfile(locals.user.id, {
 			name: String(form.get('name') ?? ''),
 			paymentLink: String(form.get('payment_link') ?? ''),
-			payday: String(form.get('payday') ?? '')
+			payday: String(form.get('payday') ?? ''),
+			// Left alone when the form doesn't have the birthday fields.
+			birthday: !form.has('birth_month') ? undefined : form.get('birth_month') || form.get('birth_day') ? `${form.get('birth_month')}-${form.get('birth_day') ?? ''}` : ''
 		});
 		if (result) return fail(400, { section: 'profile', error: result });
 		return { section: 'profile', saved: true };

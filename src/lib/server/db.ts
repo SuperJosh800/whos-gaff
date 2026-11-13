@@ -703,6 +703,16 @@ const migrations: string[] = [
 		user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
 		PRIMARY KEY (quote_id, user_id)
 	);
+	`,
+	// Birthdays as "MM-DD" (no year), and who's been told about whose birthday in which year.
+	`
+	ALTER TABLE users ADD COLUMN birthday TEXT;
+	CREATE TABLE birthday_told (
+		about_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		year INTEGER NOT NULL,
+		PRIMARY KEY (about_id, user_id, year)
+	);
 	`
 ];
 

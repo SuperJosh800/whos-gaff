@@ -6,6 +6,7 @@ import { purgeHelp } from '#lib/server/help.ts';
 import { fireDueDrops } from '#lib/server/photoDrops.ts';
 import { closeDueVotes } from '#lib/server/moveVotes.ts';
 import { nudgeHangovers } from '#lib/server/hangover.ts';
+import { remindBirthdays } from '#lib/server/birthdays.ts';
 
 // Clear out expired sessions and reset links, and week-old drink taps and Come get me requests, once an hour.
 const purge = () => {
@@ -17,9 +18,9 @@ purge();
 setInterval(purge, 60 * 60 * 1000).unref?.();
 
 // Make the next night for repeating events once they've started, and send the morning-after "How's the
-// head?" nudges. Checked every 10 minutes.
+// head?" nudges and birthday reminders. Checked every 10 minutes.
 const slow = () => {
-	for (const job of [makeRepeats, nudgeHangovers]) {
+	for (const job of [makeRepeats, nudgeHangovers, remindBirthdays]) {
 		try {
 			job();
 		} catch (e) {
