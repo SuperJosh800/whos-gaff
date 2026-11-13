@@ -165,9 +165,9 @@
 					<tr class="text-left text-[11px] tracking-widest text-zinc-500 uppercase">
 						<th class="w-8 pb-1.5 font-extrabold"><span class="sr-only">Place</span></th>
 						<th class="pb-1.5 font-extrabold">Who</th>
-						<th class="pb-1.5 text-right font-extrabold">Games</th>
-						<th class="pb-1.5 text-right font-extrabold">Missions</th>
-						<th class="pb-1.5 text-right font-extrabold">Points</th>
+						<th class="pb-1.5 pl-2 text-right font-extrabold">Games</th>
+						<th class="pb-1.5 pl-2 text-right font-extrabold">Missions</th>
+						<th class="pb-1.5 pl-2 text-right font-extrabold">Points</th>
 					</tr>
 				</thead>
 				<tbody>
@@ -175,18 +175,18 @@
 						{@const top = r.place === 1 && r.points > 0}
 						<tr class="border-t border-zinc-200 {top ? 'bg-lime text-ink' : ''}">
 							<td class="px-1 py-2.5 font-black tabular-nums {top ? '' : 'text-zinc-500'}">{r.place}</td>
-							<td class="min-w-0 py-2.5 pr-2"><span class="font-extrabold {r.id === me && !top ? 'text-lime' : ''}">{r.id === me ? 'You' : r.name}</span>
+							<td class="py-2.5 pr-2 break-all"><span class="font-extrabold {r.id === me && !top ? 'text-lime' : ''}">{r.id === me ? 'You' : r.name}</span>
 								<span class="block text-xs {top ? '' : 'text-zinc-500'}">{r.nights} {r.nights === 1 ? 'night' : 'nights'}</span></td>
-							<td class="py-2.5 text-right tabular-nums">{r.games}</td>
-							<td class="py-2.5 text-right tabular-nums">{r.missions}</td>
-							<td class="px-1 py-2.5 text-right text-lg font-black tabular-nums">{r.points}</td>
+							<td class="py-2.5 pl-2 text-right tabular-nums">{r.games}</td>
+							<td class="py-2.5 pl-2 text-right tabular-nums">{r.missions}</td>
+							<td class="py-2.5 pr-1 pl-2 text-right text-lg font-black tabular-nums">{r.points}</td>
 						</tr>
 					{/each}
 				</tbody>
 			</table>
-			<p class="text-xs text-zinc-500">Points from scored games and secret missions at the group’s nights in {data.season}. A mission scores its points when you do it, and 1 when you catch someone.</p>
+			<p class="text-xs text-zinc-500">Points from scored games and secret missions at the group’s nights in {data.season}. Night-tab missions score their points when you do them, and 1 when you catch someone.</p>
 		{:else}
-			<p class="text-sm text-zinc-500">No points yet in {data.season}. Play a scored game or take a secret mission at one of the group’s nights and the table starts here.</p>
+			<p class="text-sm text-zinc-500">No points yet in {data.season}. Play a scored game or take a Night-tab mission at one of the group’s nights and the table starts here.</p>
 		{/if}
 	</section>
 

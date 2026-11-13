@@ -197,13 +197,15 @@ export function getMissions(eventId: number, viewerId: number) {
 }
 
 /** Mission points: the mission's points for pulling it off, 1 for each person caught. */
+/** Mission points as rows of (user_id, event_id, points): the mission's points for doing it, 1 for catching someone. Season leaderboards use it too. */
+export const MISSION_POINTS = `SELECT user_id, event_id, points FROM missions WHERE status = 'done'
+	UNION ALL SELECT caught_by, event_id, 1 FROM missions WHERE status = 'caught' AND caught_by IS NOT NULL`;
+
 function missionScores(eventId: number) {
 	return db
 		.prepare(
-			`SELECT u.id, u.name, SUM(points) AS points FROM (
-				SELECT user_id AS id, points FROM missions WHERE event_id = ? AND status = 'done'
-				UNION ALL SELECT caught_by AS id, 1 FROM missions WHERE event_id = ? AND status = 'caught' AND caught_by IS NOT NULL
-			 ) s JOIN users u ON u.id = s.id GROUP BY u.id ORDER BY points DESC, u.name`
+			`SELECT u.id, u.name, SUM(s.points) AS points FROM (${MISSION_POINTS}) s JOIN users u ON u.id = s.user_id
+			 WHERE s.event_id = ? GROUP BY u.id ORDER BY points DESC, u.name`
 		)
-		.all(eventId, eventId) as { id: number; name: string; points: number }[];
+		.all(eventId) as { id: number; name: string; points: number }[];
 }

@@ -132,6 +132,14 @@ describe('groups', () => {
 		game(night('2099-12-31T22:00'), c, 5);
 		game(night('2100-01-01T00:00'), c, 50);
 		setRsvp(night('2099-05-01T20:00'), c.id, 'no');
+		// Nor are people not in the group: someone at a night who never joined, and someone who left.
+		const guest = user('Guest');
+		joinByToken(getEvent(march)!.invite_token, guest.id);
+		game(march, guest, 9);
+		const leaver = user('Leaver');
+		joinGroupByToken(getGroupToken(id), leaver.id);
+		game(march, leaver, 9);
+		db.prepare('DELETE FROM group_members WHERE group_id = ? AND user_id = ?').run(id, leaver.id);
 		const board = seasonLeaderboard(id, 2099, '2099-07-01T00:00');
 		expect(board.map((r) => [r.name, r.place, r.games, r.missions, r.points, r.nights])).toEqual([
 			['A', 1, 0, 3, 3, 3],
