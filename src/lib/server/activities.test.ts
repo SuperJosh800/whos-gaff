@@ -295,6 +295,66 @@ describe('games with their own moves', () => {
 		expect(getActivity(id, host.id)!.play!.up!.id).toBe(host.id);
 	});
 
+	it('Paranoia: a join or leave never hands the question to someone else', () => {
+		const { id, order } = table('paranoia', 2);
+		const [a, host, g] = order;
+		const question = (viewer: number) => {
+			const v = getActivity(id, viewer)!.play!;
+			return 'question' in v ? v.question : undefined;
+		};
+		const asked = question(a.id)!;
+		const late = user('Late');
+		joinByToken(getEvent(id)!.invite_token, late.id);
+		setRsvp(id, late.id, 'yes');
+		joinGame(id, late.id);
+		expect(question(a.id)).toBe(asked);
+		for (const p of [host, g, late]) expect(JSON.stringify(getActivity(id, p.id))).not.toContain(asked);
+		makeMove(id, a.id, getActivity(id, a.id)!.position, { type: 'answer', who: g.id });
+		leaveGame(id, a.id);
+		for (const p of [host, g, late]) expect(JSON.stringify(getActivity(id, p.id))).not.toContain(asked);
+		expect(getActivity(id, host.id)!.play).toMatchObject({ up: { id: host.id }, answer: null });
+	});
+
+	it('Paranoia: someone named leaving with a skip vote pending doesn’t lock the game', () => {
+		const { id, order } = table('paranoia', 3);
+		const [a, host, g1, g2] = order;
+		makeMove(id, a.id, 0, { type: 'answer', who: g2.id });
+		nextCard(id, host.id, 1); // a vote to skip g2, who then leaves
+		leaveGame(id, g2.id);
+		const v = getActivity(id, host.id)!;
+		expect(v.play).toMatchObject({ up: { id: host.id }, answer: null });
+		expect(v.votes.count).toBe(0);
+		// The game carries on, and anyone can still leave.
+		nextCard(id, g1.id, v.position);
+		leaveGame(id, g1.id);
+		expect(getActivity(id, a.id)!.players.map((p) => p.id)).toEqual([a.id, host.id]);
+	});
+
+	it('Higher or lower: a join doesn’t hand someone else the run, and the player up leaving passes the turn on', () => {
+		const { id, order } = table('higher-lower', 2);
+		const [a, host, g] = order;
+		// Play Ann's turn until she has a run going (or the turn passes, then try with whoever's up).
+		let up = a.id;
+		for (let i = 0; i < 20; i++) {
+			const v = getActivity(id, up)!.play!;
+			if ('streak' in v && v.streak > 0) break;
+			makeMove(id, up, getActivity(id, up)!.position, { type: 'guess', guess: 'higher' });
+			up = getActivity(id, up)!.play!.up!.id;
+		}
+		const before = getActivity(id, up)!.play!;
+		expect('streak' in before && before.streak).toBeGreaterThan(0);
+		const late = user('Late');
+		joinByToken(getEvent(id)!.invite_token, late.id);
+		setRsvp(id, late.id, 'yes');
+		joinGame(id, late.id);
+		expect(getActivity(id, late.id)!.play).toMatchObject({ up: { id: up }, streak: (before as { streak: number }).streak });
+		leaveGame(id, up);
+		const after = getActivity(id, late.id)!.play!;
+		expect(after).toMatchObject({ streak: 0 });
+		expect(after.up!.id).not.toBe(up);
+		expect([a.id, host.id, g.id, late.id]).toContain(after.up!.id);
+	});
+
 	it('starts fresh when the game is changed', () => {
 		const { id, order } = table('higher-lower');
 		const [a] = order;

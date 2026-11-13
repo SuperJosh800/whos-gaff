@@ -10,7 +10,7 @@ import { EventError, requireMember } from './events.ts';
 import { notify } from './notifications.ts';
 import { DEFAULT_COVER, fillNames, GAMES, namesNeeded, SOFT_NOTE, type Card } from '../activities.ts';
 import { customGameForEvent } from './customGames.ts';
-import { MoveError, newPlay, playMove, skip, viewPlay, type Kind, type Move, type Play } from '../turnGames.ts';
+import { MoveError, newPlay, playMove, settle, skip, viewPlay, type Kind, type Move, type Play } from '../turnGames.ts';
 
 /** What a running game needs, copied when it starts so later edits to a custom game can't break it. */
 type Meta = { name: string; emoji: string; rules: string; softRules: string; scored: boolean; custom: boolean; turns?: boolean; kind?: Kind };
@@ -278,7 +278,7 @@ export function openGame(eventId: number, userId: number, gameId: string, soft: 
 		const deck = shuffle(cards.length);
 		const started = existing?.started ?? 0;
 		const picks = started ? pickPeople(eventId, cards[deck[0]], null, meta.scored) : [];
-		const play = meta.kind ? JSON.stringify(newPlay(meta.kind, cards.length, shuffle)) : null;
+		const play = meta.kind ? JSON.stringify(newPlay(meta.kind, cards.length, shuffle, [])) : null;
 		db.prepare(
 			`INSERT INTO event_activity (event_id, game, meta, cards, deck, position, picks, reveal, soft, started, play, updated_at)
 			 VALUES (?, ?, ?, ?, ?, 0, ?, NULL, ?, 0, ?, datetime('now'))
@@ -287,6 +287,7 @@ export function openGame(eventId: number, userId: number, gameId: string, soft: 
 			 play = excluded.play, next_votes = '[]', updated_at = excluded.updated_at`
 		).run(eventId, gameId, JSON.stringify(meta), JSON.stringify(cards), JSON.stringify(deck), JSON.stringify(picks), soft ? 1 : 0, play);
 		db.prepare('INSERT OR IGNORE INTO game_players (event_id, user_id) VALUES (?, ?)').run(eventId, userId);
+		resettle(eventId);
 		return !existing;
 	});
 	if (isNew) {
@@ -309,9 +310,28 @@ function requirePlayer(eventId: number, userId: number) {
 
 export function joinGame(eventId: number, userId: number) {
 	requireMember(eventId, userId);
-	requireRow(eventId);
-	db.prepare('INSERT OR IGNORE INTO game_players (event_id, user_id) VALUES (?, ?)').run(eventId, userId);
+	tx(() => {
+		requireRow(eventId);
+		db.prepare('INSERT OR IGNORE INTO game_players (event_id, user_id) VALUES (?, ?)').run(eventId, userId);
+		resettle(eventId);
+	});
 	publish(eventId);
+}
+
+/**
+ * After people join or leave, keeps a game with moves pointing at someone still playing (see settle).
+ * A change of turn also counts as a new card, so taps and skip votes from before it are ignored.
+ */
+function resettle(eventId: number) {
+	const row = loadRow(eventId);
+	if (!row?.play) return;
+	const before = JSON.parse(row.play) as Play;
+	const after = settle(before, turnOrder(eventId), shuffle);
+	if (JSON.stringify(after) !== row.play) {
+		const moved = before.up !== null && (after.up !== before.up || (after.kind === 'paranoia' && before.kind === 'paranoia' && after.answer !== before.answer));
+		if (moved) savePlay(eventId, after);
+		else db.prepare('UPDATE event_activity SET play = ? WHERE event_id = ?').run(JSON.stringify(after), eventId);
+	}
 }
 
 /**
@@ -326,6 +346,9 @@ export function leaveGame(eventId: number, userId: number) {
 			db.prepare('DELETE FROM event_activity WHERE event_id = ?').run(eventId);
 			return;
 		}
+		// If they were up, the turn moves on and votes to skip them are cleared; otherwise fewer players
+		// may make the votes already in enough.
+		resettle(eventId);
 		const row = loadRow(eventId);
 		if (row?.started) countVotes(eventId, row, (JSON.parse(row.next_votes) as number[]).filter((id) => id !== userId));
 	});
@@ -380,7 +403,10 @@ function advance(eventId: number, row: Row, seen: number, reveal: Reveal | null)
 function countVotes(eventId: number, row: Row, votes: number[]) {
 	if (votes.length >= votesNeeded(eventId)) {
 		const meta = JSON.parse(row.meta) as Meta;
-		if (meta.kind && row.play) return savePlay(eventId, skip(JSON.parse(row.play) as Play, turnOrder(eventId), shuffle));
+		if (meta.kind && row.play) {
+			const players = turnOrder(eventId);
+			return savePlay(eventId, skip(settle(JSON.parse(row.play) as Play, players, shuffle), players, shuffle));
+		}
 		return meta.turns ? drawNext(eventId, row) : advance(eventId, row, row.position, null);
 	}
 	db.prepare('UPDATE event_activity SET next_votes = ? WHERE event_id = ?').run(JSON.stringify(votes), eventId);

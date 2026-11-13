@@ -120,7 +120,9 @@
 				</div>
 			{/if}
 		{:else if p.kind === 'paranoia'}
-			{#if !p.answer}
+			{#if p.alone}
+				<p class="border border-zinc-200 p-4 text-center text-zinc-600">Paranoia needs at least two players. Wait for someone to join.</p>
+			{:else if !p.answer}
 				{#if p.question}
 					<p class="border border-hot p-4 text-2xl leading-snug font-black">
 						<span class="block text-[11px] font-extrabold tracking-widest text-hot uppercase">Only you can see this</span>
@@ -136,7 +138,7 @@
 					<p class="border border-zinc-200 p-4 text-center text-zinc-600">{p.asker?.name ?? 'Someone'} is reading a secret question…</p>
 				{/if}
 			{:else if p.yours}
-				<p class="border border-lime p-4 text-xl leading-snug font-black">{p.asker?.name} answered a secret question with your name. Drink to find out what it was?</p>
+				<p class="border border-lime p-4 text-xl leading-snug font-black">{p.asker?.name} answered a secret question with your name. {a.soft ? 'Do a forfeit' : 'Drink'} to find out what it was?</p>
 				<div class="joined [&>form]:flex-1">
 					{@render move(a, { type: 'reveal', drink: 1 }, a.soft ? 'Forfeit and see' : 'Drink and see')}
 					{@render move(a, { type: 'reveal', drink: 0 }, 'Don’t want to know', 'btn-secondary')}
@@ -251,6 +253,7 @@
 			</form>
 		</div>
 		<div class="mx-auto flex w-full max-w-2xl flex-1 flex-col justify-center gap-6 px-4 py-6">
+			{#if form?.error}<p class="error" role="alert">{form.error}</p>{/if}
 			{#if a.play}
 				{@render play(a, a.play)}
 			{:else if a.turn}
