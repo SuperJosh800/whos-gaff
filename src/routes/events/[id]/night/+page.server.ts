@@ -16,6 +16,7 @@ import {
 	taxiShares
 } from '#lib/server/night.ts';
 import { eventInput } from '#lib/server/form.ts';
+import { canSeeAddress } from '#lib/server/gaff.ts';
 import { callOut, completeMission, getMissions, swapMission, takeMission } from '#lib/server/missions.ts';
 import { nowLocal } from '#lib/time.ts';
 import { AWARDS, getPredictions, savePredictions } from '#lib/server/after.ts';
@@ -26,7 +27,9 @@ import type { Actions, PageServerLoad } from './$types';
 export const load: PageServerLoad = async ({ params, parent, locals }) => {
 	const { address } = await parent();
 	const event = getEvent(Number(params.id))!;
-	const homePlans = listHomePlans(event.id);
+	// Where people are heading home could give away the gaff, so like the address it's only for people going.
+	const going = canSeeAddress(event, locals.user!.id);
+	const homePlans = listHomePlans(event.id).map((p) => (going ? p : { ...p, area: null, details: null }));
 	return {
 		stages: listStages(event.id),
 		nextStageAt: nextStageTime(event.id),

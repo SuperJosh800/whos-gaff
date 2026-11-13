@@ -327,8 +327,8 @@
 				<ul class="divide-y divide-zinc-200 border border-zinc-200">
 					{#each shares as g (g.area)}
 						{@const mine = g.people.some((p) => p.user_id === me)}
-						<li class="grid grid-cols-[6rem_1fr] text-sm">
-							<span class="border-r border-zinc-200 px-3 py-2.5 font-extrabold break-words uppercase {mine ? 'bg-lime text-ink' : ''}">{g.area}</span>
+						<li class="grid grid-cols-[minmax(6rem,45%)_1fr] text-sm">
+							<span class="border-r border-zinc-200 px-3 py-2.5 font-extrabold break-words {mine ? 'bg-lime text-ink' : ''}">{g.area}</span>
 							<p class="min-w-0 px-3 py-2.5 break-words">{(mine ? ['You', ...g.people.filter((p) => p.user_id !== me).map((p) => p.name)] : g.people.map((p) => p.name)).join(', ')}
 								<span class="block text-xs text-zinc-500">{g.people.length} heading the same way</span></p>
 						</li>

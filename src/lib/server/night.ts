@@ -4,6 +4,7 @@ import { buddiesOf } from './buddies.ts';
 import { notify } from './notifications.ts';
 import { EventError, requireHost, requireMember } from './events.ts';
 import { attempt } from './ratelimit.ts';
+import { canSeeAddress } from './gaff.ts';
 import { isLocalDateTime, nowLocal, shiftLocal } from '../time.ts';
 
 // ---- Pres → pub → club timeline (WG-19) ----
@@ -126,7 +127,7 @@ export type TaxiShare = { area: string; people: { user_id: number; name: string 
 export function taxiShares(plans: HomePlanRow[]) {
 	const groups = new Map<string, TaxiShare>();
 	for (const p of plans) {
-		const key = p.kind && p.area ? areaKey(p.area) : '';
+		const key = areaKey(p.area ?? '');
 		if (!key) continue;
 		const group = groups.get(key) ?? { area: p.area!, people: [] };
 		group.people.push({ user_id: p.user_id, name: p.name });
@@ -137,26 +138,29 @@ export function taxiShares(plans: HomePlanRow[]) {
 
 export function setHomePlan(eventId: number, userId: number, kind: string, details: string, area = '') {
 	const event = requireMember(eventId, userId);
+	// Plans are only shown to people going, so only they can add one.
+	if (!canSeeAddress(event, userId)) throw new EventError('RSVP “going” to add your plan.');
 	if (!(kind in HOME_KINDS)) throw new EventError('Choose how you’re getting home.');
-	area = area.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '').slice(0, 60);
-	const before = db.prepare('SELECT area FROM home_plans WHERE event_id = ? AND user_id = ?').get(eventId, userId) as
-		| { area: string }
-		| undefined;
+	area = area.trim().slice(0, 60).replace(/[.,;:!?\s]+$/, '');
 	db.prepare(
 		`INSERT INTO home_plans (event_id, user_id, kind, details, area) VALUES (?, ?, ?, ?, ?)
 		 ON CONFLICT (event_id, user_id) DO UPDATE SET kind = excluded.kind, details = excluded.details, area = excluded.area`
 	).run(eventId, userId, kind, details.trim().slice(0, 200), area);
-	// Only a change of area tells the people already heading that way; re-saving the same plan stays quiet,
-	// and flipping between areas tells them at most 3 times an hour (the plan still saves).
+	// Tells the people going who are already heading that way. Each person hears about someone heading
+	// their way once per area (re-saving stays quiet), and gets at most 3 of these an hour.
 	const key = areaKey(area);
-	if (key && key !== areaKey(before?.area ?? '') && attempt(`taxi:${eventId}:${userId}`, 3, 3_600_000).ok) {
+	if (key) {
 		const plans = listHomePlans(eventId);
-		const me = plans.find((p) => p.user_id === userId);
-		if (me) {
-			for (const p of plans) {
-				if (p.user_id !== userId && p.kind && areaKey(p.area ?? '') === key)
-					notify(p.user_id, eventId, `${me.name} is heading to ${p.area} too. Share a taxi? (${event.title})`, '/night');
-			}
+		const me = plans.find((p) => p.user_id === userId)!;
+		for (const p of plans) {
+			if (p.user_id === userId || areaKey(p.area ?? '') !== key) continue;
+			const told = db.prepare('SELECT 1 FROM taxi_told WHERE event_id = ? AND user_id = ? AND about_id = ? AND area_key = ?').get(eventId, p.user_id, userId, key);
+			if (told || !attempt(`taxi:${eventId}:${p.user_id}`, 3, 3_600_000).ok) continue;
+			// Both ways: whoever just picked the area already sees the other person in the group.
+			const tell = db.prepare('INSERT OR IGNORE INTO taxi_told (event_id, user_id, about_id, area_key) VALUES (?, ?, ?, ?)');
+			tell.run(eventId, p.user_id, userId, key);
+			tell.run(eventId, userId, p.user_id, key);
+			notify(p.user_id, eventId, `${me.name} is heading to ${p.area} too. Share a taxi or go together? (${event.title})`, '/night');
 		}
 	}
 	publish(eventId);
