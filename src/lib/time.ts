@@ -28,6 +28,13 @@ export function isLocalDateTime(value: string) {
 // Parse as UTC and format as UTC so the wall-clock time is shown unchanged.
 const asUtc = (local: string) => new Date(local + ':00Z');
 
+/** The moment a UK wall-clock time happens, in ms since 1970, allowing for BST. */
+export function localToMs(local: string) {
+	const guess = asUtc(local).getTime();
+	// How far UK time is ahead of UTC then (0 or 1 hour).
+	return guess - (asUtc(nowLocal(new Date(guess))).getTime() - guess);
+}
+
 /** Moves a wall-clock time by whole minutes, across midnight and month ends. */
 export function shiftLocal(local: string, minutes: number) {
 	return new Date(asUtc(local).getTime() + minutes * 60_000).toISOString().slice(0, 16);
