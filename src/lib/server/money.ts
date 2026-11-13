@@ -20,7 +20,7 @@ export function goingPeople(eventId: number) {
 
 // ---- Designated drivers ----
 
-/** People going who are driving tonight. Someone who stops going drops off without being unmarked. */
+/** People going who are driving tonight. */
 export function listDrivers(eventId: number) {
 	const marked = new Set(
 		(db.prepare('SELECT user_id FROM drivers WHERE event_id = ?').all(eventId) as { user_id: number }[]).map((r) => r.user_id)
@@ -28,14 +28,15 @@ export function listDrivers(eventId: number) {
 	return goingPeople(eventId).filter((p) => marked.has(p.id));
 }
 
-/** Says whether you're driving tonight. Only people going can be the driver. */
-export function setDriving(eventId: number, userId: number, driving: boolean) {
-	requireMember(eventId, userId);
+/** Says whether someone's driving tonight: yourself, or anyone if you're the host. Only people going can drive. */
+export function setDriving(eventId: number, userId: number, who: number, driving: boolean) {
+	const event = requireMember(eventId, userId);
+	if (who !== userId && event.host_id !== userId) throw new EventError('Only the host can say who else is driving.');
 	if (driving) {
-		if (!goingPeople(eventId).some((p) => p.id === userId)) throw new EventError('RSVP “going” first.');
-		db.prepare('INSERT OR IGNORE INTO drivers (event_id, user_id) VALUES (?, ?)').run(eventId, userId);
+		if (!goingPeople(eventId).some((p) => p.id === who)) throw new EventError(who === userId ? 'RSVP “going” first.' : 'They’re not going.');
+		db.prepare('INSERT OR IGNORE INTO drivers (event_id, user_id) VALUES (?, ?)').run(eventId, who);
 	} else {
-		db.prepare('DELETE FROM drivers WHERE event_id = ? AND user_id = ?').run(eventId, userId);
+		db.prepare('DELETE FROM drivers WHERE event_id = ? AND user_id = ?').run(eventId, who);
 	}
 	publish(eventId);
 }

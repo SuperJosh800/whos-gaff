@@ -16,7 +16,21 @@
 <div class="space-y-5">
 	<section class="card space-y-4">
 		<h2>Rounds</h2>
-		{#if amGoing || data.drivers.length}
+		{#if data.isHost && data.going.length}
+			<div class="space-y-2">
+				<p class="label !mb-0">Driving tonight</p>
+				<div class="flex flex-wrap gap-2">
+					{#each data.going as p (p.id)}
+						{@const on = data.drivers.some((d) => d.id === p.id)}
+						<form method="POST" action="?/driving" use:enhance>
+							<input type="hidden" name="who" value={p.id} />
+							<input type="hidden" name="driving" value={on ? '0' : '1'} />
+							<button class="border px-3 py-1.5 text-xs font-extrabold tracking-widest uppercase {on ? 'border-lime bg-lime text-ink' : 'border-zinc-300 hover:bg-zinc-100'}" aria-pressed={on}>{p.id === me ? 'You' : p.name}</button>
+						</form>
+					{/each}
+				</div>
+			</div>
+		{:else if amGoing || data.drivers.length}
 			<div class="grid grid-cols-[1fr_auto] items-center border border-zinc-200">
 				<p class="min-w-0 px-3 py-2.5 text-sm">
 					<span class="block text-[11px] font-extrabold tracking-widest text-zinc-500 uppercase">Driving tonight</span>
@@ -24,13 +38,14 @@
 				</p>
 				{#if amGoing}
 					<form method="POST" action="?/driving" use:enhance class="self-stretch">
+						<input type="hidden" name="who" value={me} />
 						<input type="hidden" name="driving" value={amDriving ? '0' : '1'} />
 						<button class="h-full border-l border-zinc-200 px-3 text-[11px] font-extrabold tracking-widest uppercase {amDriving ? 'bg-lime text-ink' : 'hover:bg-zinc-100'}" aria-pressed={amDriving}>I’m driving</button>
 					</form>
 				{/if}
 			</div>
-			{#if data.drivers.length}<p class="text-xs text-zinc-500">Drivers are skipped when it’s their turn for a round.</p>{/if}
 		{/if}
+		{#if data.drivers.length}<p class="text-xs text-zinc-500">Drivers are passed over when it’s their turn for a round.</p>{/if}
 		{#each data.rounds as round, i (round.id ?? 'main')}
 			{@const next = round.next}
 			{@const mine = round.tally.some((t) => t.id === me)}
@@ -48,25 +63,27 @@
 				{/if}
 				{#if round.id === null && round.tally.length < 2 && data.rounds.length > 1}
 					<p class="text-sm text-zinc-500">Just {round.tally[0].id === me ? 'you' : round.tally[0].name} left in the main round.</p>
-				{:else if !next && round.tally.length}
-					<p class="text-sm text-zinc-500">Everyone in this round is driving, so there’s nobody to buy.</p>
-				{:else if next}
-					<div class="border border-zinc-200">
-						<p class="px-3 py-3"><span class="block text-[11px] font-extrabold tracking-widest text-zinc-500 uppercase">Next round</span>
-							<span class="text-2xl font-black uppercase {next.id === me ? 'text-hot' : 'text-lime'}">{next.id === me ? 'You' : next.name}</span></p>
-						<form method="POST" action="?/round" use:enhance class="strip border-0 border-t">
-							<button name="skipped" value="0">Got it in</button>
-							<button name="skipped" value="1">Skipped it</button>
-							<input type="hidden" name="for" value={next.id} />
-							<input type="hidden" name="group" value={round.id ?? ''} />
-						</form>
-					</div>
+				{:else}
+					{#if next}
+						<div class="border border-zinc-200">
+							<p class="px-3 py-3"><span class="block text-[11px] font-extrabold tracking-widest text-zinc-500 uppercase">Next round</span>
+								<span class="text-2xl font-black uppercase {next.id === me ? 'text-hot' : 'text-lime'}">{next.id === me ? 'You' : next.name}</span></p>
+							<form method="POST" action="?/round" use:enhance class="strip border-0 border-t">
+								<button name="skipped" value="0">Got it in</button>
+								<button name="skipped" value="1">Skipped it</button>
+								<input type="hidden" name="for" value={next.id} />
+								<input type="hidden" name="group" value={round.id ?? ''} />
+							</form>
+						</div>
+					{:else}
+						<p class="text-sm text-zinc-500">Everyone in this round is driving, so there’s nobody to buy.</p>
+					{/if}
 					<table class="w-full text-sm">
 						<thead><tr class="text-left text-[11px] tracking-widest text-zinc-500 uppercase"><th class="py-1 font-extrabold">Who</th><th class="font-extrabold">Bought</th><th class="font-extrabold">Skipped</th></tr></thead>
 						<tbody>
 							{#each round.tally as t (t.id)}
 								<tr class="border-t border-zinc-200">
-									<td class="py-1.5 {t.id === next.id ? 'font-extrabold text-lime' : ''}">{t.name}{t.id === next.id ? ' (next)' : ''}{#if t.driving}<span class="ml-1 text-zinc-500">(driving)</span>{/if}</td>
+									<td class="py-1.5 {t.id === next?.id ? 'font-extrabold text-lime' : ''}">{t.name}{t.id === next?.id ? ' (next)' : ''}{#if t.driving}<span class="text-zinc-500">{' (driving)'}</span>{/if}</td>
 									<td>{t.bought}</td>
 									<td class={t.skipped ? 'font-bold text-red-700' : ''}>{t.skipped}</td>
 								</tr>

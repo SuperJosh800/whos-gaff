@@ -28,7 +28,7 @@ export const actions: Actions = {
 	},
 	driving: async (e) => {
 		const { userId, eventId, get } = await eventInput(e);
-		return asAction(() => setDriving(eventId, userId, get('driving') === '1'));
+		return asAction(() => setDriving(eventId, userId, Number(get('who')), get('driving') === '1'));
 	},
 	roundGroup: async (e) => {
 		const { userId, eventId, get, form } = await eventInput(e);

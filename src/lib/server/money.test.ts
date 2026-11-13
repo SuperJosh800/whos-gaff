@@ -8,12 +8,12 @@ import {
 	getRounds,
 	leaveRoundGroup,
 	listDrivers,
-	setDriving,
 	parsePounds,
 	payLink,
 	recordRound,
 	recordSettlement,
 	saveRoundGroup,
+	setDriving,
 	settleUp
 } from './money.ts';
 import { homeSafeCutoff } from './night.ts';
@@ -134,35 +134,65 @@ describe('designated drivers', () => {
 		const maybe = user('Maybe');
 		joinByToken(getEvent(id)!.invite_token, maybe.id);
 		setRsvp(id, maybe.id, 'maybe');
-		expect(() => setDriving(id, maybe.id, true)).toThrow('RSVP “going”');
+		expect(() => setDriving(id, maybe.id, maybe.id, true)).toThrow('RSVP “going”');
 		// Order is Host, A, B. Host buys, then A is next, but A is driving, so it's B.
 		recordRound(id, host.id, null, host.id, false);
-		setDriving(id, a.id, true);
-		setDriving(id, a.id, true); // a double tap changes nothing
+		setDriving(id, a.id, a.id, true);
+		setDriving(id, a.id, a.id, true); // a double tap changes nothing
 		expect(listDrivers(id).map((d) => d.name)).toEqual(['A']);
 		expect(next(id)).toBe('B');
 		expect(() => recordRound(id, host.id, null, a.id, false)).toThrow('Someone already updated');
 		recordRound(id, host.id, null, b.id, false);
 		expect(next(id)).toBe('Host');
 		expect(getRounds(id)[0].tally.find((t) => t.name === 'A')).toMatchObject({ driving: true, bought: 0 });
-		setDriving(id, a.id, false);
+		setDriving(id, a.id, a.id, false);
 		recordRound(id, host.id, null, host.id, false);
 		expect(next(id)).toBe('A');
 	});
 
-	it('drops a driver who stops going, and has nobody to buy when everyone in a round drives', () => {
+	it('passes over drivers next to each other, and carries on after a buyer who then starts driving', () => {
 		const { id, host, a, b } = night();
-		setDriving(id, b.id, true);
+		const c = user('C');
+		joinByToken(getEvent(id)!.invite_token, c.id);
+		setRsvp(id, c.id, 'yes');
+		// Order is Host, A, B, C.
+		recordRound(id, host.id, null, host.id, false);
+		recordRound(id, host.id, null, a.id, false);
+		setDriving(id, a.id, a.id, true); // the last buyer starts driving: B is still next
+		expect(next(id)).toBe('B');
+		setDriving(id, b.id, b.id, true); // two drivers in a row: straight to C
+		expect(next(id)).toBe('C');
+		recordRound(id, host.id, null, c.id, false);
+		expect(next(id)).toBe('Host');
+		recordRound(id, host.id, null, host.id, false);
+		expect(next(id)).toBe('C');
+	});
+
+	it('the host can say who else is driving; nobody else can', () => {
+		const { id, host, a, b } = night();
+		expect(() => setDriving(id, a.id, b.id, true)).toThrow('Only the host');
+		setDriving(id, host.id, b.id, true);
+		expect(listDrivers(id).map((d) => d.name)).toEqual(['B']);
+		const out = user('Out');
+		joinByToken(getEvent(id)!.invite_token, out.id);
+		expect(() => setDriving(id, host.id, out.id, true)).toThrow('not going');
+		setDriving(id, host.id, b.id, false);
+		expect(listDrivers(id)).toEqual([]);
+	});
+
+	it('stops being a driver after saying they’re not going, and has nobody to buy when everyone drives', () => {
+		const { id, host, a, b } = night();
+		setDriving(id, b.id, b.id, true);
 		setRsvp(id, b.id, 'no');
 		expect(listDrivers(id)).toEqual([]);
 		setRsvp(id, b.id, 'yes');
-		expect(listDrivers(id).map((d) => d.name)).toEqual(['B']); // back with their answer
+		expect(listDrivers(id)).toEqual([]); // they say so again if they're still driving
+		setDriving(id, b.id, b.id, true);
 		saveRoundGroup(id, a.id, null, [a.id, b.id]);
-		setDriving(id, a.id, true);
+		setDriving(id, a.id, a.id, true);
 		const small = getRounds(id).find((r) => r.id !== null)!;
 		expect(small.next).toBeNull();
 		expect(getRounds(id)[0].next?.name).toBe('Host');
 		expect(() => recordRound(id, host.id, small.id, a.id, false)).toThrow('Someone already updated');
 	});
 });
-
