@@ -2,6 +2,7 @@
 import { db, tx } from './db.ts';
 import { nowLocal } from '../time.ts';
 import { removePhotoFiles } from './after.ts';
+import { fillSpots } from './events.ts';
 
 /** Every table that holds rows about a person, and the column that names them. */
 const PERSONAL: [table: string, column: string][] = [
@@ -45,7 +46,8 @@ const PERSONAL: [table: string, column: string][] = [
 	['theme_options', 'suggested_by'],
 	['theme_votes', 'user_id'],
 	['venue_options', 'suggested_by'],
-	['venue_votes', 'user_id']
+	['venue_votes', 'user_id'],
+	['waitlist', 'user_id']
 ];
 
 /** Everything stored about a user, as plain data for a JSON download. Passwords and session tokens are left out. */
@@ -86,6 +88,10 @@ export function exportData(userId: number) {
  */
 export function deleteAccount(userId: number) {
 	const photos: string[] = [];
+	// Nights they were going to (or hosting) may have a spot to give to the waitlist afterwards.
+	const spots = db
+		.prepare(`SELECT event_id FROM rsvps WHERE user_id = ? AND response = 'yes' UNION SELECT id FROM events WHERE host_id = ?`)
+		.all(userId, userId) as { event_id: number }[];
 	tx(() => {
 		const hosted = db.prepare('SELECT id FROM events WHERE host_id = ?').all(userId) as { id: number }[];
 		for (const { id } of hosted) {
@@ -99,6 +105,8 @@ export function deleteAccount(userId: number) {
 				// The gaff profile belongs to the old host and is deleted with them, so detach it.
 				// The repeat stops too: the new host didn't set it up, and may not be in the group it invites.
 				db.prepare('UPDATE events SET host_id = ?, gaff_id = NULL, repeat_days = NULL WHERE id = ?').run(heir.user_id, id);
+				// Hosts always count as going, so the new one can't also be queuing for a spot.
+				db.prepare('DELETE FROM waitlist WHERE event_id = ? AND user_id = ?').run(id, heir.user_id);
 			} else {
 				photos.push(...(db.prepare('SELECT filename FROM event_photos WHERE event_id = ?').all(id) as { filename: string }[]).map((p) => p.filename));
 				db.prepare('DELETE FROM events WHERE id = ?').run(id);
@@ -110,7 +118,7 @@ export function deleteAccount(userId: number) {
 			'sessions', 'password_resets', 'push_subscriptions', 'event_members', 'rsvps', 'votes', 'messages', 'notifications',
 			'moves', 'home_plans', 'home_safe', 'group_members', 'free_gaffs', 'pings', 'ping_answers',
 			'event_photos', 'challenge_results', 'game_players', 'round_group_members',
-			'missions', 'bingo_cards', 'buddies', 'ticket_holders', 'theme_votes', 'venue_votes'
+			'missions', 'bingo_cards', 'buddies', 'ticket_holders', 'theme_votes', 'venue_votes', 'waitlist'
 		]) {
 			db.prepare(`DELETE FROM ${table} WHERE user_id = ?`).run(userId);
 		}
@@ -132,4 +140,5 @@ export function deleteAccount(userId: number) {
 		).run(`deleted-${userId}@deleted.invalid`, userId);
 	});
 	removePhotoFiles(photos);
+	for (const { event_id } of spots) fillSpots(event_id);
 }

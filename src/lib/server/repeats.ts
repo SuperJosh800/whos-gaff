@@ -61,8 +61,8 @@ function repeat(event: Event, now: string) {
 		const { lastInsertRowid } = db
 			.prepare(
 				`INSERT INTO events (host_id, title, details, location, mode, starts_at, invite_token, gaff_id, group_id, playlist_url,
-					repeat_days, repeated_from)
-				 SELECT host_id, title, details, location, 'fixed', ?, ?, gaff_id, group_id, playlist_url, ?, id FROM events WHERE id = ?`
+					guest_limit, repeat_days, repeated_from)
+				 SELECT host_id, title, details, location, 'fixed', ?, ?, gaff_id, group_id, playlist_url, guest_limit, ?, id FROM events WHERE id = ?`
 			)
 			.run(next, randomBytes(12).toString('base64url'), event.repeat_days, event.id);
 		const id = Number(lastInsertRowid);

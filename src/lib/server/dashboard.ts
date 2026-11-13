@@ -9,7 +9,9 @@ type Row = Event & {
 	going: number;
 	maybe: number;
 	not_going: number;
+	waiting: number;
 	my_rsvp: Rsvp | null;
+	waitlisted: number;
 	voters: number;
 	i_voted: number;
 };
@@ -27,8 +29,12 @@ export function listDashboardEvents(userId: number, now = nowLocal()) {
 			`SELECT e.*, (e.host_id = $u) AS is_host, h.name AS host_name,
 				(SELECT COUNT(*) FROM event_members m2 WHERE m2.event_id = e.id) AS invited,
 				(SELECT COUNT(*) FROM rsvps r WHERE r.event_id = e.id AND r.response = 'yes') AS going,
-				(SELECT COUNT(*) FROM rsvps r WHERE r.event_id = e.id AND r.response = 'maybe') AS maybe,
-				(SELECT COUNT(*) FROM rsvps r WHERE r.event_id = e.id AND r.response = 'no') AS not_going,
+				(SELECT COUNT(*) FROM rsvps r WHERE r.event_id = e.id AND r.response = 'maybe'
+					AND NOT EXISTS (SELECT 1 FROM waitlist w WHERE w.event_id = e.id AND w.user_id = r.user_id)) AS maybe,
+				(SELECT COUNT(*) FROM rsvps r WHERE r.event_id = e.id AND r.response = 'no'
+					AND NOT EXISTS (SELECT 1 FROM waitlist w WHERE w.event_id = e.id AND w.user_id = r.user_id)) AS not_going,
+				(SELECT COUNT(*) FROM waitlist w WHERE w.event_id = e.id) AS waiting,
+				EXISTS (SELECT 1 FROM waitlist w WHERE w.event_id = e.id AND w.user_id = $u) AS waitlisted,
 				(SELECT response FROM rsvps r WHERE r.event_id = e.id AND r.user_id = $u) AS my_rsvp,
 				(SELECT COUNT(DISTINCT v.user_id) FROM votes v JOIN date_options o ON o.id = v.option_id
 					WHERE o.event_id = e.id) AS voters,
@@ -53,7 +59,7 @@ export function listDashboardEvents(userId: number, now = nowLocal()) {
 		const todo =
 			status === 'voting' && !e.i_voted
 				? 'vote'
-				: status === 'locked' && !e.my_rsvp
+				: status === 'locked' && !e.my_rsvp && !e.waitlisted
 					? 'rsvp'
 					: status === 'voting-closed' && e.is_host
 						? 'pick'
