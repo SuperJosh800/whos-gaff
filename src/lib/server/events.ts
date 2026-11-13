@@ -31,6 +31,8 @@ export type Event = {
 	venue: string;
 	venue_link: string;
 	venue_told: string;
+	/** The most people going, host included, or null for no limit. Past it, people join the waitlist. */
+	guest_limit: number | null;
 };
 
 export type DateOption = {
@@ -344,15 +346,85 @@ export async function pickWinner(eventId: number, hostId: number, optionId: numb
 
 // ---- RSVPs ----
 
-export function setRsvp(eventId: number, userId: number, response: Rsvp) {
-	const event = requireMember(eventId, userId);
-	if (!event.starts_at) throw new EventError('RSVPs open once the date is set.');
-	if (!['yes', 'no', 'maybe'].includes(response)) throw new EventError('Choose yes, no or maybe.');
+const upsertRsvp = (eventId: number, userId: number, response: Rsvp) =>
 	db.prepare(
 		`INSERT INTO rsvps (event_id, user_id, response) VALUES (?, ?, ?)
 		 ON CONFLICT (event_id, user_id) DO UPDATE SET response = excluded.response, updated_at = datetime('now')`
 	).run(eventId, userId, response);
+
+/** How many are going: the host plus everyone who said yes. */
+function goingCount(eventId: number) {
+	return (
+		db
+			.prepare(
+				`SELECT COUNT(*) AS n FROM event_members m JOIN events e ON e.id = m.event_id
+				 LEFT JOIN rsvps r ON r.event_id = m.event_id AND r.user_id = m.user_id
+				 WHERE m.event_id = ? AND (r.response = 'yes' OR m.user_id = e.host_id)`
+			)
+			.get(eventId) as { n: number }
+	).n;
+}
+
+/**
+ * Sets someone's RSVP. Saying yes when the guest limit is reached puts them on the waitlist instead
+ * (returns 'waitlisted'); any other answer takes them off it. A spot someone gives up goes to the waitlist.
+ */
+export function setRsvp(eventId: number, userId: number, response: Rsvp) {
+	const event = requireMember(eventId, userId);
+	if (!event.starts_at) throw new EventError('RSVPs open once the date is set.');
+	if (!['yes', 'no', 'maybe'].includes(response)) throw new EventError('Choose yes, no or maybe.');
+	const result = tx(() => {
+		const current = (db.prepare('SELECT response FROM rsvps WHERE event_id = ? AND user_id = ?').get(eventId, userId) as { response: Rsvp } | undefined)?.response;
+		const full = event.guest_limit !== null && goingCount(eventId) >= event.guest_limit;
+		if (response === 'yes' && current !== 'yes' && userId !== event.host_id && full) {
+			db.prepare('INSERT OR IGNORE INTO waitlist (event_id, user_id) VALUES (?, ?)').run(eventId, userId);
+			return 'waitlisted' as const;
+		}
+		db.prepare('DELETE FROM waitlist WHERE event_id = ? AND user_id = ?').run(eventId, userId);
+		upsertRsvp(eventId, userId, response);
+		return 'set' as const;
+	});
+	fillSpots(eventId);
 	publish(eventId);
+	return result;
+}
+
+/** The host caps how many can go (host included), or lifts the cap with null. Raising it lets people in off the waitlist. */
+export function setGuestLimit(eventId: number, hostId: number, limit: number | null) {
+	requireHost(eventId, hostId);
+	if (limit !== null && (!Number.isInteger(limit) || limit < 2 || limit > 500)) {
+		throw new EventError('The guest limit has to be between 2 and 500, counting you.');
+	}
+	db.prepare('UPDATE events SET guest_limit = ? WHERE id = ?').run(limit, eventId);
+	fillSpots(eventId);
+	publish(eventId);
+}
+
+/** Moves people off the waitlist, first come first served, while there's room. Returns who got in. */
+export function fillSpots(eventId: number) {
+	const promoted = tx(() => {
+		const event = getEvent(eventId);
+		if (!event) return null;
+		const queue = db.prepare('SELECT user_id FROM waitlist WHERE event_id = ? ORDER BY id').all(eventId) as { user_id: number }[];
+		const room = event.guest_limit === null ? queue.length : Math.max(0, event.guest_limit - goingCount(eventId));
+		const lucky = queue.slice(0, room).map((q) => q.user_id);
+		for (const id of lucky) {
+			db.prepare('DELETE FROM waitlist WHERE event_id = ? AND user_id = ?').run(eventId, id);
+			upsertRsvp(eventId, id, 'yes');
+		}
+		return lucky.length ? { title: event.title, lucky } : null;
+	});
+	if (!promoted) return [];
+	for (const id of promoted.lucky) notify(id, eventId, `A spot opened up at ${promoted.title}. You’re going!`);
+	publish(eventId);
+	return promoted.lucky;
+}
+
+/** Who's waiting for a spot, in order. */
+export function listWaitlist(eventId: number) {
+	return db
+		.prepare('SELECT u.id, u.name FROM waitlist w JOIN users u ON u.id = w.user_id WHERE w.event_id = ? ORDER BY w.id')
+		.all(eventId) as { id: number; name: string }[];
 }
 
 export type Attendee = { id: number; name: string; response: Rsvp | null; is_host: number };

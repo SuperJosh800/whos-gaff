@@ -19,6 +19,11 @@
 				<a class="font-semibold text-hot underline underline-offset-4" href="/gaffs">Manage gaff profiles</a>
 			</p>
 		</div>
+		<div>
+			<label class="label" for="guest_limit">Guest limit</label>
+			<input class="input max-w-32" id="guest_limit" name="guest_limit" type="number" min="2" max="500" inputmode="numeric" placeholder="No limit" value={data.event.guest_limit ?? ''} />
+			<p class="mt-1 text-xs text-zinc-500">The most people going, counting you. Once it’s full, anyone else who says they’re going joins a waitlist and gets the next spot that opens up.</p>
+		</div>
 		{#if data.repeatedInto}
 			<div>
 				<span class="label">Repeats</span>

@@ -457,6 +457,16 @@ const migrations: string[] = [
 	ALTER TABLE events ADD COLUMN venue TEXT NOT NULL DEFAULT '';
 	ALTER TABLE events ADD COLUMN venue_link TEXT NOT NULL DEFAULT '';
 	ALTER TABLE events ADD COLUMN venue_told TEXT NOT NULL DEFAULT '';
+	`,
+	`
+	-- Guest limit and waitlist: the most people going (host included), and who's queuing for a spot.
+	ALTER TABLE events ADD COLUMN guest_limit INTEGER CHECK (guest_limit >= 2);
+	CREATE TABLE waitlist (
+		id INTEGER PRIMARY KEY,
+		event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+		user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		UNIQUE (event_id, user_id)
+	);
 	`
 ];
 

@@ -12,7 +12,9 @@ import {
 	postMessage,
 	removeOption,
 	setPlaylist,
+	setGuestLimit,
 	setRsvp,
+	listWaitlist,
 	setVote,
 	suggestOption,
 	updateOption,
@@ -42,6 +44,7 @@ export const load: PageServerLoad = async ({ params, locals, url, parent }) => {
 		inviteLink: isHost ? `${url.origin}/invite/${event.invite_token}` : null,
 		myGaffs: isHost ? listGaffs(userId) : [],
 		repeatedInto: isHost ? repeatedInto(event.id) : null,
+		waitlist: event.starts_at ? listWaitlist(event.id) : [],
 		payday: getProfile(userId).payday,
 		tickets: event.starts_at ? getTickets(event.id, userId) : null,
 		themes: listThemes(event.id, userId),
@@ -76,7 +79,7 @@ export const actions: Actions = {
 	},
 	rsvp: async (e) => {
 		const { userId, eventId, get } = await eventInput(e);
-		return asAction(() => setRsvp(eventId, userId, get('response') as Rsvp));
+		return asAction(() => ({ rsvp: setRsvp(eventId, userId, get('response') as Rsvp) }));
 	},
 	message: async (e) => {
 		const { userId, eventId, get } = await eventInput(e);
@@ -145,6 +148,7 @@ export const actions: Actions = {
 		return asAction(() => {
 			// The repeat goes first: it's the one most likely to be refused, and nothing is saved if it is.
 			setRepeat(eventId, userId, get('repeat') ? Number(get('repeat')) : null);
+			setGuestLimit(eventId, userId, get('guest_limit') ? Number(get('guest_limit')) : null);
 			setPlaylist(eventId, userId, get('playlist_url'));
 			attachGaff(eventId, userId, Number(get('gaff')) || null);
 			return { saved: true };
