@@ -50,7 +50,8 @@ const PERSONAL: [table: string, column: string][] = [
 	['waitlist', 'user_id'],
 	['drivers', 'user_id'],
 	['taxi_told', 'user_id'],
-	['taxi_told', 'about_id']
+	['taxi_told', 'about_id'],
+	['drink_log', 'user_id']
 ];
 
 /** Everything stored about a user, as plain data for a JSON download. Passwords and session tokens are left out. */
@@ -69,7 +70,10 @@ export function exportData(userId: number) {
 				? 'event_id, award'
 				: table === 'push_subscriptions'
 					? 'endpoint, created_at'
-					: '*';
+					: // Drink taps leave out their ids, whose gaps would count other people's taps.
+						table === 'drink_log'
+						? 'event_id, kind, at'
+						: '*';
 		// Predictions about you are secret until the night starts, so only those from started nights.
 		data[key] =
 			table === 'predictions' && column === 'nominee_id'
@@ -121,7 +125,7 @@ export function deleteAccount(userId: number) {
 			'sessions', 'password_resets', 'push_subscriptions', 'event_members', 'rsvps', 'votes', 'messages', 'notifications',
 			'moves', 'home_plans', 'home_safe', 'group_members', 'free_gaffs', 'pings', 'ping_answers',
 			'event_photos', 'challenge_results', 'game_players', 'round_group_members',
-			'missions', 'bingo_cards', 'buddies', 'ticket_holders', 'theme_votes', 'venue_votes', 'waitlist', 'drivers'
+			'missions', 'bingo_cards', 'buddies', 'ticket_holders', 'theme_votes', 'venue_votes', 'waitlist', 'drivers', 'drink_log'
 		]) {
 			db.prepare(`DELETE FROM ${table} WHERE user_id = ?`).run(userId);
 		}

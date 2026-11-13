@@ -487,6 +487,19 @@ const migrations: string[] = [
 		area_key TEXT NOT NULL,
 		PRIMARY KEY (event_id, user_id, about_id, area_key)
 	);
+	`,
+	`
+	-- Drink and water tracker: each tap, private to the person who made it. The page refers to a tap by
+	-- its random token, never its id, which would show how many taps other people made in between.
+	CREATE TABLE drink_log (
+		id INTEGER PRIMARY KEY,
+		token TEXT NOT NULL UNIQUE DEFAULT (lower(hex(randomblob(12)))),
+		event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+		user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		kind TEXT NOT NULL CHECK (kind IN ('drink', 'water')),
+		at TEXT NOT NULL DEFAULT (datetime('now'))
+	);
+	CREATE INDEX drink_log_person ON drink_log (event_id, user_id);
 	`
 ];
 

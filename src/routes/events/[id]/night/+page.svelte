@@ -22,6 +22,7 @@
 	const pr = $derived(data.predictions);
 	const bingo = $derived(data.bingo);
 	const buddies = $derived(data.buddies);
+	const drinks = $derived(data.drinks);
 	let preview = $state<string | null>(null);
 	const moveTime = (utc: string) =>
 		new Date(utc.replace(' ', 'T') + 'Z').toLocaleTimeString('en-GB', { hour: 'numeric', minute: '2-digit' });
@@ -287,6 +288,45 @@
 					<button class="btn-secondary" name="reshuffle" value="1">Reshuffle all</button>
 				{/if}
 			</form>
+		{/if}
+	</section>
+
+	<section class="card space-y-3" id="drinks">
+		<div class="flex flex-wrap items-baseline justify-between gap-2">
+			<h2>Drinks</h2>
+			<span class="text-xs text-zinc-500">Only you can see this</span>
+		</div>
+		{#if going}
+			<!-- Always on the page, so screen readers hear the new count and the nudge after each tap. -->
+			<div class="space-y-3" role="status">
+				<div class="stats">
+					<div class="stat"><b>{drinks.drinks}</b><span>{drinks.drinks === 1 ? 'Drink' : 'Drinks'}</span></div>
+					<div class="stat"><b class="!text-lime">{drinks.waters}</b><span>{drinks.waters === 1 ? 'Water' : 'Waters'}</span></div>
+				</div>
+				{#if drinks.haveWater}
+					<p class="border border-lime px-3 py-2.5 text-sm"><span class="badge text-lime">Have a water</span>
+						{drinks.sinceWater} drinks {drinks.waters ? 'since your last water' : 'and no water yet'}. One before the next?</p>
+				{/if}
+			</div>
+			<!-- Each tap sends your last tap's token, so a double tap or a stale tab only counts once. -->
+			<form method="POST" action="?/drink" use:enhance class="joined [&>*]:flex-1">
+				<input type="hidden" name="after" value={drinks.last} />
+				<button class={drinks.haveWater ? 'btn-secondary' : 'btn'} name="kind" value="drink">+ Drink</button>
+				<button class={drinks.haveWater ? 'btn' : 'btn-secondary'} name="kind" value="water">+ Water</button>
+			</form>
+			<div class="flex flex-wrap items-center justify-between gap-2">
+				{#if !drinks.haveWater}
+					<p class="text-xs text-zinc-500">After {data.waterEvery} drinks in a row, you’ll be reminded to have a water.</p>
+				{/if}
+				{#if drinks.last}
+					<form method="POST" action="?/undoDrink" use:enhance class="ml-auto">
+						<input type="hidden" name="last" value={drinks.last} />
+						<button class="min-h-8 text-[11px] font-extrabold tracking-widest text-zinc-500 uppercase underline underline-offset-4 hover:text-hot">Undo last {drinks.lastKind}</button>
+					</form>
+				{/if}
+			</div>
+		{:else}
+			<p class="text-sm text-zinc-500">RSVP “going” to count your drinks.</p>
 		{/if}
 	</section>
 
