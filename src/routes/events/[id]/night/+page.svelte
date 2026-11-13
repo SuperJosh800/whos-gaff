@@ -263,6 +263,8 @@
 			</p>
 		{:else if going}
 			<p class="text-sm text-zinc-500">{data.isHost ? 'Pair everyone up so nobody gets left behind.' : 'No buddy yet. The host pairs everyone up.'}</p>
+		{:else}
+			<p class="text-sm text-zinc-500">RSVP “going” to get a buddy.</p>
 		{/if}
 		{#if buddies.groups.length}
 			<ul class="divide-y divide-zinc-200 border border-zinc-200 text-sm">

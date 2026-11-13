@@ -83,12 +83,43 @@ describe('buddy system', () => {
 		expect(getBuddies(id, p0.id).mine).toHaveLength(2);
 	});
 
-	it('reshuffles everyone when asked', () => {
-		const { id, host } = night(5);
+	it('never makes more than one three as people join, and tells only people whose buddies changed', () => {
+		const { id, host, people } = night(2);
 		pairUp(id, host.id);
-		pairUp(id, host.id, true);
-		expect(sizes(id, host.id)).toEqual([2, 2, 2]);
-		expect(getBuddies(id, host.id).unpaired).toEqual([]);
+		expect(sizes(id, host.id)).toEqual([3]);
+		const first = [host, ...people];
+		const a = join(id);
+		pairUp(id, host.id);
+		expect(sizes(id, host.id)).toEqual([2, 2]);
+		// One of the three moved to pair with A; that person, A and the two left together are all told.
+		expect(first.filter((p) => notes(p.id, /Your buddy tonight/).length === 2)).toHaveLength(3);
+		join(id);
+		pairUp(id, host.id);
+		expect(sizes(id, host.id)).toEqual([2, 3]);
+		for (let i = 0; i < 3; i++) join(id);
+		pairUp(id, host.id);
+		expect(sizes(id, host.id)).toEqual([2, 2, 2, 2]);
+		const told = (p: User) => notes(p.id, /Your buddy tonight/).length;
+		const counts = [...first, a].map(told);
+		pairUp(id, host.id); // nothing to do: nobody is told
+		expect([...first, a].map(told)).toEqual(counts);
+	});
+
+	it('reshuffles everyone when asked, keeping each person’s ping limit', () => {
+		const { id, host, people } = night(4);
+		pairUp(id, host.id);
+		const t = Date.parse('2099-06-20T23:00:00Z');
+		pingBuddy(id, people[0].id, DURING, t);
+		const before = pairsOf(id, host.id);
+		let changed = false;
+		// 10 ways to split 5 people into a pair and a three: 20 reshuffles all matching is 1 in 10^20.
+		for (let i = 0; i < 20 && !changed; i++) {
+			pairUp(id, host.id, true);
+			changed = pairsOf(id, host.id).join() !== before.join();
+		}
+		expect(changed).toBe(true);
+		expect(sizes(id, host.id)).toEqual([2, 3]);
+		expect(pingBuddy(id, people[0].id, DURING, t + 60_000)).toBeNull();
 	});
 
 	it('pings your buddy once the night starts, at most every five minutes', () => {
@@ -104,6 +135,8 @@ describe('buddy system', () => {
 		pingBuddy(id, p0.id, DURING, t + 5 * 60_000);
 		expect(notes(host.id, /looking for you/)).toEqual(['P0 is looking for you. Where are you?', 'P0 is looking for you. Where are you?']);
 		expect(notes(p0.id, /looking for you/)).toEqual(['Host is looking for you. Where are you?']);
+		checkInHomeSafe(id, host.id, DURING);
+		expect(() => pingBuddy(id, p0.id, DURING, t + 20 * 60_000)).toThrow('already home safe');
 	});
 
 	it('tells your buddies, and only them, once when you check in home safe', () => {
