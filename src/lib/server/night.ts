@@ -3,6 +3,8 @@ import { publish } from './realtime.ts';
 import { buddiesOf } from './buddies.ts';
 import { notify } from './notifications.ts';
 import { EventError, requireHost, requireMember } from './events.ts';
+import { attempt } from './ratelimit.ts';
+import { canSeeAddress } from './gaff.ts';
 import { isLocalDateTime, nowLocal, shiftLocal } from '../time.ts';
 
 // ---- Pres → pub → club timeline (WG-19) ----
@@ -91,13 +93,13 @@ export const HOME_KINDS = {
 } as const;
 export type HomeKind = keyof typeof HOME_KINDS;
 
-export type HomePlanRow = { user_id: number; name: string; kind: HomeKind | null; details: string | null };
+export type HomePlanRow = { user_id: number; name: string; kind: HomeKind | null; details: string | null; area: string | null };
 
 /** Everyone going (and the host), with their plan; kind is null when they have no way home yet. */
 export function listHomePlans(eventId: number) {
 	return db
 		.prepare(
-			`SELECT u.id AS user_id, u.name, p.kind, p.details FROM event_members m
+			`SELECT u.id AS user_id, u.name, p.kind, p.details, p.area FROM event_members m
 			 JOIN events e ON e.id = m.event_id
 			 JOIN users u ON u.id = m.user_id
 			 LEFT JOIN rsvps r ON r.event_id = m.event_id AND r.user_id = m.user_id
@@ -108,13 +110,59 @@ export function listHomePlans(eventId: number) {
 		.all(eventId) as HomePlanRow[];
 }
 
-export function setHomePlan(eventId: number, userId: number, kind: string, details: string) {
-	requireMember(eventId, userId);
+/** Areas match whatever the spelling: "The West End", "west end." and "Wést End" are the same way home. */
+export function areaKey(area: string) {
+	return area
+		.normalize('NFKD')
+		.replace(/\p{M}/gu, '')
+		.toLowerCase()
+		.replace(/[^\p{L}\p{N}]+/gu, ' ')
+		.trim()
+		.replace(/^the /, '');
+}
+
+export type TaxiShare = { area: string; people: { user_id: number; name: string }[] };
+
+/** Share a taxi: people going who are heading to the same area, two or more to a group, biggest first. */
+export function taxiShares(plans: HomePlanRow[]) {
+	const groups = new Map<string, TaxiShare>();
+	for (const p of plans) {
+		const key = areaKey(p.area ?? '');
+		if (!key) continue;
+		const group = groups.get(key) ?? { area: p.area!, people: [] };
+		group.people.push({ user_id: p.user_id, name: p.name });
+		groups.set(key, group);
+	}
+	return [...groups.values()].filter((g) => g.people.length > 1).sort((a, b) => b.people.length - a.people.length);
+}
+
+export function setHomePlan(eventId: number, userId: number, kind: string, details: string, area = '') {
+	const event = requireMember(eventId, userId);
+	// Plans are only shown to people going, so only they can add one.
+	if (!canSeeAddress(event, userId)) throw new EventError('RSVP “going” to add your plan.');
 	if (!(kind in HOME_KINDS)) throw new EventError('Choose how you’re getting home.');
+	area = area.trim().slice(0, 60).replace(/[.,;:!?\s]+$/, '');
 	db.prepare(
-		`INSERT INTO home_plans (event_id, user_id, kind, details) VALUES (?, ?, ?, ?)
-		 ON CONFLICT (event_id, user_id) DO UPDATE SET kind = excluded.kind, details = excluded.details`
-	).run(eventId, userId, kind, details.trim().slice(0, 200));
+		`INSERT INTO home_plans (event_id, user_id, kind, details, area) VALUES (?, ?, ?, ?, ?)
+		 ON CONFLICT (event_id, user_id) DO UPDATE SET kind = excluded.kind, details = excluded.details, area = excluded.area`
+	).run(eventId, userId, kind, details.trim().slice(0, 200), area);
+	// Tells the people going who are already heading that way. Each person hears about someone heading
+	// their way once per area (re-saving stays quiet), and gets at most 3 of these an hour.
+	const key = areaKey(area);
+	if (key) {
+		const plans = listHomePlans(eventId);
+		const me = plans.find((p) => p.user_id === userId)!;
+		for (const p of plans) {
+			if (p.user_id === userId || areaKey(p.area ?? '') !== key) continue;
+			const told = db.prepare('SELECT 1 FROM taxi_told WHERE event_id = ? AND user_id = ? AND about_id = ? AND area_key = ?').get(eventId, p.user_id, userId, key);
+			if (told || !attempt(`taxi:${eventId}:${p.user_id}`, 3, 3_600_000).ok) continue;
+			// Both ways: whoever just picked the area already sees the other person in the group.
+			const tell = db.prepare('INSERT OR IGNORE INTO taxi_told (event_id, user_id, about_id, area_key) VALUES (?, ?, ?, ?)');
+			tell.run(eventId, p.user_id, userId, key);
+			tell.run(eventId, userId, p.user_id, key);
+			notify(p.user_id, eventId, `${me.name} is heading to ${p.area} too. Share a taxi or go together? (${event.title})`, '/night');
+		}
+	}
 	publish(eventId);
 }
 

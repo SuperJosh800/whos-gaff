@@ -9,6 +9,10 @@
 	const myPlan = $derived(data.homePlans.find((p) => p.user_id === me));
 	const noPlan = $derived(data.homePlans.filter((p) => !p.kind));
 	const kinds = $derived(Object.entries(data.homeKinds));
+	// Your own group first.
+	const shares = $derived(
+		[...data.taxiShares].sort((a, b) => Number(b.people.some((p) => p.user_id === me)) - Number(a.people.some((p) => p.user_id === me)))
+	);
 	const started = $derived(!!data.event.starts_at && data.now >= data.event.starts_at);
 	const overdue = $derived(!!data.cutoff && data.now >= data.cutoff);
 	const meCheckedIn = $derived(data.checkIns.find((c) => c.user_id === me)?.at);
@@ -294,14 +298,16 @@
 			{/if}
 		</div>
 		{#if myPlan}
-			<form method="POST" action="?/homePlan" use:enhance={() => async ({ update }) => update({ reset: false })} class="grid border border-zinc-200 sm:grid-cols-[1fr_2fr_auto] [&>*]:border-0 [&>*+*]:border-t [&>*+*]:border-zinc-200 sm:[&>*+*]:border-t-0 sm:[&>*+*]:border-l">
+			<form method="POST" action="?/homePlan" use:enhance={() => async ({ update }) => update({ reset: false })} class="grid border border-zinc-200 sm:grid-cols-[1fr_1fr_2fr_auto] [&>*]:border-0 [&>*+*]:border-t [&>*+*]:border-zinc-200 sm:[&>*+*]:border-t-0 sm:[&>*+*]:border-l">
 				<select class="input" name="kind" required aria-label="How you're getting home" value={myPlan.kind ?? ''}>
 					<option value="" disabled>How are you getting home?</option>
 					{#each kinds as [value, label] (value)}<option {value}>{label}</option>{/each}
 				</select>
+				<input class="input" name="area" maxlength="60" placeholder="Heading to, e.g. Partick" aria-label="Area you're heading to" aria-describedby="area-hint" value={myPlan.area ?? ''} />
 				<input class="input" name="details" placeholder="e.g. 00:12 from Partick, Uber with Sam" aria-label="Details" value={myPlan.details ?? ''} />
 				<button class="btn-secondary">Save</button>
 			</form>
+			<p id="area-hint" class="text-xs text-zinc-500">Add the area, not your address, and you’ll be matched with anyone heading the same way.</p>
 		{:else}
 			<p class="text-sm text-zinc-500">RSVP “going” to add your plan.</p>
 		{/if}
@@ -315,12 +321,27 @@
 				</form>
 			</div>
 		{/if}
+		{#if shares.length}
+			<div>
+				<h3 class="mb-2 text-[11px] font-extrabold tracking-widest uppercase">Share a taxi</h3>
+				<ul class="divide-y divide-zinc-200 border border-zinc-200">
+					{#each shares as g (g.area)}
+						{@const mine = g.people.some((p) => p.user_id === me)}
+						<li class="grid grid-cols-[minmax(6rem,45%)_1fr] text-sm">
+							<span class="border-r border-zinc-200 px-3 py-2.5 font-extrabold break-words {mine ? 'bg-lime text-ink' : ''}">{g.area}</span>
+							<p class="min-w-0 px-3 py-2.5 break-words">{(mine ? ['You', ...g.people.filter((p) => p.user_id !== me).map((p) => p.name)] : g.people.map((p) => p.name)).join(', ')}
+								<span class="block text-xs text-zinc-500">{g.people.length} heading the same way</span></p>
+						</li>
+					{/each}
+				</ul>
+			</div>
+		{/if}
 		{#if data.homePlans.some((p) => p.kind)}
 			<ul class="divide-y divide-zinc-200 border border-zinc-200">
 				{#each data.homePlans.filter((p) => p.kind) as p (p.user_id)}
 					<li class="grid grid-cols-[6rem_1fr] text-sm">
 						<span class="border-r border-zinc-200 px-3 py-2.5 font-extrabold">{p.name}</span>
-						<p class="min-w-0 px-3 py-2.5"><span class="text-[11px] font-extrabold tracking-widest uppercase">{data.homeKinds[p.kind!]}</span>
+						<p class="min-w-0 px-3 py-2.5 break-words"><span class="text-[11px] font-extrabold tracking-widest uppercase">{data.homeKinds[p.kind!]}{#if p.area}<span class="text-zinc-500">{` to ${p.area}`}</span>{/if}</span>
 							{#if p.details}<span class="block text-zinc-600">{p.details}</span>{/if}</p>
 					</li>
 				{/each}

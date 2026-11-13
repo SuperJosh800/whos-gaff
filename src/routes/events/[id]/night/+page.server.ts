@@ -12,9 +12,11 @@ import {
 	nudgeNoPlan,
 	postMove,
 	removeStage,
-	setHomePlan
+	setHomePlan,
+	taxiShares
 } from '#lib/server/night.ts';
 import { eventInput } from '#lib/server/form.ts';
+import { canSeeAddress } from '#lib/server/gaff.ts';
 import { callOut, completeMission, getMissions, swapMission, takeMission } from '#lib/server/missions.ts';
 import { nowLocal } from '#lib/time.ts';
 import { AWARDS, getPredictions, savePredictions } from '#lib/server/after.ts';
@@ -25,11 +27,15 @@ import type { Actions, PageServerLoad } from './$types';
 export const load: PageServerLoad = async ({ params, parent, locals }) => {
 	const { address } = await parent();
 	const event = getEvent(Number(params.id))!;
+	// Where people are heading home could give away the gaff, so like the address it's only for people going.
+	const going = canSeeAddress(event, locals.user!.id);
+	const homePlans = listHomePlans(event.id).map((p) => (going ? p : { ...p, area: null, details: null }));
 	return {
 		stages: listStages(event.id),
 		nextStageAt: nextStageTime(event.id),
 		moves: listMoves(event.id),
-		homePlans: listHomePlans(event.id),
+		homePlans,
+		taxiShares: taxiShares(homePlans),
 		homeKinds: HOME_KINDS,
 		checkIns: listCheckIns(event.id),
 		cutoff: event.starts_at ? homeSafeCutoff(event.starts_at) : null,
@@ -61,7 +67,7 @@ export const actions: Actions = {
 	},
 	homePlan: async (e) => {
 		const { userId, eventId, get } = await eventInput(e);
-		return asAction(() => setHomePlan(eventId, userId, get('kind'), get('details')));
+		return asAction(() => setHomePlan(eventId, userId, get('kind'), get('details'), get('area')));
 	},
 	nudge: async (e) => {
 		const { userId, eventId } = await eventInput(e);
