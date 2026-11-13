@@ -16,7 +16,7 @@ export const load: LayoutServerLoad = ({ params, locals, url, depends }) => {
 	const unlocked = canSeeAddress(full, locals.user.id);
 	const gaff = full.gaff_id ? getGaff(full.gaff_id) : undefined;
 	const address = gaff?.address || full.location;
-	const { location: _, invite_token: __, ...event } = full;
+	const { location: _, invite_token: __, theme_told: ___, ...event } = full;
 	return {
 		event,
 		isHost: full.host_id === locals.user.id,

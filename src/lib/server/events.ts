@@ -20,6 +20,9 @@ export type Event = {
 	created_at: string;
 	gaff_id: number | null;
 	playlist_url: string;
+	/** The dress code or theme the host locked in, or '' while it's still a poll. */
+	theme: string;
+	theme_told: string;
 };
 
 export type DateOption = {

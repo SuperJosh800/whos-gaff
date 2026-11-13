@@ -22,6 +22,7 @@ import { attachGaff, listGaffs } from '#lib/server/gaff.ts';
 import { eventInput } from '#lib/server/form.ts';
 import { getProfile } from '#lib/server/auth.ts';
 import { getTickets, nudgeTickets, setHaveTicket, setTickets } from '#lib/server/tickets.ts';
+import { listThemes, lockTheme, removeTheme, reopenTheme, suggestTheme, voteTheme } from '#lib/server/themes.ts';
 import type { Actions, PageServerLoad } from './$types';
 
 // The layout load has already checked that the user is logged in and invited.
@@ -39,7 +40,8 @@ export const load: PageServerLoad = async ({ params, locals, url, parent }) => {
 		inviteLink: isHost ? `${url.origin}/invite/${event.invite_token}` : null,
 		myGaffs: isHost ? listGaffs(userId) : [],
 		payday: getProfile(userId).payday,
-		tickets: event.starts_at ? getTickets(event.id, userId) : null
+		tickets: event.starts_at ? getTickets(event.id, userId) : null,
+		themes: listThemes(event.id, userId)
 	};
 };
 
@@ -93,6 +95,26 @@ export const actions: Actions = {
 	nudgeTickets: async (e) => {
 		const { userId, eventId } = await eventInput(e);
 		return asAction(() => ({ nudged: nudgeTickets(eventId, userId) }));
+	},
+	suggestTheme: async (e) => {
+		const { userId, eventId, get } = await eventInput(e);
+		return asAction(() => suggestTheme(eventId, userId, get('label')));
+	},
+	voteTheme: async (e) => {
+		const { userId, eventId, get } = await eventInput(e);
+		return asAction(() => voteTheme(eventId, userId, get('option') ? Number(get('option')) : null));
+	},
+	removeTheme: async (e) => {
+		const { userId, eventId, get } = await eventInput(e);
+		return asAction(() => removeTheme(eventId, userId, Number(get('option'))));
+	},
+	lockTheme: async (e) => {
+		const { userId, eventId, get } = await eventInput(e);
+		return asAction(() => lockTheme(eventId, userId, Number(get('option'))));
+	},
+	reopenTheme: async (e) => {
+		const { userId, eventId } = await eventInput(e);
+		return asAction(() => reopenTheme(eventId, userId));
 	},
 	settings: async (e) => {
 		const { userId, eventId, get } = await eventInput(e);
