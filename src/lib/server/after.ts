@@ -43,7 +43,7 @@ export function voteAward(eventId: number, voterId: number, award: string, nomin
 }
 
 // Winners are whoever has the most votes for an award at an event; ties share it.
-const WINNERS = `
+export const WINNERS = `
 	WITH counts AS (
 		SELECT event_id, award, nominee_id, COUNT(*) AS votes FROM award_votes GROUP BY event_id, award, nominee_id
 	), best AS (
