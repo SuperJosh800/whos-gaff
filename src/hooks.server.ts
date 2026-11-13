@@ -1,10 +1,15 @@
 import type { Handle } from '@sveltejs/kit/hooks';
 import { getSessionUser, hashToken, purgeExpired, SESSION_COOKIE } from '#lib/server/auth.ts';
 import { makeRepeats } from '#lib/server/repeats.ts';
+import { purgeDrinks } from '#lib/server/drinks.ts';
 
-// Clear out expired sessions and reset links once an hour.
-purgeExpired();
-setInterval(() => purgeExpired(), 60 * 60 * 1000).unref?.();
+// Clear out expired sessions and reset links, and week-old drink taps, once an hour.
+const purge = () => {
+	purgeExpired();
+	purgeDrinks();
+};
+purge();
+setInterval(purge, 60 * 60 * 1000).unref?.();
 
 // Make the next night for repeating events once they've started. Checked every 10 minutes.
 const repeats = () => {

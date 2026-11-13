@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { signUp, type User } from './auth.ts';
 import { createEvent, getEvent, joinByToken, setRsvp } from './events.ts';
-import { getDrinks, logDrink, undoDrink } from './drinks.ts';
+import { getDrinks, logDrink, purgeDrinks, undoDrink } from './drinks.ts';
+import { deleteAccount, exportData } from './account.ts';
+import { db } from './db.ts';
 
 let n = 0;
 const user = (name: string) => signUp(`${name}${++n}@drinks.test`, name, 'correct-horse-9') as User;
@@ -51,6 +53,45 @@ describe('drink and water tracker', () => {
 		expect(counts(id, sam.id)).toEqual({ drinks: 1, waters: 0, haveWater: false });
 	});
 
+	it('ignores a stale tab after an undo and a new tap', () => {
+		const { id, sam } = night();
+		tap(id, sam.id, 'drink');
+		const tabA = getDrinks(id, sam.id).last; // tab A still shows the drink
+		undoDrink(id, sam.id, tabA); // tab B undoes it…
+		tap(id, sam.id, 'water'); // …and taps a water
+		undoDrink(id, sam.id, tabA);
+		logDrink(id, sam.id, 'drink', tabA);
+		expect(counts(id, sam.id)).toEqual({ drinks: 0, waters: 1, haveWater: false });
+	});
+
+	it('never shows row ids, whose gaps would count other people’s taps', () => {
+		const { id, host, sam } = night();
+		tap(id, sam.id, 'drink');
+		const first = getDrinks(id, sam.id).last;
+		tap(id, host.id, 'drink');
+		tap(id, sam.id, 'water');
+		expect(first).toMatch(/^[0-9a-f]{24}$/);
+		expect(getDrinks(id, sam.id).last).not.toBe(first);
+		const rows = exportData(sam.id).drink_log as Record<string, unknown>[];
+		expect(rows.map((r) => Object.keys(r).sort())).toEqual([
+			['at', 'event_id', 'kind'],
+			['at', 'event_id', 'kind']
+		]);
+	});
+
+	it('deletes taps after a week, and when you delete your account', () => {
+		const { id, host, sam } = night();
+		tap(id, sam.id, 'drink');
+		tap(id, sam.id, 'drink');
+		tap(id, host.id, 'water');
+		db.prepare("UPDATE drink_log SET at = datetime('now', '-8 days') WHERE id = (SELECT MIN(id) FROM drink_log WHERE user_id = ?)").run(sam.id);
+		purgeDrinks();
+		expect(counts(id, sam.id).drinks).toBe(1);
+		deleteAccount(sam.id);
+		expect(db.prepare('SELECT COUNT(*) AS n FROM drink_log WHERE user_id = ?').get(sam.id)).toEqual({ n: 0 });
+		expect(counts(id, host.id).waters).toBe(1);
+	});
+
 	it('keeps each person’s count to themselves, on each night', () => {
 		const { id, host, sam } = night();
 		const other = night();
@@ -77,6 +118,11 @@ describe('drink and water tracker', () => {
 		undoDrink(id, sam.id, last);
 		undoDrink(id, sam.id, last);
 		expect(counts(id, sam.id)).toEqual({ drinks: 1, waters: 0, haveWater: false });
+		// Still works after you stop going.
+		setRsvp(id, sam.id, 'no');
+		undoDrink(id, sam.id, first);
+		expect(counts(id, sam.id)).toEqual({ drinks: 0, waters: 0, haveWater: false });
+		expect(() => undoDrink(id, user('Stranger').id, first)).toThrow('not invited');
 	});
 
 	it('is only for people going', () => {

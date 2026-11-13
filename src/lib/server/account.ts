@@ -70,7 +70,10 @@ export function exportData(userId: number) {
 				? 'event_id, award'
 				: table === 'push_subscriptions'
 					? 'endpoint, created_at'
-					: '*';
+					: // Drink taps leave out their ids, whose gaps would count other people's taps.
+						table === 'drink_log'
+						? 'event_id, kind, at'
+						: '*';
 		// Predictions about you are secret until the night starts, so only those from started nights.
 		data[key] =
 			table === 'predictions' && column === 'nominee_id'

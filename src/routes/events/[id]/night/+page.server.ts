@@ -78,11 +78,11 @@ export const actions: Actions = {
 	},
 	drink: async (e) => {
 		const { userId, eventId, get } = await eventInput(e);
-		return asAction(() => logDrink(eventId, userId, get('kind'), Number(get('after'))));
+		return asAction(() => logDrink(eventId, userId, get('kind'), get('after')));
 	},
 	undoDrink: async (e) => {
 		const { userId, eventId, get } = await eventInput(e);
-		return asAction(() => undoDrink(eventId, userId, Number(get('last'))));
+		return asAction(() => undoDrink(eventId, userId, get('last')));
 	},
 	homeSafe: async (e) => {
 		const { userId, eventId } = await eventInput(e);
