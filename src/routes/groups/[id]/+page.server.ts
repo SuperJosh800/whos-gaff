@@ -47,7 +47,8 @@ export const load: PageServerLoad = ({ params, locals, url }) => {
 		topQuote: topQuote(groupId),
 		birthdays: upcomingBirthdays(groupId),
 		payday: getProfile(locals.user.id).payday,
-		today: nowLocal().slice(0, 10)
+		today: nowLocal().slice(0, 10),
+		now: nowLocal()
 	};
 };
 

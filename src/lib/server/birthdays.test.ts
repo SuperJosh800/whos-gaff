@@ -33,8 +33,10 @@ describe('birthdays', () => {
 
 	it('checks the birthday on the profile, and keeps it when it isn’t sent', () => {
 		const u = user('Ana');
-		for (const bad of ['02-30', '13-01', '00-10', '05-00', '04-31', '4-1', '-05'])
-			expect(updateProfile(u.id, { name: 'Ana', paymentLink: '', payday: '', birthday: bad })).toMatch('Pick both');
+		for (const bad of ['02-30', '13-01', '00-10', '05-00', '04-31'])
+			expect(updateProfile(u.id, { name: 'Ana', paymentLink: '', payday: '', birthday: bad })).toMatch('doesn’t exist');
+		for (const half of ['4-1', '-05', '04-'])
+			expect(updateProfile(u.id, { name: 'Ana', paymentLink: '', payday: '', birthday: half })).toMatch('Pick both');
 		expect(updateProfile(u.id, { name: 'Ana', paymentLink: '', payday: '', birthday: '02-29' })).toBeNull();
 		expect(updateProfile(u.id, { name: 'Ana B', paymentLink: '', payday: '' })).toBeNull();
 		expect(getProfile(u.id).birthday).toBe('02-29');

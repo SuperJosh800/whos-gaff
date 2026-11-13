@@ -29,11 +29,11 @@
 		<fieldset>
 			<legend class="label">Birthday <span class="font-normal text-zinc-500">(optional, no year)</span></legend>
 			<div class="joined w-64">
-				<select class="input" name="birth_day" aria-label="Birthday day" value={data.profile.birthday?.slice(3) ?? ''}>
+				<select class="input" name="birth_day" aria-label="Birthday day" autocomplete="bday-day" value={data.profile.birthday?.slice(3) ?? ''}>
 					<option value="">Day</option>
 					{#each Array.from({ length: 31 }, (_, i) => String(i + 1).padStart(2, '0')) as d (d)}<option value={d}>{Number(d)}</option>{/each}
 				</select>
-				<select class="input" name="birth_month" aria-label="Birthday month" value={data.profile.birthday?.slice(0, 2) ?? ''}>
+				<select class="input" name="birth_month" aria-label="Birthday month" autocomplete="bday-month" value={data.profile.birthday?.slice(0, 2) ?? ''}>
 					<option value="">Month</option>
 					{#each MONTHS as m, i (m)}<option value={String(i + 1).padStart(2, '0')}>{m}</option>{/each}
 				</select>

@@ -90,7 +90,9 @@ export function updateProfile(userId: number, input: { name: string; paymentLink
 	}
 	// "MM-DD", or empty for none; left alone when not given.
 	const birthday = input.birthday === undefined ? getProfile(userId).birthday : input.birthday || null;
-	if (birthday !== null && !isBirthday(birthday)) return 'Pick both the day and month of your birthday, or neither.';
+	if (birthday !== null && !isBirthday(birthday)) {
+		return /^\d{2}-\d{2}$/.test(birthday) ? 'That birthday doesn’t exist. Check the day and month.' : 'Pick both the day and month of your birthday, or neither.';
+	}
 	db.prepare('UPDATE users SET name = ?, payment_link = ?, payday = ?, birthday = ? WHERE id = ?').run(name, paymentLink, payday, birthday, userId);
 	return null;
 }
